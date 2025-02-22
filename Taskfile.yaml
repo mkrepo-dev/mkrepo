@@ -13,7 +13,7 @@ vars:
     sh: git rev-parse --short HEAD
 
   REGISTRY: ghcr.io
-  NAMESPACE: FilipSolich
+  NAMESPACE: filipsolich
   IMAGE: '{{.REGISTRY}}/{{.NAMESPACE}}/mkrepo'
   TAG_LATEST: '{{.IMAGE}}:latest'
   TAG_VERSION: '{{.IMAGE}}:{{.VERSION}}'
