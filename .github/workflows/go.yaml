@@ -12,9 +12,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 25
-          fetch-tags: true
+        #with:
+        #  fetch-depth: 25
+        #  fetch-tags: true
+
+      - name: Fetch tags
+        run: git fetch --unshallow --tags
 
       - name: Set up Go
         uses: actions/setup-go@v5
