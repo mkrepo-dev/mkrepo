@@ -33,4 +33,4 @@ jobs:
         run: task docker:build
 
       - name: Docker push
-        run: task docker:build
+        run: task docker:push
