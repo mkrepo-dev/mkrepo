@@ -16,10 +16,6 @@ jobs:
           fetch-tags: true
           fetch-depth: 0
 
-      - name: Fetch tags
-        run: |
-          git fetch --tags --force
-
       - name: List tags
         run: |
           git tag --list
