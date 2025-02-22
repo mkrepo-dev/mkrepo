@@ -12,9 +12,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        #with:
-        #  fetch-depth: 25
-        #  fetch-tags: true
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Fetch tags
         run: git fetch --unshallow --tags
