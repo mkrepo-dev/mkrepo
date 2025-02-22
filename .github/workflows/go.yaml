@@ -47,9 +47,6 @@ jobs:
       - name: Install Task
         uses: arduino/setup-task@v2
 
-      - name: Setup
-        uses: ./.github/workflows/setup.yml
-
       - name: Build
         run: task build
 
@@ -67,9 +64,6 @@ jobs:
       - name: Install Task
         uses: arduino/setup-task@v2
 
-      - name: Setup
-        uses: ./.github/workflows/setup.yml
-
       - name: Test
         run: task test
 
@@ -86,9 +80,6 @@ jobs:
 
       - name: Install Task
         uses: arduino/setup-task@v2
-
-      - name: Setup
-        uses: ./.github/workflows/setup.yml
 
       - name: Docker build
         run: task docker:build
