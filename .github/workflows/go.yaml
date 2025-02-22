@@ -18,9 +18,10 @@ jobs:
 
       - name: Fetch tags
         run: |
-          git tag --list
           git fetch --tags --force
-          echo $?
+
+      - name: List tags
+        run: |
           git tag --list
 
       - name: Set up Go
