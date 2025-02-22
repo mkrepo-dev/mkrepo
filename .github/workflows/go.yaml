@@ -16,12 +16,12 @@ jobs:
           fetch-tags: true
           fetch-depth: 0
 
-      #- name: Fetch tags
-      #  run: |
-      #    git tag --list
-      #    git fetch --tags --force
-      #    echo $?
-      #    git tag --list
+      - name: Fetch tags
+        run: |
+          git tag --list
+          git fetch --tags --force
+          echo $?
+          git tag --list
 
       - name: Set up Go
         uses: actions/setup-go@v5
