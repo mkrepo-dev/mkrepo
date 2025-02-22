@@ -8,23 +8,27 @@ RUN go mod download
 ARG MODULE
 ARG VERSION
 ARG DATETIME
+ARG REVISION
 
 COPY ./ ./
-RUN go build \
-    -ldflags "-X $MODULE/internal/version.Version=$VERSION -X $MODULE/internal/version.BuildDatetime=$DATETIME" \
+RUN CGO_ENABLED=0 GOAMD64=v2 go build \
+    -ldflags "-X $MODULE/internal.version=$VERSION -X $MODULE/internal.revision=$REVISION -X $MODULE/internal.buildDatetime=$DATETIME" \
     -o bin/server $MODULE/cmd/server
 
 
 FROM gcr.io/distroless/static-debian12
 
-COPY --from=build /app/bin/server /
+WORKDIR /app
 
-CMD ["/server"]
+COPY --from=build /app/bin/ .
+
+CMD ["./server"]
 
 ARG VERSION
 ARG DATETIME
 ARG REVISION
 ARG IMAGE_REF
+
 LABEL \
     org.opencontainers.image.title="mkrepo" \
     org.opencontainers.image.description="mkrepo is webapp for bootstraping repo on diffrent VCS providers" \

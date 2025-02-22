@@ -14,7 +14,7 @@ func main() {
 	slog.Info("Started mkrepo server",
 		slog.String("version", version.Version),
 		slog.String("goVersion", version.GoVersion),
-		slog.String("revision", version.Revision),
+		slog.String("revision", version.Revision[:7]),
 		slog.String("buildDatetime", version.BuildDatetime),
 	)
 
