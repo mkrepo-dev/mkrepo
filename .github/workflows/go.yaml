@@ -1,0 +1,56 @@
+name: Go
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup
+        uses: ./.github/workflows/setup.yml
+
+      - name: Fmt Go code
+        run: "[ ! $(task fmt) ]"
+
+      - name: Vet Go code
+        run: task vet
+
+      - name: Lint Go code
+        run: taks lint
+
+      - name: Vulnerability check
+        run: task vulncheck
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup
+        uses: ./.github/workflows/setup.yml
+
+      - name: Build
+        run: task build
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup
+        uses: ./.github/workflows/setup.yml
+
+      - name: Test
+        run: task test
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup
+        uses: ./.github/workflows/setup.yml
+
+      - name: Docker build
+        run: task docker:build
+
+      - name: Docker push
+        run: task docker:build
