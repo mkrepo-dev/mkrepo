@@ -10,8 +10,16 @@ jobs:
   static:
     runs-on: ubuntu-latest
     steps:
-      - name: Setup
-        uses: ./.github/workflows/setup.yml
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
 
       - name: Fmt Go code
         run: "[ ! $(task fmt) ]"
@@ -28,6 +36,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+
       - name: Setup
         uses: ./.github/workflows/setup.yml
 
@@ -37,6 +56,17 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+
       - name: Setup
         uses: ./.github/workflows/setup.yml
 
@@ -46,6 +76,17 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+
       - name: Setup
         uses: ./.github/workflows/setup.yml
 
