@@ -1,4 +1,4 @@
-package internal
+package log
 
 import (
 	"log/slog"
@@ -31,4 +31,8 @@ func SetupLogger() {
 	logger := slog.New(handler)
 
 	slog.SetDefault(logger)
+}
+
+func Err(err error) slog.Attr {
+	return slog.String("err", err.Error())
 }

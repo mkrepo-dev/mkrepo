@@ -1,14 +1,19 @@
 package main
 
 import (
+	"html/template"
 	"log/slog"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/FilipSolich/mkrepo/internal"
+	"github.com/FilipSolich/mkrepo/internal/log"
+	"github.com/FilipSolich/mkrepo/internal/templates"
 )
 
 func main() {
-	internal.SetupLogger()
+	log.SetupLogger()
 
 	version := internal.ReadVersion()
 	slog.Info("Started mkrepo server",
@@ -18,8 +23,36 @@ func main() {
 		slog.String("buildDatetime", version.BuildDatetime),
 	)
 
-	_ = http.ListenAndServe(":8000", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		slog.Info("Hello, World!")
-		_, _ = w.Write([]byte("Hello, World"))
-	}))
+	handler := http.NewServeMux()
+	handler.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		tmpl, err := template.New("base.html").ParseFS(templates.TemplatesFS, "base.html", "index.html")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		err = tmpl.Execute(w, map[string]any{"Title": "Home", "Body": "This is the body"})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	})
+	handler.HandleFunc("GET /new", func(w http.ResponseWriter, r *http.Request) {
+		tmpl, err := template.New("base.html").ParseFS(templates.TemplatesFS, "base.html", "index.html")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		templates.Render(w, tmpl, map[string]any{"Title": "New", "Body": "This is the new body"})
+	})
+
+	server := &http.Server{
+		Addr:         ":8000",
+		Handler:      handler,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 60 * time.Second,
+		IdleTimeout:  90 * time.Second,
+	}
+
+	err := server.ListenAndServe()
+	if err != nil {
+		slog.Error("Failed to run server", log.Err(err))
+		os.Exit(1)
+	}
 }
