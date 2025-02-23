@@ -1,0 +1,13 @@
+{{define "title"}}mkrepo{{end}}
+
+{{define "content"}}
+<form action="/new" method="get">
+  <select id="provider" name="provider">
+    <option value="github">GitHub</option>
+    <option value="gitlab">GitLab</option>
+  </select>
+  <label for="name">Name</label>
+  <input type="text" id="name" name="name">
+  <input type="submit" value="Next">
+</form>
+{{end}}
