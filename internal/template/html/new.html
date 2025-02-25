@@ -1,0 +1,73 @@
+{{define "title"}}New repo{{end}}
+
+{{define "content"}}
+<form action="/new" method="post">
+  <select id="provider" name="provider">
+    {{range $key, $provider := .Providers}}
+      <option value="{{$key}}" {{if $provider.Selected}}selected{{end}}>{{$provider.Name}}</option>
+    {{end}}
+  </select>
+  <select id="owner" name="owner">
+    {{range .Owners}}
+      <option value="{{.}}">{{.}}</option>
+    {{end}}
+  </select>
+  <label for="name">Name</label>
+  <input type="text" id="name" name="name" value="{{.Name}}">
+  <br>
+
+  <label for="description"></label>Description</label>
+  <input type="text" id="description" name="description">
+  <br>
+
+  <h3>Visibility</h3>
+  <input type="radio" id="private" name="visibility" value="private" checked>
+  <label for="private">Private</label>
+  <br>
+  <input type="radio" id="public" name="visibility" value="public">
+  <label for="public">Public</label>
+  <br>
+
+  <h3>Initialize</h3>
+  <input type="checkbox" id="readme" name="readme" value="checked">
+  <label for="readme">Add README.md</label>
+  <br>
+
+  <h3>Gitignore</h3>
+  <select id="gitignore" name="gitignore">
+    <option value="none">None</option>
+    <option value="Go">Go</option>
+    <option value="Node">Node</option>
+    <option value="Python">Python</option>
+  </select>
+  <br>
+
+  <h3>Dockerfile</h3>
+  <select id="dockerfile" name="dockerfile">
+    <option value="none">None</option>
+    <option value="Go">Go</option>
+    <option value="Node">Node</option>
+    <option value="Python">Python</option>
+  </select>
+  <br>
+
+  <input type="checkbox" id="dockerignore" name="dockerignore" value="checked">
+  <label for="dockerignore">Add .dockerignore</label>
+  <br>
+
+  <h3>License</h3>
+  <select id="license" name="license">
+    <option value="none">None</option>
+    <option value="MIT">MIT</option>
+    <option value="Apache">Apache</option>
+    <option value="GPL">GPL</option>
+  </select>
+  <br>
+
+  <label for="tag">Tag:</label>
+  <input type="text" id="tag" name="tag">
+  <br>
+
+  <input type="submit" value="Create">
+</form>
+{{end}}

@@ -4,7 +4,7 @@ import (
 	"html/template"
 	"net/http"
 
-	tmpl "github.com/FilipSolich/mkrepo/internal/template"
+	"github.com/FilipSolich/mkrepo/internal/template/html"
 )
 
 type Index struct {
@@ -13,10 +13,10 @@ type Index struct {
 
 func NewIndex() http.Handler {
 	return &Index{
-		t: template.Must(template.New("base.html").ParseFS(tmpl.TemplatesFS, "base.html", "index.html")),
+		t: template.Must(template.New("base.html").ParseFS(html.HtmlFs, "base.html", "index.html")),
 	}
 }
 
 func (h *Index) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	tmpl.Render(w, h.t, nil)
+	html.Render(w, h.t, nil)
 }

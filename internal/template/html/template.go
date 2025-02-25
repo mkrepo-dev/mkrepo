@@ -1,4 +1,4 @@
-package template
+package html
 
 import (
 	"embed"
@@ -10,7 +10,7 @@ import (
 )
 
 //go:embed *.html
-var TemplatesFS embed.FS
+var HtmlFs embed.FS
 
 func Render(w http.ResponseWriter, t *template.Template, context any) {
 	err := t.Execute(w, context)

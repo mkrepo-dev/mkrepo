@@ -43,9 +43,9 @@ func main() {
 	mux.HandleFunc("GET /login", login.LoginProvider)
 	mux.HandleFunc("GET /oauth2/callback/{provider}", login.Oauth2Callback)
 
-	new := handler.NewNew()
-	mux.Handle("GET /new", middleware.Authenticated(http.HandlerFunc(new.NewRepoForm)))
-	mux.Handle("POST /new", middleware.Authenticated(http.HandlerFunc(new.CreateNewRepo)))
+	repo := handler.NewRepo()
+	mux.Handle("GET /new", middleware.Authenticated(http.HandlerFunc(repo.Form)))
+	mux.Handle("POST /new", middleware.Authenticated(http.HandlerFunc(repo.Create)))
 
 	server := &http.Server{
 		Addr:         ":8000",

@@ -1,12 +1,17 @@
 package internal
 
-import "runtime/debug"
+import (
+	"fmt"
+	"runtime/debug"
+)
 
 var (
 	version       string
 	revision      string
 	buildDatetime string
 )
+
+var UserAgent = fmt.Sprintf("mkrepo/%s", version)
 
 type Version struct {
 	Version       string
