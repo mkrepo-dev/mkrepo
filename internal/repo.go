@@ -24,5 +24,5 @@ type Repo struct {
 }
 
 func (r *Repo) NeedInitialization() bool {
-	return r.Readme || r.Gitignore != "" || r.License != "" || r.Dockerfile != "" || r.Dockerignore
+	return r.Readme || r.Gitignore != "" || r.License != "" || r.Dockerfile != "" || r.Dockerignore || r.IsTemplate
 }

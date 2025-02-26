@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"html/template"
 	"log/slog"
 	"net/http"
 
@@ -10,17 +9,13 @@ import (
 	"github.com/FilipSolich/mkrepo/internal/middleware"
 	"github.com/FilipSolich/mkrepo/internal/provider"
 	"github.com/FilipSolich/mkrepo/internal/repo"
-	"github.com/FilipSolich/mkrepo/internal/template/html"
+	"github.com/FilipSolich/mkrepo/internal/template"
 )
 
-type Repo struct {
-	t *template.Template
-}
+type Repo struct{}
 
 func NewRepo() *Repo {
-	return &Repo{
-		t: template.Must(template.New("base.html").ParseFS(html.HtmlFs, "base.html", "new.html")),
-	}
+	return &Repo{}
 }
 
 func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
@@ -32,14 +27,7 @@ func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	context := struct {
-		Name      string
-		Providers map[string]struct {
-			Name     string
-			Selected bool
-		}
-		Owners []string
-	}{
+	context := template.NewRepoFormContext{
 		Name: r.FormValue("name"),
 		Providers: map[string]struct {
 			Name     string
@@ -58,7 +46,7 @@ func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 			context.Providers[selectedProvider] = val
 		}
 	}
-	html.Render(w, h.t, context)
+	template.Render(w, template.NewRepoForm, context)
 }
 
 func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
@@ -76,6 +64,7 @@ func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
 		Dockerignore: r.FormValue("dockerignore") == "checked",
 		License:      r.FormValue("license"),
 		Tag:          r.FormValue("tag"),
+		IsTemplate:   r.FormValue("template") == "checked",
 		//IsTemplate:   r.FormValue("is_template") == "checked",
 		//Sha256:       r.FormValue("sha256") == "checked",
 		AuthToken: session,

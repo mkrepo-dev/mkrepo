@@ -1,22 +1,17 @@
 package handler
 
 import (
-	"html/template"
 	"net/http"
 
-	"github.com/FilipSolich/mkrepo/internal/template/html"
+	"github.com/FilipSolich/mkrepo/internal/template"
 )
 
-type Index struct {
-	t *template.Template
-}
+type Index struct{}
 
 func NewIndex() http.Handler {
-	return &Index{
-		t: template.Must(template.New("base.html").ParseFS(html.HtmlFs, "base.html", "index.html")),
-	}
+	return &Index{}
 }
 
 func (h *Index) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	html.Render(w, h.t, nil)
+	template.Render(w, template.Index, nil)
 }

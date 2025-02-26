@@ -2,7 +2,7 @@ package repo
 
 import (
 	"context"
-	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -16,6 +16,7 @@ import (
 
 	"github.com/FilipSolich/mkrepo/internal"
 	"github.com/FilipSolich/mkrepo/internal/provider"
+	"github.com/FilipSolich/mkrepo/internal/template"
 )
 
 // Create remote repo and initialize it if needed. Returns url to the repo.
@@ -32,18 +33,23 @@ func CreateNewRepo(ctx context.Context, repo internal.Repo, provider provider.Pr
 		return "", err
 	}
 
-	if repo.NeedInitialization() {
-		err := InitializeRepo(ctx, repo, cloneUrl)
-		if err != nil {
-			// TODO: Delete repo that cannot be initialized?
-			return url, err
-		}
+	if !repo.NeedInitialization() {
+		return url, nil
 	}
+
+	// TODO: Wait with context
+	err = initializeRepo(repo, cloneUrl)
+	if err != nil {
+		// TODO: Delete remote repo that cannot be initialized?
+		return url, err
+	}
+
+	// TODO: For template repo register webhook
 
 	return url, nil
 }
 
-func InitializeRepo(ctx context.Context, repo internal.Repo, cloneUrl string) error {
+func initializeRepo(repo internal.Repo, cloneUrl string) error {
 	dir, err := os.MkdirTemp("", "mkrepo-")
 	if err != nil {
 		return err
@@ -67,22 +73,17 @@ func InitializeRepo(ctx context.Context, repo internal.Repo, cloneUrl string) er
 		return err
 	}
 
-	err = AddFiles(ctx, repo, dir)
+	err = addFiles(repo, dir)
 	if err != nil {
 		return err
 	}
 
+	signature := &object.Signature{Name: repo.AuthorName, Email: repo.AuthorEmail, When: time.Now()}
 	err = wt.AddWithOptions(&git.AddOptions{All: true})
 	if err != nil {
 		return err
 	}
-	commit, err := wt.Commit("Initial commit", &git.CommitOptions{
-		Author: &object.Signature{
-			Name:  repo.AuthorName,
-			Email: repo.AuthorEmail,
-			When:  time.Now(),
-		},
-	})
+	commit, err := wt.Commit("Initial commit", &git.CommitOptions{Author: signature})
 	if err != nil {
 		return err
 	}
@@ -94,11 +95,7 @@ func InitializeRepo(ctx context.Context, repo internal.Repo, cloneUrl string) er
 	if repo.Tag != "" {
 		_, err = r.CreateTag(repo.Tag, commit, &git.CreateTagOptions{
 			Message: "Release " + repo.Tag,
-			Tagger: &object.Signature{
-				Name:  repo.AuthorName,
-				Email: repo.AuthorEmail,
-				When:  time.Now(),
-			},
+			Tagger:  signature,
 		})
 		if err != nil {
 			return err
@@ -118,13 +115,32 @@ func InitializeRepo(ctx context.Context, repo internal.Repo, cloneUrl string) er
 	})
 }
 
-func AddFiles(ctx context.Context, repo internal.Repo, dir string) error {
-	// TODO: implement
-	content := fmt.Sprintf("# %s\n", repo.Name)
-	readmeFilename := filepath.Join(dir, "README.md")
-	err := os.WriteFile(readmeFilename, []byte(content), 0644)
+func addFiles(repo internal.Repo, dir string) error {
+	if repo.IsTemplate {
+		return addTemplateFiles(repo, dir)
+	}
+
+	if repo.Readme {
+		err := addReadme(repo, dir)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func addTemplateFiles(repo internal.Repo, dir string) error {
+	context := template.TemplateContext{
+		Name: repo.Name,
+	}
+	sub, err := fs.Sub(template.RepoFS, "template")
 	if err != nil {
 		return err
 	}
-	return nil
+	return template.ExecuteTemplateRepo(sub, dir, context, true)
+}
+
+func addReadme(repo internal.Repo, dir string) error {
+	return template.CreateFile(filepath.Join(dir, "README.md"), template.Readme, template.ReadmeContext{Name: repo.Name})
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/github"
 
 	"github.com/FilipSolich/mkrepo/internal"
 	"github.com/FilipSolich/mkrepo/internal/handler"
@@ -34,10 +35,7 @@ func main() {
 			ClientID:     os.Getenv("GITHUB_CLIENT_ID"),
 			ClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
 			Scopes:       []string{"repo", "read:org"},
-			Endpoint: oauth2.Endpoint{
-				AuthURL:  "https://github.com/login/oauth/authorize",
-				TokenURL: "https://github.com/login/oauth/access_token",
-			},
+			Endpoint:     github.Endpoint,
 		},
 	})
 	mux.HandleFunc("GET /login", login.LoginProvider)
@@ -71,7 +69,7 @@ func main() {
 			os.Exit(1)
 		}
 	case <-ctx.Done():
-		timeout := 5 * time.Second
+		timeout := 15 * time.Second
 		slog.Info("Shutting down server", slog.Duration("timeout", timeout))
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
