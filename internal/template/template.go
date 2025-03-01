@@ -45,6 +45,7 @@ type ReadmeContext struct {
 
 type TemplateContext struct {
 	Name string
+	Lang string
 }
 
 type GoContext struct {

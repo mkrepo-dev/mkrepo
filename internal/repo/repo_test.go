@@ -32,7 +32,7 @@ func Test_addTemplateFiles(t *testing.T) {
 			wantErr: false,
 			wantFiles: map[string][]byte{
 				"README.md":   []byte("# This is template repo\n\nTODO\n"),
-				"mkrepo.yaml": []byte("name: This is template repo\n"),
+				"mkrepo.yaml": []byte("name: This is template repo\nlang: go\n"),
 			},
 		},
 	}

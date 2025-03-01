@@ -133,6 +133,7 @@ func addFiles(repo internal.Repo, dir string) error {
 func addTemplateFiles(repo internal.Repo, dir string) error {
 	context := template.TemplateContext{
 		Name: repo.Name,
+		Lang: "go", // TODO: Take from repo later
 	}
 	sub, err := fs.Sub(template.RepoFS, "template")
 	if err != nil {
