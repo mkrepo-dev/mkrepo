@@ -49,10 +49,10 @@ func main() {
 
 	db, err := sql.Open("sqlite3", "./db.sqlite")
 	if err != nil {
-		log.Fatal("Cannot open database", err, 1)
+		log.Fatal("Cannot open database", err)
 	}
 	defer db.Close()
-	db.Exec(`CREATE TABLE "template" (
+	_, err = db.Exec(`CREATE TABLE "template" (
 		"id" INTEGER NOT NULL UNIQUE,
 		"name" TEXT NOT NULL,
 		"url" TEXT NOT NULL UNIQUE,
@@ -61,6 +61,9 @@ func main() {
 		"created_at" INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		PRIMARY KEY("id" AUTOINCREMENT)
 	) STRICT;`)
+	if err != nil {
+		log.Fatal("Cannot create table", err)
+	}
 	webhook := handler.NewWebhook(db)
 	mux.Handle("POST /webhook/handler", http.HandlerFunc(webhook.Handle))
 
