@@ -36,3 +36,8 @@ func SetupLogger() {
 func Err(err error) slog.Attr {
 	return slog.String("err", err.Error())
 }
+
+func Fatal(msg string, err error, code int) {
+	slog.Error(msg, Err(err))
+	os.Exit(code)
+}

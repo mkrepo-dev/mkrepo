@@ -11,7 +11,7 @@ ARG DATETIME
 ARG REVISION
 
 COPY ./ ./
-RUN CGO_ENABLED=0 GOAMD64=v2 go build \
+RUN CGO_ENABLED=1 GOAMD64=v2 go build \
     -ldflags "-X $MODULE/internal.version=$VERSION -X $MODULE/internal.revision=$REVISION -X $MODULE/internal.buildDatetime=$DATETIME" \
     -o bin/server $MODULE/cmd/server
 
