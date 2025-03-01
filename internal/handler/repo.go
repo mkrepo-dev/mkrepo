@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -22,7 +23,15 @@ func NewRepo(providers provider.Providers) *Repo {
 
 func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 	session := middleware.Session(r.Context())
-	owners, err := provider.NewGitHubClient(session).GetPossibleRepoOwners(r.Context())
+
+	providerKey := r.FormValue("provider")
+	provider, ok := h.providers[providerKey]
+	if !ok {
+		http.Error(w, "unsupported provider", http.StatusBadRequest)
+		return
+	}
+
+	owners, err := provider.NewClient(session).GetPossibleRepoOwners(context.Background())
 	if err != nil {
 		slog.Error("Failed to get possible repo owners", log.Err(err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -33,7 +42,7 @@ func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 		Name:             r.FormValue("name"),
 		Providers:        h.providers,
 		Owners:           owners,
-		SelectedProvider: r.FormValue("provider"),
+		SelectedProvider: providerKey,
 	}
 	template.Render(w, template.NewRepoForm, context)
 }
@@ -59,7 +68,14 @@ func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
 		AuthToken: session,
 	}
 
-	url, err := repo.CreateNewRepo(r.Context(), repository, provider.NewGitHubClient(session))
+	providerKey := r.FormValue("provider")
+	provider, ok := h.providers[providerKey]
+	if !ok {
+		http.Error(w, "unsupported provider", http.StatusBadRequest)
+		return
+	}
+
+	url, err := repo.CreateNewRepo(r.Context(), repository, provider.NewClient(session))
 	if err != nil {
 		slog.Error("Failed to create repository", log.Err(err))
 		w.WriteHeader(http.StatusInternalServerError)

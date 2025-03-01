@@ -3,15 +3,14 @@ providers:
   - type: github
     clientId: $GITHUB_CLIENT_ID
     clientSecret: $GITHUB_CLIENT_SECRET
-
   - type: gitlab
-    clientId: $GITHUB_CLIENT_ID
-    clientSecret: $GITHUB_CLIENT_SECRET
+    clientId: $GITLAB_CLIENT_ID
+    clientSecret: $GITLAB_CLIENT_SECRET
 
   # Custom
-  # - key: private
-  #   name: My Enterprise Github
-  #   type: github
-  #   url: https://github.mycompany.com
-  #   clientId: $CLIENT_ID
-  #   clientSecret: $CLIENT_SECRET
+  - key: private
+    name: My Enterprise Github
+    type: github
+    url: https://github.mycompany.com
+    clientId: $GITHUB_CLIENT_ID
+    clientSecret: $GITHUB_CLIENT_SECRET

@@ -35,6 +35,8 @@ func NewProvidersFromConfig(cfg []config.Provider) Providers {
 		switch providerConfig.Type {
 		case config.GitHubProvider:
 			providers[providerConfig.Key] = NewGitHubFromConfig(providerConfig)
+		case config.GitLabProvider:
+			providers[providerConfig.Key] = NewGitLabFromConfig(providerConfig)
 		}
 	}
 	return providers

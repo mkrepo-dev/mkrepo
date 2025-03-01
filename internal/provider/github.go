@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/go-github/v69/github"
 	"golang.org/x/oauth2"
-	oauth2Github "golang.org/x/oauth2/github"
+	"golang.org/x/oauth2/endpoints"
 
 	"github.com/FilipSolich/mkrepo/internal"
 	"github.com/FilipSolich/mkrepo/internal/config"
@@ -35,7 +35,7 @@ func (provider *GitHub) OAuth2Config() *oauth2.Config {
 		ClientID:     provider.ClientId,
 		ClientSecret: provider.ClientSecret,
 		Scopes:       []string{"repo", "read:org"},
-		Endpoint:     oauth2Github.Endpoint,
+		Endpoint:     endpoints.GitHub,
 	}
 }
 
@@ -50,12 +50,6 @@ type GitHubClient struct {
 }
 
 var _ ProviderClient = &GitHubClient{}
-
-func NewGitHubClient(token string) *GitHubClient {
-	client := github.NewClient(nil).WithAuthToken(token)
-	client.UserAgent = internal.UserAgent
-	return &GitHubClient{Client: client}
-}
 
 func (client *GitHubClient) CreateRemoteRepo(ctx context.Context, repo internal.Repo) (string, string, error) {
 	var org string
@@ -85,14 +79,6 @@ func (client *GitHubClient) CreateWebhook(ctx context.Context, repo internal.Rep
 		},
 	})
 	return err
-}
-
-func (client *GitHubClient) GetGitAuthor(ctx context.Context) (string, string, error) {
-	user, _, err := client.Users.Get(ctx, "")
-	if err != nil {
-		return "", "", err
-	}
-	return user.GetName(), user.GetEmail(), nil
 }
 
 func (client *GitHubClient) GetPossibleRepoOwners(ctx context.Context) ([]string, error) {
@@ -126,4 +112,12 @@ func (client *GitHubClient) GetPossibleRepoOwners(ctx context.Context) ([]string
 	}
 
 	return owners, nil
+}
+
+func (client *GitHubClient) GetGitAuthor(ctx context.Context) (string, string, error) {
+	user, _, err := client.Users.Get(ctx, "")
+	if err != nil {
+		return "", "", err
+	}
+	return user.GetName(), user.GetEmail(), nil
 }

@@ -62,8 +62,6 @@ func LoadConfig(filename string) (Config, error) {
 		return Config{}, err
 	}
 
-	fmt.Printf("Loaded config: %+v\n", config)
-
 	return config, nil
 }
 
