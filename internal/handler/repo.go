@@ -1,11 +1,11 @@
 package handler
 
 import (
-	"context"
 	"log/slog"
 	"net/http"
 
 	"github.com/FilipSolich/mkrepo/internal"
+	"github.com/FilipSolich/mkrepo/internal/config"
 	"github.com/FilipSolich/mkrepo/internal/log"
 	"github.com/FilipSolich/mkrepo/internal/middleware"
 	"github.com/FilipSolich/mkrepo/internal/provider"
@@ -14,24 +14,28 @@ import (
 )
 
 type Repo struct {
+	cfg       config.Config
 	providers provider.Providers
 }
 
-func NewRepo(providers provider.Providers) *Repo {
-	return &Repo{providers: providers}
+func NewRepo(cfg config.Config, providers provider.Providers) *Repo {
+	return &Repo{cfg: cfg, providers: providers}
 }
 
 func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 	session := middleware.Session(r.Context())
 
 	providerKey := r.FormValue("provider")
+	if providerKey == "" {
+		providerKey = h.cfg.DefaultProviderKey
+	}
 	provider, ok := h.providers[providerKey]
 	if !ok {
 		http.Error(w, "unsupported provider", http.StatusBadRequest)
 		return
 	}
 
-	owners, err := provider.NewClient(session).GetPossibleRepoOwners(context.Background())
+	owners, err := provider.NewClient(session).GetPossibleRepoOwners(r.Context())
 	if err != nil {
 		slog.Error("Failed to get possible repo owners", log.Err(err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -39,9 +43,9 @@ func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 	}
 
 	context := template.NewRepoFormContext{
-		Name:             r.FormValue("name"),
 		Providers:        h.providers,
 		Owners:           owners,
+		Name:             r.FormValue("name"),
 		SelectedProvider: providerKey,
 	}
 	template.Render(w, template.NewRepoForm, context)

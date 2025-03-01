@@ -6,7 +6,6 @@ import (
 	"flag"
 	"log/slog"
 	"net/http"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -26,6 +25,7 @@ func main() {
 
 	configFile := flag.String("config", "config.yaml", "Path to the configuration file")
 	flag.Parse()
+
 	cfg, err := config.LoadConfig(*configFile)
 	if err != nil {
 		log.Fatal("Cannot load config", err)
@@ -42,11 +42,11 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("GET /", handler.NewIndex(providers))
 
-	login := handler.NewLogin(providers)
-	mux.HandleFunc("GET /login", login.LoginProvider)
+	login := handler.NewAuth(providers)
+	mux.HandleFunc("GET /login", login.LoginWithProvider)
 	mux.HandleFunc("GET /oauth2/callback/{provider}", login.Oauth2Callback)
 
-	repo := handler.NewRepo(providers)
+	repo := handler.NewRepo(cfg, providers)
 	mux.Handle("GET /new", middleware.Authenticated(http.HandlerFunc(repo.Form)))
 	mux.Handle("POST /new", middleware.Authenticated(http.HandlerFunc(repo.Create)))
 
@@ -90,8 +90,7 @@ func main() {
 	select {
 	case err := <-errCh:
 		if err != nil && err != http.ErrServerClosed {
-			slog.Error("Cannot run server", log.Err(err))
-			os.Exit(1)
+			log.Fatal("Cannot run server", err)
 		}
 	case <-ctx.Done():
 		timeout := 15 * time.Second
@@ -100,8 +99,7 @@ func main() {
 		defer cancel()
 		err := server.Shutdown(ctx)
 		if err != nil {
-			slog.Error("Cannot gracefully shutdown server", log.Err(err))
-			os.Exit(1)
+			log.Fatal("Cannot gracefully shutdown server", err)
 		}
 	}
 }

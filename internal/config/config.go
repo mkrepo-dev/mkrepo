@@ -11,7 +11,8 @@ import (
 )
 
 type Config struct {
-	Providers []Provider `yaml:"providers"`
+	Providers          []Provider `yaml:"providers"`
+	DefaultProviderKey string     `yaml:"defaultProviderKey"`
 }
 
 type Provider struct {
@@ -50,24 +51,27 @@ func LoadConfig(filename string) (Config, error) {
 		return Config{}, err
 	}
 
-	var config Config
-	err = vp.Unmarshal(&config)
+	var cfg Config
+	err = vp.Unmarshal(&cfg)
 	if err != nil {
 		return Config{}, err
 	}
 
-	config = setDefaults(config)
-	err = validate(config)
+	cfg = setDefaults(cfg)
+	err = validate(cfg)
 	if err != nil {
 		return Config{}, err
 	}
 
-	return config, nil
+	return cfg, nil
 }
 
 func setDefaults(cfg Config) Config {
 	for i, provider := range cfg.Providers {
 		cfg.Providers[i] = setDefaultsProvider(provider)
+	}
+	if cfg.DefaultProviderKey == "" && len(cfg.Providers) > 0 {
+		cfg.DefaultProviderKey = cfg.Providers[0].Key
 	}
 
 	return cfg
@@ -86,6 +90,10 @@ func setDefaultsProvider(provider Provider) Provider {
 }
 
 func validate(cfg Config) error {
+	if len(cfg.Providers) == 0 {
+		return fmt.Errorf("no providers defined")
+	}
+
 	keys := make(map[string]struct{})
 	for _, provider := range cfg.Providers {
 		if _, ok := keys[provider.Key]; ok {
@@ -93,6 +101,11 @@ func validate(cfg Config) error {
 		}
 		keys[provider.Key] = struct{}{}
 	}
+
+	if _, ok := keys[cfg.DefaultProviderKey]; !ok {
+		return fmt.Errorf("default provider key not found")
+	}
+
 	for _, provider := range cfg.Providers {
 		err := validateProvider(provider)
 		if err != nil {
