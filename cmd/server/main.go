@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"flag"
 	"log/slog"
 	"net/http"
 	"os"
@@ -11,17 +12,24 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/github"
 
 	"github.com/FilipSolich/mkrepo/internal"
+	"github.com/FilipSolich/mkrepo/internal/config"
 	"github.com/FilipSolich/mkrepo/internal/handler"
 	"github.com/FilipSolich/mkrepo/internal/log"
 	"github.com/FilipSolich/mkrepo/internal/middleware"
+	"github.com/FilipSolich/mkrepo/internal/provider"
 )
 
 func main() {
 	log.SetupLogger()
+
+	configFile := flag.String("config", "config.yaml", "Path to the configuration file")
+	flag.Parse()
+	cfg, err := config.LoadConfig(*configFile)
+	if err != nil {
+		log.Fatal("Cannot load config", err)
+	}
 
 	version := internal.ReadVersion()
 	slog.Info("Started mkrepo server",
@@ -29,21 +37,16 @@ func main() {
 		slog.String("revision", version.Revision[:7]), slog.String("buildDatetime", version.BuildDatetime),
 	)
 
-	mux := http.NewServeMux()
-	mux.Handle("GET /", handler.NewIndex())
+	providers := provider.NewProvidersFromConfig(cfg.Providers)
 
-	login := handler.NewLogin(map[string]oauth2.Config{
-		"github": {
-			ClientID:     os.Getenv("GITHUB_CLIENT_ID"),
-			ClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
-			Scopes:       []string{"repo", "read:org"},
-			Endpoint:     github.Endpoint,
-		},
-	})
+	mux := http.NewServeMux()
+	mux.Handle("GET /", handler.NewIndex(providers))
+
+	login := handler.NewLogin(providers)
 	mux.HandleFunc("GET /login", login.LoginProvider)
 	mux.HandleFunc("GET /oauth2/callback/{provider}", login.Oauth2Callback)
 
-	repo := handler.NewRepo()
+	repo := handler.NewRepo(providers)
 	mux.Handle("GET /new", middleware.Authenticated(http.HandlerFunc(repo.Form)))
 	mux.Handle("POST /new", middleware.Authenticated(http.HandlerFunc(repo.Create)))
 
@@ -52,7 +55,7 @@ func main() {
 		log.Fatal("Cannot open database", err)
 	}
 	defer db.Close()
-	_, err = db.Exec(`CREATE TABLE "template" (
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS "template" (
 		"id" INTEGER NOT NULL UNIQUE,
 		"name" TEXT NOT NULL,
 		"url" TEXT NOT NULL UNIQUE,

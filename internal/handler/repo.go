@@ -12,15 +12,17 @@ import (
 	"github.com/FilipSolich/mkrepo/internal/template"
 )
 
-type Repo struct{}
+type Repo struct {
+	providers provider.Providers
+}
 
-func NewRepo() *Repo {
-	return &Repo{}
+func NewRepo(providers provider.Providers) *Repo {
+	return &Repo{providers: providers}
 }
 
 func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 	session := middleware.Session(r.Context())
-	owners, err := provider.NewGitHub(session).GetPossibleRepoOwners(r.Context())
+	owners, err := provider.NewGitHubClient(session).GetPossibleRepoOwners(r.Context())
 	if err != nil {
 		slog.Error("Failed to get possible repo owners", log.Err(err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -28,23 +30,10 @@ func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 	}
 
 	context := template.NewRepoFormContext{
-		Name: r.FormValue("name"),
-		Providers: map[string]struct {
-			Name     string
-			Selected bool
-		}{
-			"github": {Name: "GitHub", Selected: false},
-			"gitlab": {Name: "GitLab", Selected: false},
-		},
-		Owners: owners,
-	}
-	selectedProvider := r.FormValue("provider")
-	if selectedProvider != "" {
-		val, ok := context.Providers[selectedProvider]
-		if ok {
-			val.Selected = true
-			context.Providers[selectedProvider] = val
-		}
+		Name:             r.FormValue("name"),
+		Providers:        h.providers,
+		Owners:           owners,
+		SelectedProvider: r.FormValue("provider"),
 	}
 	template.Render(w, template.NewRepoForm, context)
 }
@@ -70,7 +59,7 @@ func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
 		AuthToken: session,
 	}
 
-	url, err := repo.CreateNewRepo(r.Context(), repository, provider.NewGitHub(session))
+	url, err := repo.CreateNewRepo(r.Context(), repository, provider.NewGitHubClient(session))
 	if err != nil {
 		slog.Error("Failed to create repository", log.Err(err))
 		w.WriteHeader(http.StatusInternalServerError)

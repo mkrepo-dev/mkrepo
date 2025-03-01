@@ -5,14 +5,14 @@ import (
 	"net/http"
 
 	"github.com/FilipSolich/mkrepo/internal/log"
-	"golang.org/x/oauth2"
+	"github.com/FilipSolich/mkrepo/internal/provider"
 )
 
 type Login struct {
-	providers map[string]oauth2.Config
+	providers provider.Providers
 }
 
-func NewLogin(providers map[string]oauth2.Config) *Login {
+func NewLogin(providers provider.Providers) *Login {
 	return &Login{providers: providers}
 }
 
@@ -23,13 +23,12 @@ func (h *Login) LoginProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	oauth2Config, ok := h.providers[providerKey]
+	provider, ok := h.providers[providerKey]
 	if !ok {
 		http.Error(w, "unsupported provider", http.StatusBadRequest)
 		return
 	}
-
-	url := oauth2Config.AuthCodeURL("")
+	url := provider.OAuth2Config().AuthCodeURL("")
 	http.Redirect(w, r, url, http.StatusFound)
 }
 
@@ -46,13 +45,12 @@ func (h *Login) Oauth2Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	oauth2Config, ok := h.providers[providerKey]
+	provider, ok := h.providers[providerKey]
 	if !ok {
 		http.Error(w, "unsupported provider", http.StatusBadRequest)
 		return
 	}
-
-	token, err := oauth2Config.Exchange(r.Context(), code)
+	token, err := provider.OAuth2Config().Exchange(r.Context(), code)
 	if err != nil {
 		slog.Error("Failed to exchange code for token", log.Err(err))
 		w.WriteHeader(http.StatusInternalServerError)

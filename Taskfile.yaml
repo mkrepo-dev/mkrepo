@@ -62,8 +62,8 @@ tasks:
     desc: Build server
     aliases: [b]
     sources:
-      - 'cmd/**'
-      - 'internal/**'
+      - 'cmd/**/*'
+      - 'internal/**/*'
       - 'go.mod'
       - 'go.sum'
     cmds:

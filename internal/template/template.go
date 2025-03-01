@@ -11,6 +11,7 @@ import (
 	"text/template"
 
 	"github.com/FilipSolich/mkrepo/internal/log"
+	"github.com/FilipSolich/mkrepo/internal/provider"
 )
 
 var (
@@ -30,13 +31,15 @@ var (
 	Readme = template.Must(template.ParseFS(RepoFS, "README.md.tmpl"))
 )
 
+type IndexContext struct {
+	Providers provider.Providers
+}
+
 type NewRepoFormContext struct {
-	Name      string
-	Providers map[string]struct {
-		Name     string
-		Selected bool
-	}
-	Owners []string
+	Name             string
+	Providers        provider.Providers
+	SelectedProvider string
+	Owners           []string
 }
 
 type ReadmeContext struct {

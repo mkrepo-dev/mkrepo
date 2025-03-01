@@ -4,7 +4,7 @@
 <form action="/new" method="post">
   <select id="provider" name="provider">
     {{range $key, $provider := .Providers}}
-      <option value="{{$key}}" {{if $provider.Selected}}selected{{end}}>{{$provider.Name}}</option>
+      <option value="{{$key}}" {{if eq $key $.SelectedProvider}}selected{{end}}>{{$provider.Name}}</option>
     {{end}}
   </select>
   <select id="owner" name="owner">
