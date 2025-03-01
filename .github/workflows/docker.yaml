@@ -8,8 +8,6 @@ on:
       - v*
 
 jobs:
-  go:
-    uses: ./.github/workflows/go.yaml
   docker:
     runs-on: ubuntu-latest
     steps:

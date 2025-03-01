@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log/slog"
 	"net/http"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 
@@ -44,6 +46,26 @@ func main() {
 	repo := handler.NewRepo()
 	mux.Handle("GET /new", middleware.Authenticated(http.HandlerFunc(repo.Form)))
 	mux.Handle("POST /new", middleware.Authenticated(http.HandlerFunc(repo.Create)))
+
+	db, err := sql.Open("sqlite3", "./db.sqlite")
+	if err != nil {
+		log.Fatal("Cannot open database", err)
+	}
+	defer db.Close()
+	_, err = db.Exec(`CREATE TABLE "template" (
+		"id" INTEGER NOT NULL UNIQUE,
+		"name" TEXT NOT NULL,
+		"url" TEXT NOT NULL UNIQUE,
+		"version" TEXT NOT NULL DEFAULT 'v0.0.0',
+		"stars"	INTEGER NOT NULL DEFAULT 0,
+		"created_at" INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY("id" AUTOINCREMENT)
+	) STRICT;`)
+	if err != nil {
+		log.Fatal("Cannot create table", err)
+	}
+	webhook := handler.NewWebhook(db)
+	mux.Handle("POST /webhook/handler", http.HandlerFunc(webhook.Handle))
 
 	server := &http.Server{
 		Addr:         ":8000",
