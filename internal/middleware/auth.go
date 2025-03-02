@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"net/http"
+	"net/url"
 )
 
 type tokenContextKey string
@@ -22,7 +23,11 @@ func Authenticated(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token, err := r.Cookie("session")
 		if err != nil {
-			http.Error(w, "unauthorized", http.StatusUnauthorized) // TODO: Find better way to redirect on provider login and back
+			q := url.Values{}
+			q.Set("provider", r.FormValue("provider"))
+			q.Set("redirect_uri", r.RequestURI)
+			u := url.URL{Path: "/login", RawQuery: q.Encode()}
+			http.Redirect(w, r, u.String(), http.StatusFound)
 			return
 		}
 		ctx := SetSession(r.Context(), token.Value)

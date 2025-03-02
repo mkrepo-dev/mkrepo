@@ -4,9 +4,11 @@ import (
 	"crypto/rand"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
+	"github.com/FilipSolich/mkrepo/internal/config"
 	"github.com/FilipSolich/mkrepo/internal/log"
 	"github.com/FilipSolich/mkrepo/internal/provider"
 )
@@ -14,26 +16,36 @@ import (
 var stateLifetime = 15 * time.Minute
 
 type Auth struct {
+	cfg       config.Config
 	providers provider.Providers
 	states    map[string]time.Time
 	statesMu  sync.Mutex
 }
 
-func NewAuth(providers provider.Providers) *Auth {
-	handler := &Auth{providers: providers, states: make(map[string]time.Time)}
+func NewAuth(cfg config.Config, providers provider.Providers) *Auth {
+	handler := &Auth{cfg: cfg, providers: providers, states: make(map[string]time.Time)}
 	go handler.stateCleaner(12 * time.Hour)
 	return handler
 }
 
 func (h *Auth) LoginWithProvider(w http.ResponseWriter, r *http.Request) {
-	provider, ok := h.providers[r.FormValue("provider")]
+	providerKey := r.FormValue("provider")
+	if providerKey == "" {
+		providerKey = h.cfg.DefaultProviderKey
+	}
+	provider, ok := h.providers[providerKey]
 	if !ok {
 		http.Error(w, "unsupported provider", http.StatusBadRequest)
 		return
 	}
 
-	url := provider.OAuth2Config().AuthCodeURL(h.createState())
-	http.Redirect(w, r, url, http.StatusFound)
+	config := provider.OAuth2Config()
+	if r.FormValue("redirect_uri") != "" {
+		config.RedirectURL += "?redirect_uri=" + url.QueryEscape(r.FormValue("redirect_uri"))
+		//config.RedirectURL += "?redirect_uri=" + r.FormValue("redirect_uri")
+	}
+
+	http.Redirect(w, r, config.AuthCodeURL(h.createState()), http.StatusFound)
 }
 
 func (h *Auth) Oauth2Callback(w http.ResponseWriter, r *http.Request) {
@@ -62,17 +74,12 @@ func (h *Auth) Oauth2Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cookie := &http.Cookie{
-		Name:     "session",
-		Value:    token.AccessToken,
-		Path:     "/",
-		MaxAge:   30 * 24 * 60 * 60,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		Name: "session", Value: token.AccessToken, Path: "/", MaxAge: 30 * 24 * 60 * 60,
+		HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(w, cookie)
 
-	// TODO: Redirect from where the user came
+	http.Redirect(w, r, r.FormValue("redirect_uri"), http.StatusFound)
 }
 
 func (h *Auth) createState() string {

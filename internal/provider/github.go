@@ -35,6 +35,7 @@ func (provider *GitHub) OAuth2Config() *oauth2.Config {
 		ClientID:     provider.ClientId,
 		ClientSecret: provider.ClientSecret,
 		Scopes:       []string{"repo", "read:org"},
+		RedirectURL:  "http://localhost:8000/oauth2/callback/github", // TODO: Fill this from config. Must match what is set in GitHub.
 		Endpoint:     endpoints.GitHub,
 	}
 }

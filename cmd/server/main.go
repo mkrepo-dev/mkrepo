@@ -34,7 +34,7 @@ func main() {
 	version := internal.ReadVersion()
 	slog.Info("Started mkrepo server",
 		slog.String("version", version.Version), slog.String("goVersion", version.GoVersion),
-		slog.String("revision", version.Revision[:7]), slog.String("buildDatetime", version.BuildDatetime),
+		slog.String("revision", version.Revision[:7]), slog.Time("buildDatetime", version.BuildDatetime),
 	)
 
 	providers := provider.NewProvidersFromConfig(cfg.Providers)
@@ -42,7 +42,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("GET /", handler.NewIndex(providers))
 
-	login := handler.NewAuth(providers)
+	login := handler.NewAuth(cfg, providers)
 	mux.HandleFunc("GET /login", login.LoginWithProvider)
 	mux.HandleFunc("GET /oauth2/callback/{provider}", login.Oauth2Callback)
 
