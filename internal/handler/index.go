@@ -16,5 +16,12 @@ func NewIndex(providers provider.Providers) http.Handler {
 }
 
 func (h *Index) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	template.Render(w, template.Index, template.IndexContext{Providers: h.providers})
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+	template.Render(w, template.Index, template.IndexContext{
+		BaseContext: getBaseContext(r),
+		Providers:   h.providers,
+	})
 }

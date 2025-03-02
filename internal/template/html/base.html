@@ -4,6 +4,11 @@
     <title>{{template "title" .}}</title>
   </head>
   <body>
+    {{range .Accounts}}
+    <p>{{.Username}}</p>
+    <a href="/auth/logout?provider={{.Provider}}&username={{.Username}}">Logout</a>
+    {{end}}
+    <a href="/auth/login">Login</a>
     {{template "content" .}}
   </body>
 </html>

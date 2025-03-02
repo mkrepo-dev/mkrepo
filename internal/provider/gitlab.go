@@ -9,6 +9,7 @@ import (
 
 	"github.com/FilipSolich/mkrepo/internal"
 	"github.com/FilipSolich/mkrepo/internal/config"
+	"github.com/FilipSolich/mkrepo/internal/db"
 	"github.com/FilipSolich/mkrepo/internal/log"
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
@@ -37,12 +38,13 @@ func (provider *GitLab) OAuth2Config() *oauth2.Config {
 		ClientSecret: provider.ClientSecret,
 		Scopes:       []string{"api"},
 		Endpoint:     endpoints.GitLab,
-		RedirectURL:  "http://localhost:8000/oauth2/callback/gitlab", // TODO: Put this into config
+		RedirectURL:  "http://localhost:8000/auth/oauth2/callback/gitlab", // TODO: Put this into config
 	}
 }
 
-func (provider *GitLab) NewClient(token string) ProviderClient {
-	client, err := gitlab.NewOAuthClient(token)
+func (provider *GitLab) NewClient(ctx context.Context, token *oauth2.Token) ProviderClient {
+	httpClient := provider.OAuth2Config().Client(ctx, token)
+	client, err := gitlab.NewOAuthClient(token.AccessToken, gitlab.WithHTTPClient(httpClient))
 	if err != nil {
 		slog.Error("Failed to create gitlab client", log.Err(err))
 	}
@@ -55,6 +57,19 @@ type GitLabClient struct {
 }
 
 var _ ProviderClient = &GitLabClient{}
+
+func (client *GitLabClient) GetUserInfo(ctx context.Context) (db.UserInfo, error) {
+	var info db.UserInfo
+	user, _, err := client.Users.CurrentUser()
+	if err != nil {
+		return info, err
+	}
+	info.Username = user.Username
+	info.Email = user.Email
+	info.DisplayName = user.Name
+	info.AvatarURL = user.AvatarURL
+	return info, nil
+}
 
 func (client *GitLabClient) CreateRemoteRepo(ctx context.Context, repo internal.Repo) (string, string, error) {
 	// TODO: Handler groups

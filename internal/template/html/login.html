@@ -1,0 +1,7 @@
+{{define "title"}}Login{{end}}
+
+{{define "content"}}
+{{range $key, $provider := .Providers}}
+<a href="/auth/login?provider={{$key}}">Login with {{$provider.Name}}</a>
+{{end}}
+{{end}}

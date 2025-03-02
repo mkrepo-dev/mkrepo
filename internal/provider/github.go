@@ -9,6 +9,7 @@ import (
 
 	"github.com/FilipSolich/mkrepo/internal"
 	"github.com/FilipSolich/mkrepo/internal/config"
+	"github.com/FilipSolich/mkrepo/internal/db"
 )
 
 type GitHub struct {
@@ -35,13 +36,14 @@ func (provider *GitHub) OAuth2Config() *oauth2.Config {
 		ClientID:     provider.ClientId,
 		ClientSecret: provider.ClientSecret,
 		Scopes:       []string{"repo", "read:org"},
-		RedirectURL:  "http://localhost:8000/oauth2/callback/github", // TODO: Fill this from config. Must match what is set in GitHub.
+		RedirectURL:  "http://localhost:8000/auth/oauth2/callback/github", // TODO: Fill this from config. Must match what is set in GitHub.
 		Endpoint:     endpoints.GitHub,
 	}
 }
 
-func (provider *GitHub) NewClient(token string) ProviderClient {
-	client := github.NewClient(nil).WithAuthToken(token)
+func (provider *GitHub) NewClient(ctx context.Context, token *oauth2.Token) ProviderClient {
+	httpClient := provider.OAuth2Config().Client(ctx, token)
+	client := github.NewClient(httpClient)
 	client.UserAgent = internal.UserAgent
 	return &GitHubClient{Client: client}
 }
@@ -51,6 +53,19 @@ type GitHubClient struct {
 }
 
 var _ ProviderClient = &GitHubClient{}
+
+func (client *GitHubClient) GetUserInfo(ctx context.Context) (db.UserInfo, error) {
+	var info db.UserInfo
+	user, _, err := client.Users.Get(ctx, "")
+	if err != nil {
+		return info, err
+	}
+	info.Username = user.GetLogin()
+	info.Email = user.GetEmail()
+	info.DisplayName = user.GetName()
+	info.AvatarURL = user.GetAvatarURL()
+	return info, nil
+}
 
 func (client *GitHubClient) CreateRemoteRepo(ctx context.Context, repo internal.Repo) (string, string, error) {
 	var org string

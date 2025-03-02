@@ -2,8 +2,12 @@ package middleware
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/url"
+
+	"github.com/FilipSolich/mkrepo/internal/db"
+	"github.com/FilipSolich/mkrepo/internal/log"
 )
 
 type tokenContextKey string
@@ -19,18 +23,64 @@ func Session(ctx context.Context) string {
 	return session
 }
 
-func Authenticated(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token, err := r.Cookie("session")
-		if err != nil {
-			q := url.Values{}
-			q.Set("provider", r.FormValue("provider"))
-			q.Set("redirect_uri", r.RequestURI)
-			u := url.URL{Path: "/login", RawQuery: q.Encode()}
-			http.Redirect(w, r, u.String(), http.StatusFound)
-			return
-		}
-		ctx := SetSession(r.Context(), token.Value)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
+type accountsContextKey string
+
+const accountsKey accountsContextKey = "accounts"
+
+func Accounts(ctx context.Context) []db.Account {
+	accounts, _ := ctx.Value(accountsKey).([]db.Account)
+	return accounts
+}
+
+func SetAccounts(ctx context.Context, accounts []db.Account) context.Context {
+	return context.WithValue(ctx, accountsKey, accounts)
+}
+
+func NewAuthenticate(db *db.DB) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var session string
+			ctx := r.Context()
+			token, err := r.Cookie("session")
+			if err != nil {
+				ctx = SetAccounts(ctx, nil)
+			} else {
+				session = token.Value
+				accounts, err := db.GetSessionAccounts(ctx, session)
+				if err != nil {
+					slog.Error("Failed to get accounts", log.Err(err))
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				ctx = SetAccounts(ctx, accounts)
+			}
+			ctx = SetSession(ctx, session)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+func NewAuthenticatedWithProvider(db *db.DB) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token, err := r.Cookie("session")
+			if err != nil {
+				q := url.Values{}
+				q.Set("provider", r.FormValue("provider"))
+				q.Set("redirect_uri", r.RequestURI)
+				u := url.URL{Path: "/login", RawQuery: q.Encode()}
+				http.Redirect(w, r, u.String(), http.StatusFound)
+				return
+			}
+			//t, err := db.GetToken(r.Context(), token.Value, "github")
+			//if err != nil {
+			//	slog.Error("Failed to get token", log.Err(err))
+			//	return
+			//}
+			//slog.Info("Authenticated", slog.String("accessToken", t.AccessToken), slog.String("refreshToken", t.RefreshToken), slog.Time("expiry", t.Expiry))
+
+			ctx := SetSession(r.Context(), token.Value)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
 }

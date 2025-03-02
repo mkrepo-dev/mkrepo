@@ -5,12 +5,13 @@ import (
 
 	"github.com/FilipSolich/mkrepo/internal"
 	"github.com/FilipSolich/mkrepo/internal/config"
+	"github.com/FilipSolich/mkrepo/internal/db"
 	"golang.org/x/oauth2"
 )
 
 type Provider interface {
 	OAuth2Config() *oauth2.Config
-	NewClient(token string) ProviderClient
+	NewClient(ctx context.Context, token *oauth2.Token) ProviderClient // TODO: use custom http client
 }
 
 type ProviderClient interface {
@@ -22,6 +23,8 @@ type ProviderClient interface {
 
 	// Get possible repo owners
 	GetPossibleRepoOwners(ctx context.Context) ([]string, error)
+
+	GetUserInfo(ctx context.Context) (db.UserInfo, error)
 
 	// Get git author name and email
 	GetGitAuthor(ctx context.Context) (string, string, error)

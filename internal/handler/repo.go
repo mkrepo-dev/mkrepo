@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	"golang.org/x/oauth2"
+
 	"github.com/FilipSolich/mkrepo/internal"
 	"github.com/FilipSolich/mkrepo/internal/config"
 	"github.com/FilipSolich/mkrepo/internal/log"
@@ -23,7 +25,7 @@ func NewRepo(cfg config.Config, providers provider.Providers) *Repo {
 }
 
 func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
-	session := middleware.Session(r.Context())
+	accounts := middleware.Accounts(r.Context())
 
 	providerKey := r.FormValue("provider")
 	if providerKey == "" {
@@ -35,7 +37,7 @@ func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	owners, err := provider.NewClient(session).GetPossibleRepoOwners(r.Context())
+	owners, err := provider.NewClient(r.Context(), accounts[0].Token).GetPossibleRepoOwners(r.Context()) // TODO: Dont use [0]
 	if err != nil {
 		slog.Error("Failed to get possible repo owners", log.Err(err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -43,6 +45,7 @@ func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 	}
 
 	context := template.NewRepoFormContext{
+		BaseContext:      getBaseContext(r),
 		Providers:        h.providers,
 		Owners:           owners,
 		Name:             r.FormValue("name"),
@@ -79,7 +82,7 @@ func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url, err := repo.CreateNewRepo(r.Context(), repository, provider.NewClient(session))
+	url, err := repo.CreateNewRepo(r.Context(), repository, provider.NewClient(r.Context(), &oauth2.Token{AccessToken: session}))
 	if err != nil {
 		slog.Error("Failed to create repository", log.Err(err))
 		w.WriteHeader(http.StatusInternalServerError)

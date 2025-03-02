@@ -9,33 +9,37 @@ import (
 	"time"
 
 	"github.com/FilipSolich/mkrepo/internal/config"
+	"github.com/FilipSolich/mkrepo/internal/db"
 	"github.com/FilipSolich/mkrepo/internal/log"
+	"github.com/FilipSolich/mkrepo/internal/middleware"
 	"github.com/FilipSolich/mkrepo/internal/provider"
+	"github.com/FilipSolich/mkrepo/internal/template"
 )
 
 var stateLifetime = 15 * time.Minute
 
+// TODO: Can get provider from state intead of url path
 type Auth struct {
 	cfg       config.Config
+	db        *db.DB
 	providers provider.Providers
 	states    map[string]time.Time
 	statesMu  sync.Mutex
 }
 
-func NewAuth(cfg config.Config, providers provider.Providers) *Auth {
-	handler := &Auth{cfg: cfg, providers: providers, states: make(map[string]time.Time)}
+func NewAuth(cfg config.Config, db *db.DB, providers provider.Providers) *Auth {
+	handler := &Auth{cfg: cfg, db: db, providers: providers, states: make(map[string]time.Time)}
 	go handler.stateCleaner(12 * time.Hour)
 	return handler
 }
 
-func (h *Auth) LoginWithProvider(w http.ResponseWriter, r *http.Request) {
-	providerKey := r.FormValue("provider")
-	if providerKey == "" {
-		providerKey = h.cfg.DefaultProviderKey
-	}
-	provider, ok := h.providers[providerKey]
+func (h *Auth) Login(w http.ResponseWriter, r *http.Request) {
+	provider, ok := h.providers[r.FormValue("provider")]
 	if !ok {
-		http.Error(w, "unsupported provider", http.StatusBadRequest)
+		template.Render(w, template.Login, template.LoginContext{
+			BaseContext: getBaseContext(r),
+			Providers:   h.providers,
+		})
 		return
 	}
 
@@ -48,8 +52,20 @@ func (h *Auth) LoginWithProvider(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, config.AuthCodeURL(h.createState()), http.StatusFound)
 }
 
+func (h *Auth) Logout(w http.ResponseWriter, r *http.Request) {
+	// TODO: Try to remove token from provider before deleteing account
+	err := h.db.DeleteAccount(r.Context(), middleware.Session(r.Context()), r.FormValue("provider"), r.FormValue("username"))
+	if err != nil {
+		slog.Error("Failed to delete account", log.Err(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/", http.StatusFound)
+}
+
 func (h *Auth) Oauth2Callback(w http.ResponseWriter, r *http.Request) {
-	provider, ok := h.providers[r.PathValue("provider")]
+	providerKey := r.PathValue("provider")
+	provider, ok := h.providers[providerKey]
 	if !ok {
 		http.Error(w, "unsupported provider", http.StatusBadRequest)
 		return
@@ -73,8 +89,28 @@ func (h *Auth) Oauth2Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Create account
+	session := middleware.Session(r.Context())
+	if session == "" {
+		session = rand.Text()
+	}
+
+	client := provider.NewClient(r.Context(), token)
+	info, err := client.GetUserInfo(r.Context())
+	if err != nil {
+		slog.Error("Failed to exchange code for token", log.Err(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	err = h.db.CreateAccount(r.Context(), session, providerKey, token, info) // TODO: Should be create or update and shoul delete old token from provider if update is made
+	if err != nil {
+		slog.Error("Failed to create account", log.Err(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	cookie := &http.Cookie{
-		Name: "session", Value: token.AccessToken, Path: "/", MaxAge: 30 * 24 * 60 * 60,
+		Name: "session", Value: session, Path: "/", MaxAge: 30 * 24 * 60 * 60,
 		HttpOnly: true, Secure: true, SameSite: http.SameSiteLaxMode,
 	}
 	http.SetCookie(w, cookie)

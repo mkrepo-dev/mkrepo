@@ -3,8 +3,11 @@
 {{define "content"}}
 <form action="/new" method="get">
   <select id="provider" name="provider">
+    {{range .Accounts}}
+    <option value="{{.Provider}}:{{.Username}}">{{(index $.Providers .Provider).Name}} as {{.Username}}</option>
+    {{end}}
     {{range $key, $provider := .Providers}}
-      <option value="{{$key}}">{{$provider.Name}}</option>
+    <option value="{{$key}}">{{$provider.Name}}</option>
     {{end}}
   </select>
   <label for="name">Name</label>

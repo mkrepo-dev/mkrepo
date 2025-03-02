@@ -10,6 +10,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/FilipSolich/mkrepo/internal/db"
 	"github.com/FilipSolich/mkrepo/internal/log"
 	"github.com/FilipSolich/mkrepo/internal/provider"
 )
@@ -24,18 +25,28 @@ var (
 
 var (
 	Index       = template.Must(template.ParseFS(HtmlFS, "html/base.html", "html/index.html"))
+	Login       = template.Must(template.ParseFS(HtmlFS, "html/base.html", "html/login.html"))
 	NewRepoForm = template.Must(template.ParseFS(HtmlFS, "html/base.html", "html/new.html"))
-)
 
-var (
 	Readme = template.Must(template.ParseFS(RepoFS, "README.md.tmpl"))
 )
 
+type BaseContext struct {
+	Accounts []db.Account
+}
+
 type IndexContext struct {
+	BaseContext
+	Providers provider.Providers
+}
+
+type LoginContext struct {
+	BaseContext
 	Providers provider.Providers
 }
 
 type NewRepoFormContext struct {
+	BaseContext
 	Name             string
 	Providers        provider.Providers
 	SelectedProvider string
