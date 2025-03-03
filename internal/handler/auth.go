@@ -53,7 +53,6 @@ func (h *Auth) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Auth) Logout(w http.ResponseWriter, r *http.Request) {
-	// TODO: Try to remove token from provider before deleteing account
 	err := h.db.DeleteAccount(r.Context(), middleware.Session(r.Context()), r.FormValue("provider"), r.FormValue("username"))
 	if err != nil {
 		slog.Error("Failed to delete account", log.Err(err))
@@ -63,7 +62,7 @@ func (h *Auth) Logout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
-func (h *Auth) Oauth2Callback(w http.ResponseWriter, r *http.Request) {
+func (h *Auth) OAuth2Callback(w http.ResponseWriter, r *http.Request) {
 	providerKey := r.PathValue("provider")
 	provider, ok := h.providers[providerKey]
 	if !ok {
@@ -89,7 +88,6 @@ func (h *Auth) Oauth2Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create account
 	session := middleware.Session(r.Context())
 	if session == "" {
 		session = rand.Text()

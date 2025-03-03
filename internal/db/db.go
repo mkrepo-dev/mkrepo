@@ -62,6 +62,15 @@ type Account struct {
 	AvatarURL   string
 }
 
+func GetAccount(accounts []Account, provider string, username string) *Account {
+	for _, account := range accounts {
+		if account.Provider == provider && account.Username == username {
+			return &account
+		}
+	}
+	return nil
+}
+
 func (db *DB) GetSessionAccounts(ctx context.Context, session string) ([]Account, error) {
 	rows, err := db.QueryContext(ctx,
 		`SELECT "id", "session", "provider", "access_token", "refresh_token", "expiry", "email", "username", "display_name", "avatar_url"

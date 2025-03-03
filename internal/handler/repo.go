@@ -8,6 +8,7 @@ import (
 
 	"github.com/FilipSolich/mkrepo/internal"
 	"github.com/FilipSolich/mkrepo/internal/config"
+	"github.com/FilipSolich/mkrepo/internal/db"
 	"github.com/FilipSolich/mkrepo/internal/log"
 	"github.com/FilipSolich/mkrepo/internal/middleware"
 	"github.com/FilipSolich/mkrepo/internal/provider"
@@ -25,19 +26,17 @@ func NewRepo(cfg config.Config, providers provider.Providers) *Repo {
 }
 
 func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
-	accounts := middleware.Accounts(r.Context())
-
 	providerKey := r.FormValue("provider")
-	if providerKey == "" {
-		providerKey = h.cfg.DefaultProviderKey
-	}
 	provider, ok := h.providers[providerKey]
 	if !ok {
 		http.Error(w, "unsupported provider", http.StatusBadRequest)
 		return
 	}
 
-	owners, err := provider.NewClient(r.Context(), accounts[0].Token).GetPossibleRepoOwners(r.Context()) // TODO: Dont use [0]
+	accounts := middleware.Accounts(r.Context())
+	account := db.GetAccount(accounts, providerKey, r.FormValue("username"))
+
+	owners, err := provider.NewClient(r.Context(), account.Token).GetPossibleRepoOwners(r.Context())
 	if err != nil {
 		slog.Error("Failed to get possible repo owners", log.Err(err))
 		w.WriteHeader(http.StatusInternalServerError)
