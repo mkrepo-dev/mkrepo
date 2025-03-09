@@ -1,9 +1,9 @@
 providers:
   # Minimal
-  - type: github
+  - key: github
     clientId: $GITHUB_CLIENT_ID
     clientSecret: $GITHUB_CLIENT_SECRET
-  - type: gitlab
+  - key: gitlab
     clientId: $GITLAB_CLIENT_ID
     clientSecret: $GITLAB_CLIENT_SECRET
 

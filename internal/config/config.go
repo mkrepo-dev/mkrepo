@@ -11,8 +11,7 @@ import (
 )
 
 type Config struct {
-	Providers          []Provider `yaml:"providers"`
-	DefaultProviderKey string     `yaml:"defaultProviderKey"`
+	Providers []Provider `yaml:"providers"`
 }
 
 type Provider struct {
@@ -22,6 +21,7 @@ type Provider struct {
 	ClientID     string       `yaml:"clientId"`
 	ClientSecret string       `yaml:"clientSecret"`
 	Url          string       `yaml:"url"`
+	ApiUrl       string       `yaml:"apiUrl"`
 }
 
 type ProviderType string
@@ -31,16 +31,7 @@ const (
 	GitLabProvider ProviderType = "gitlab"
 )
 
-var providerDefaults = map[ProviderType]Provider{
-	GitHubProvider: {
-		Key:  string(GitHubProvider),
-		Name: "GitHub",
-	},
-	GitLabProvider: {
-		Key:  string(GitLabProvider),
-		Name: "GitLab",
-	},
-}
+var ProviderTypes = []ProviderType{GitHubProvider, GitLabProvider}
 
 func LoadConfig(filename string) (Config, error) {
 	vp := viper.NewWithOptions(viper.WithLogger(slog.Default()))
@@ -58,6 +49,7 @@ func LoadConfig(filename string) (Config, error) {
 	}
 
 	cfg = setDefaults(cfg)
+	cfg = fillFromEnv(cfg)
 	err = validate(cfg)
 	if err != nil {
 		return Config{}, err
@@ -70,23 +62,29 @@ func setDefaults(cfg Config) Config {
 	for i, provider := range cfg.Providers {
 		cfg.Providers[i] = setDefaultsProvider(provider)
 	}
-	if cfg.DefaultProviderKey == "" && len(cfg.Providers) > 0 {
-		cfg.DefaultProviderKey = cfg.Providers[0].Key
-	}
 
 	return cfg
 }
 
 func setDefaultsProvider(provider Provider) Provider {
-	if provider.Key == "" {
-		provider.Key = providerDefaults[provider.Type].Key
+	if provider.Type == "" && slices.Contains(ProviderTypes, ProviderType(provider.Key)) {
+		provider.Type = ProviderType(provider.Key)
 	}
-	if provider.Name == "" {
-		provider.Name = providerDefaults[provider.Type].Name
+	if provider.ClientID == "" {
+		provider.ClientID = fmt.Sprintf("$%s_CLIENT_ID", strings.ToUpper(provider.Key))
 	}
-	provider.ClientID = readFromEnv(provider.ClientID)
-	provider.ClientSecret = readFromEnv(provider.ClientSecret)
+	if provider.ClientSecret == "" {
+		provider.ClientSecret = fmt.Sprintf("$%s_CLIENT_SECRET", strings.ToUpper(provider.Key))
+	}
 	return provider
+}
+
+func fillFromEnv(cfg Config) Config {
+	for i, provider := range cfg.Providers {
+		cfg.Providers[i].ClientID = readFromEnv(provider.ClientID)
+		cfg.Providers[i].ClientSecret = readFromEnv(provider.ClientSecret)
+	}
+	return cfg
 }
 
 func validate(cfg Config) error {
@@ -100,10 +98,6 @@ func validate(cfg Config) error {
 			return fmt.Errorf("duplicate provider key: %s", provider.Key)
 		}
 		keys[provider.Key] = struct{}{}
-	}
-
-	if _, ok := keys[cfg.DefaultProviderKey]; !ok {
-		return fmt.Errorf("default provider key not found")
 	}
 
 	for _, provider := range cfg.Providers {
@@ -120,16 +114,13 @@ func validateProvider(provider Provider) error {
 	if provider.Key == "" {
 		return fmt.Errorf("missing provider key")
 	}
-	if provider.Name == "" {
-		return fmt.Errorf("missing provider name")
-	}
 	if provider.ClientID == "" {
 		return fmt.Errorf("missing client ID")
 	}
 	if provider.ClientSecret == "" {
 		return fmt.Errorf("missing client secret")
 	}
-	if !slices.Contains([]ProviderType{GitHubProvider, GitLabProvider}, provider.Type) {
+	if !slices.Contains(ProviderTypes, provider.Type) {
 		return fmt.Errorf("unknown provider type: %s", provider.Type)
 	}
 	return nil

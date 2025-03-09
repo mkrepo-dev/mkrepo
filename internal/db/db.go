@@ -3,8 +3,10 @@ package db
 import (
 	"context"
 	"database/sql"
+	"log/slog"
 	"time"
 
+	"github.com/FilipSolich/mkrepo/internal/log"
 	_ "github.com/mattn/go-sqlite3"
 	"golang.org/x/oauth2"
 )
@@ -42,7 +44,8 @@ func NewDB(ctx context.Context, datasource string) (*DB, error) {
 		"username" TEXT NOT NULL,
 		"display_name" TEXT NOT NULL,
 		"avatar_url" TEXT NOT NULL,
-		PRIMARY KEY("id" AUTOINCREMENT)
+		PRIMARY KEY("id" AUTOINCREMENT),
+		UNIQUE("session", "provider", "username")
 	) STRICT;`)
 	if err != nil {
 		return nil, err
@@ -62,13 +65,13 @@ type Account struct {
 	AvatarURL   string
 }
 
-func GetAccount(accounts []Account, provider string, username string) *Account {
+func GetAccount(accounts []Account, provider string, username string) Account {
 	for _, account := range accounts {
 		if account.Provider == provider && account.Username == username {
-			return &account
+			return account
 		}
 	}
-	return nil
+	return Account{}
 }
 
 func (db *DB) GetSessionAccounts(ctx context.Context, session string) ([]Account, error) {
@@ -104,14 +107,33 @@ type UserInfo struct {
 	AvatarURL   string
 }
 
-func (db *DB) CreateAccount(ctx context.Context, session string, provider string, token *oauth2.Token, userInfo UserInfo) error {
-	_, err := db.ExecContext(ctx,
+func (db *DB) CreateOrOverwriteAccount(ctx context.Context, session string, provider string, token *oauth2.Token, userInfo UserInfo) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err := tx.Rollback()
+		if err != nil {
+			slog.Error("Failed to rollback transaction", log.Err(err))
+		}
+	}()
+
+	_, err = tx.ExecContext(ctx, `DELETE FROM "account" WHERE "session" = ? AND "provider" = ? AND "username" = ?;`, session, provider, userInfo.Username)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx,
 		`INSERT INTO "account" ("session", "provider", "access_token", "refresh_token", "expiry", "email", "username", "display_name", "avatar_url")
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
 		session, provider, token.AccessToken, token.RefreshToken, token.Expiry.Unix(),
 		userInfo.Email, userInfo.Username, userInfo.DisplayName, userInfo.AvatarURL,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func (db *DB) DeleteAccount(ctx context.Context, session string, provider string, username string) error {

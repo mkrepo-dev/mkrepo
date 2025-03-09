@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"maps"
 	"net/http"
 
+	"github.com/FilipSolich/mkrepo/internal/middleware"
 	"github.com/FilipSolich/mkrepo/internal/provider"
 	"github.com/FilipSolich/mkrepo/internal/template"
 )
@@ -20,8 +22,13 @@ func (h *Index) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	unauthenticatedProviders := maps.Clone(h.providers)
+	for _, account := range middleware.Accounts(r.Context()) {
+		delete(unauthenticatedProviders, account.Provider)
+	}
 	template.Render(w, template.Index, template.IndexContext{
-		BaseContext: getBaseContext(r),
-		Providers:   h.providers,
+		BaseContext:              getBaseContext(r),
+		Providers:                h.providers,
+		UnauthenticatedProviders: unauthenticatedProviders,
 	})
 }

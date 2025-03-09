@@ -1,17 +1,25 @@
 {{define "title"}}mkrepo{{end}}
 
 {{define "content"}}
-<form action="/new" method="get">
-  <select id="provider" name="provider">
-    {{range .Accounts}}
-    <option value="{{.Provider}}:{{.Username}}">{{(index $.Providers .Provider).Name}} as {{.Username}}</option>
-    {{end}}
-    {{range $key, $provider := .Providers}}
-    <option value="{{$key}}">{{$provider.Name}}</option>
-    {{end}}
-  </select>
-  <label for="name">Name</label>
-  <input type="text" id="name" name="name">
-  <input type="submit" value="Next">
-</form>
+<div class="d-flex justify-content-center align-items-center vh-100">
+  <div class="container text-center border rounded p-4 shadow" style="max-width: 700px; background: white;">
+    <h1 class="display-1">mkrepo</h2>
+    <form action="/new" method="get">
+      <div class="row g-2">
+        <div class="input-group mb-3">
+          <select id="provider" name="provider" class="form-select" style="width: 30%">
+            {{range .Accounts}}
+            <option value="{{.Provider}}:{{.Username}}">{{(index $.Providers .Provider).Name}} as {{.Username}}</option>
+            {{end}}
+            {{range $key, $provider := .UnauthenticatedProviders}}
+            <option value="{{$key}}">{{$provider.Name}}</option>
+            {{end}}
+          </select>
+          <input type="text" id="name" name="name" class="col-6 form-control" style="width: 50%" required data-1p-ignore>
+          <button type="submit" class="col-2 btn btn-primary" style="width: 20%">Next</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
 {{end}}

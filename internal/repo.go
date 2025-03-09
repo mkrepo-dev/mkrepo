@@ -1,7 +1,11 @@
 package internal
 
+import (
+	"github.com/FilipSolich/mkrepo/internal/db"
+)
+
 type Repo struct {
-	Provider    string
+	Account     db.Account
 	Owner       string
 	Name        string
 	Description string
@@ -17,10 +21,6 @@ type Repo struct {
 
 	IsTemplate bool
 	Sha256     bool
-
-	AuthorName  string
-	AuthorEmail string
-	AuthToken   string
 }
 
 func (r *Repo) NeedInitialization() bool {

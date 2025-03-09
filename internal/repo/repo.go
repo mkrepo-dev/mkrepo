@@ -21,13 +21,6 @@ import (
 
 // Create remote repo and initialize it if needed. Returns url to the repo.
 func CreateNewRepo(ctx context.Context, repo internal.Repo, provider provider.ProviderClient) (string, error) {
-	username, email, err := provider.GetGitAuthor(ctx)
-	if err != nil {
-		return "", err
-	}
-	repo.AuthorEmail = email
-	repo.AuthorName = username
-
 	url, cloneUrl, err := provider.CreateRemoteRepo(ctx, repo)
 	if err != nil {
 		return "", err
@@ -78,7 +71,7 @@ func initializeRepo(repo internal.Repo, cloneUrl string) error {
 		return err
 	}
 
-	signature := &object.Signature{Name: repo.AuthorName, Email: repo.AuthorEmail, When: time.Now()}
+	signature := &object.Signature{Name: repo.Account.DisplayName, Email: repo.Account.Email, When: time.Now()}
 	err = wt.AddWithOptions(&git.AddOptions{All: true})
 	if err != nil {
 		return err
@@ -109,9 +102,15 @@ func initializeRepo(repo internal.Repo, cloneUrl string) error {
 	if err != nil {
 		return err
 	}
+	provider := provider.GitHub{}
+	ts := provider.OAuth2Config().TokenSource(context.TODO(), repo.Account.Token)
+	tk, err := ts.Token()
+	if err != nil {
+		return err
+	}
 	return r.Push(&git.PushOptions{
 		FollowTags: true, // TODO: Does this do what I think it does?
-		Auth:       &githttp.BasicAuth{Username: "mkrepo", Password: repo.AuthToken},
+		Auth:       &githttp.BasicAuth{Username: "mkrepo", Password: tk.AccessToken},
 	})
 }
 

@@ -15,27 +15,49 @@ import (
 )
 
 type GitLab struct {
-	Name         string
-	ClientId     string
-	ClientSecret string
-	Url          string
+	name         string
+	clientId     string
+	clientSecret string
+	url          string
+	apiUrl       string
 }
 
 var _ Provider = &GitLab{}
 
 func NewGitLabFromConfig(cfg config.Provider) *GitLab {
-	return &GitLab{
-		Name:         cfg.Name,
-		ClientId:     cfg.ClientID,
-		ClientSecret: cfg.ClientSecret,
-		Url:          cfg.Url,
+	name := "GitLab"
+	if cfg.Name != "" {
+		name = cfg.Name
 	}
+	url := "https://gitlab.com"
+	if cfg.Url != "" {
+		url = cfg.Url
+	}
+	apiUrl := "https://gitlab.com/api/v4"
+	if cfg.ApiUrl != "" {
+		apiUrl = cfg.ApiUrl
+	}
+	return &GitLab{
+		name:         name,
+		clientId:     cfg.ClientID,
+		clientSecret: cfg.ClientSecret,
+		url:          url,
+		apiUrl:       apiUrl,
+	}
+}
+
+func (provider *GitLab) Name() string {
+	return provider.name
+}
+
+func (provider *GitLab) Url() string {
+	return provider.url
 }
 
 func (provider *GitLab) OAuth2Config() *oauth2.Config {
 	return &oauth2.Config{
-		ClientID:     provider.ClientId,
-		ClientSecret: provider.ClientSecret,
+		ClientID:     provider.clientId,
+		ClientSecret: provider.clientSecret,
 		Scopes:       []string{"api"},
 		Endpoint:     endpoints.GitLab,
 		RedirectURL:  "http://localhost:8000/auth/oauth2/callback/gitlab", // TODO: Put this into config
@@ -88,13 +110,17 @@ func (client *GitLabClient) CreateWebhook(ctx context.Context, repo internal.Rep
 	return nil
 }
 
-func (client *GitLabClient) GetPossibleRepoOwners(ctx context.Context) ([]string, error) {
-	var owners []string
+func (client *GitLabClient) GetRepoOwners(ctx context.Context) ([]RepoOwner, error) {
+	var owners []RepoOwner
 	user, _, err := client.Users.CurrentUser()
 	if err != nil {
 		return nil, err
 	}
-	owners = append(owners, user.Name)
+	owners = append(owners, RepoOwner{
+		Name:        user.Username,
+		DisplayName: user.Name,
+		AvatarUrl:   user.AvatarURL,
+	})
 
 	groups, _, err := client.Groups.ListGroups(&gitlab.ListGroupsOptions{})
 	if err != nil {
@@ -102,16 +128,12 @@ func (client *GitLabClient) GetPossibleRepoOwners(ctx context.Context) ([]string
 	}
 	for _, group := range groups {
 		// TODO: Can user create project in all of this groups?
-		owners = append(owners, group.FullPath)
+		owners = append(owners, RepoOwner{
+			Name:        group.FullPath,
+			DisplayName: group.Name,
+			AvatarUrl:   group.AvatarURL,
+		})
 	}
 
 	return owners, nil
-}
-
-func (client *GitLabClient) GetGitAuthor(ctx context.Context) (string, string, error) {
-	user, _, err := client.Users.CurrentUser()
-	if err != nil {
-		return "", "", err
-	}
-	return user.Name, user.Email, nil
 }

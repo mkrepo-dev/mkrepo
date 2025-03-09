@@ -26,7 +26,12 @@ func NewRepo(cfg config.Config, providers provider.Providers) *Repo {
 }
 
 func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
-	providerKey := r.FormValue("provider")
+	providerKey, username := splitProviderUser(r)
+	if username == "" {
+		http.Redirect(w, r, "/auth/login?provider="+providerKey, http.StatusFound)
+		return
+	}
+
 	provider, ok := h.providers[providerKey]
 	if !ok {
 		http.Error(w, "unsupported provider", http.StatusBadRequest)
@@ -34,9 +39,9 @@ func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 	}
 
 	accounts := middleware.Accounts(r.Context())
-	account := db.GetAccount(accounts, providerKey, r.FormValue("username"))
+	account := db.GetAccount(accounts, providerKey, username)
 
-	owners, err := provider.NewClient(r.Context(), account.Token).GetPossibleRepoOwners(r.Context())
+	owners, err := provider.NewClient(r.Context(), account.Token).GetRepoOwners(r.Context())
 	if err != nil {
 		slog.Error("Failed to get possible repo owners", log.Err(err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -54,10 +59,13 @@ func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
+	providerKey, username := splitProviderUser(r)
+	account := db.GetAccount(middleware.Accounts(r.Context()), providerKey, username)
+
 	session := middleware.Session(r.Context())
 
 	repository := internal.Repo{
-		Provider:     r.FormValue("provider"),
+		Account:      account,
 		Owner:        r.FormValue("owner"),
 		Name:         r.FormValue("name"),
 		Description:  r.FormValue("description"),
@@ -71,10 +79,8 @@ func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
 		IsTemplate:   r.FormValue("template") == "checked",
 		//IsTemplate:   r.FormValue("is_template") == "checked",
 		//Sha256:       r.FormValue("sha256") == "checked",
-		AuthToken: session,
 	}
 
-	providerKey := r.FormValue("provider")
 	provider, ok := h.providers[providerKey]
 	if !ok {
 		http.Error(w, "unsupported provider", http.StatusBadRequest)

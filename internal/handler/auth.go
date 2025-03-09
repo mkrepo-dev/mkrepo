@@ -29,7 +29,7 @@ type Auth struct {
 
 func NewAuth(cfg config.Config, db *db.DB, providers provider.Providers) *Auth {
 	handler := &Auth{cfg: cfg, db: db, providers: providers, states: make(map[string]time.Time)}
-	go handler.stateCleaner(12 * time.Hour)
+	go handler.stateCleaner(time.Hour)
 	return handler
 }
 
@@ -53,7 +53,8 @@ func (h *Auth) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Auth) Logout(w http.ResponseWriter, r *http.Request) {
-	err := h.db.DeleteAccount(r.Context(), middleware.Session(r.Context()), r.FormValue("provider"), r.FormValue("username"))
+	provider, username := splitProviderUser(r)
+	err := h.db.DeleteAccount(r.Context(), middleware.Session(r.Context()), provider, username)
 	if err != nil {
 		slog.Error("Failed to delete account", log.Err(err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -100,7 +101,7 @@ func (h *Auth) OAuth2Callback(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	err = h.db.CreateAccount(r.Context(), session, providerKey, token, info) // TODO: Should be create or update and shoul delete old token from provider if update is made
+	err = h.db.CreateOrOverwriteAccount(r.Context(), session, providerKey, token, info) // TODO: Should be create or update and shoul delete old token from provider if update is made
 	if err != nil {
 		slog.Error("Failed to create account", log.Err(err))
 		w.WriteHeader(http.StatusInternalServerError)

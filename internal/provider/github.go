@@ -13,28 +13,50 @@ import (
 )
 
 type GitHub struct {
-	Name         string
-	ClientId     string
-	ClientSecret string
-	Url          string
+	name         string
+	clientId     string
+	clientSecret string
+	url          string
+	apiUrl       string // TODO: Use api url
 }
 
 var _ Provider = &GitHub{}
 
 func NewGitHubFromConfig(cfg config.Provider) *GitHub {
-	return &GitHub{
-		Name:         cfg.Name,
-		ClientId:     cfg.ClientID,
-		ClientSecret: cfg.ClientSecret,
-		Url:          cfg.Url,
+	name := "GitHub"
+	if cfg.Name != "" {
+		name = cfg.Name
 	}
+	url := "https://github.com"
+	if cfg.Url != "" {
+		url = cfg.Url
+	}
+	apiUrl := "https://api.github.com"
+	if cfg.ApiUrl != "" {
+		apiUrl = cfg.ApiUrl
+	}
+	return &GitHub{
+		name:         name,
+		clientId:     cfg.ClientID,
+		clientSecret: cfg.ClientSecret,
+		url:          url,
+		apiUrl:       apiUrl,
+	}
+}
+
+func (provider *GitHub) Name() string {
+	return provider.name
+}
+
+func (provider *GitHub) Url() string {
+	return provider.url
 }
 
 func (provider *GitHub) OAuth2Config() *oauth2.Config {
 	// TODO: Fill with custom url if there is any
 	return &oauth2.Config{
-		ClientID:     provider.ClientId,
-		ClientSecret: provider.ClientSecret,
+		ClientID:     provider.clientId,
+		ClientSecret: provider.clientSecret,
 		Scopes:       []string{"repo", "read:org"},
 		RedirectURL:  "http://localhost:8000/auth/oauth2/callback/github", // TODO: Fill this from config. Must match what is set in GitHub.
 		Endpoint:     endpoints.GitHub,
@@ -70,7 +92,7 @@ func (client *GitHubClient) GetUserInfo(ctx context.Context) (db.UserInfo, error
 func (client *GitHubClient) CreateRemoteRepo(ctx context.Context, repo internal.Repo) (string, string, error) {
 	var org string
 	// TODO: Fix this. AuthorName is diffrent then user login. Find a way to diffrentiate between user and org.
-	if repo.Owner != repo.AuthorName {
+	if repo.Owner != repo.Account.Username {
 		org = repo.Owner
 	}
 	r, _, err := client.Repositories.Create(ctx, org, &github.Repository{
@@ -97,13 +119,17 @@ func (client *GitHubClient) CreateWebhook(ctx context.Context, repo internal.Rep
 	return err
 }
 
-func (client *GitHubClient) GetPossibleRepoOwners(ctx context.Context) ([]string, error) {
-	var owners []string
+func (client *GitHubClient) GetRepoOwners(ctx context.Context) ([]RepoOwner, error) {
+	var owners []RepoOwner
 	user, _, err := client.Users.Get(ctx, "")
 	if err != nil {
 		return nil, err
 	}
-	owners = append(owners, user.GetLogin())
+	owners = append(owners, RepoOwner{
+		Name:        user.GetLogin(),
+		DisplayName: user.GetName(),
+		AvatarUrl:   user.GetAvatarURL(),
+	})
 
 	orgs, _, err := client.Organizations.List(ctx, "", nil)
 	if err != nil {
@@ -114,8 +140,14 @@ func (client *GitHubClient) GetPossibleRepoOwners(ctx context.Context) ([]string
 		if err != nil {
 			return owners, err
 		}
+
+		orgOwner := RepoOwner{
+			Name:        org.GetLogin(),
+			DisplayName: org.GetName(),
+			AvatarUrl:   org.GetAvatarURL(),
+		}
 		if org.GetMembersCanCreateRepos() {
-			owners = append(owners, org.GetLogin())
+			owners = append(owners, orgOwner)
 			continue
 		}
 		membership, _, err := client.Organizations.GetOrgMembership(ctx, "", org.GetLogin())
@@ -123,17 +155,9 @@ func (client *GitHubClient) GetPossibleRepoOwners(ctx context.Context) ([]string
 			return owners, err
 		}
 		if membership.GetRole() == "admin" {
-			owners = append(owners, org.GetLogin())
+			owners = append(owners, orgOwner)
 		}
 	}
 
 	return owners, nil
-}
-
-func (client *GitHubClient) GetGitAuthor(ctx context.Context) (string, string, error) {
-	user, _, err := client.Users.Get(ctx, "")
-	if err != nil {
-		return "", "", err
-	}
-	return user.GetName(), user.GetEmail(), nil
 }

@@ -64,6 +64,7 @@ tasks:
     sources:
       - 'cmd/**/*'
       - 'internal/**/*'
+      - 'static/**/*'
       - 'go.mod'
       - 'go.sum'
     cmds:

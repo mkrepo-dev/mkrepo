@@ -16,6 +16,7 @@ import (
 	"github.com/FilipSolich/mkrepo/internal/log"
 	"github.com/FilipSolich/mkrepo/internal/middleware"
 	"github.com/FilipSolich/mkrepo/internal/provider"
+	"github.com/FilipSolich/mkrepo/static"
 )
 
 func main() {
@@ -44,6 +45,7 @@ func main() {
 	defer db.Close()
 
 	mux := http.NewServeMux()
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(static.FS))))
 	mux.Handle("GET /", handler.NewIndex(providers))
 
 	auth := handler.NewAuth(cfg, db, providers)

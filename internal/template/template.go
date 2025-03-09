@@ -37,7 +37,8 @@ type BaseContext struct {
 
 type IndexContext struct {
 	BaseContext
-	Providers provider.Providers
+	Providers                provider.Providers
+	UnauthenticatedProviders provider.Providers
 }
 
 type LoginContext struct {
@@ -50,7 +51,7 @@ type NewRepoFormContext struct {
 	Name             string
 	Providers        provider.Providers
 	SelectedProvider string
-	Owners           []string
+	Owners           []provider.RepoOwner
 }
 
 type ReadmeContext struct {

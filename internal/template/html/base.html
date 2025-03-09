@@ -1,14 +1,47 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
-    <title>{{template "title" .}}</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{block "title" .}}mkrepo{{end}}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    {{block "style" .}}{{end}}
   </head>
-  <body>
-    {{range .Accounts}}
-    <p>{{.Username}}</p>
-    <a href="/auth/logout?provider={{.Provider}}&username={{.Username}}">Logout</a>
-    {{end}}
-    <a href="/auth/login">Login</a>
-    {{template "content" .}}
+  <body style="background-color: #f8f9fa;">
+    <div class="container">
+      <nav class="navbar navbar-expand-lg bg-body-tertiary">
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav">
+            <li class="nav-item">
+              <a class="nav-link" href="#">docs</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#">github</a>
+            </li>
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                Accounts
+              </a>
+              <ul class="dropdown-menu">
+                {{range .Accounts}}
+                <li>
+                  {{.Provider}} - {{.Username}}
+                  <form action="/auth/logout" method="get">
+                    <input type="hidden" name="provider" value="{{.Provider}}:{{.Username}}">
+                    <button type="submit" class="btn btn-outline-danger">Logout</button>
+                  </form>
+                </li>
+                {{end}}
+              </ul>
+            </li>
+          </ul>
+        </div>
+      </nav>
+      {{block "content" .}}{{end}}
+    </div>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {{block "script" .}}{{end}}
   </body>
 </html>

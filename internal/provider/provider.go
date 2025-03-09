@@ -10,6 +10,8 @@ import (
 )
 
 type Provider interface {
+	Name() string
+	Url() string
 	OAuth2Config() *oauth2.Config
 	NewClient(ctx context.Context, token *oauth2.Token) ProviderClient // TODO: use custom http client
 }
@@ -22,12 +24,16 @@ type ProviderClient interface {
 	CreateWebhook(ctx context.Context, repo internal.Repo) error
 
 	// Get possible repo owners
-	GetPossibleRepoOwners(ctx context.Context) ([]string, error)
+	GetRepoOwners(ctx context.Context) ([]RepoOwner, error)
 
+	// Get user info
 	GetUserInfo(ctx context.Context) (db.UserInfo, error)
+}
 
-	// Get git author name and email
-	GetGitAuthor(ctx context.Context) (string, string, error)
+type RepoOwner struct {
+	Name        string
+	DisplayName string
+	AvatarUrl   string
 }
 
 type Providers map[string]Provider
