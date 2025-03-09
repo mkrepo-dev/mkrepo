@@ -36,6 +36,7 @@ func NewAuth(cfg config.Config, db *db.DB, providers provider.Providers) *Auth {
 func (h *Auth) Login(w http.ResponseWriter, r *http.Request) {
 	provider, ok := h.providers[r.FormValue("provider")]
 	if !ok {
+		// TODO: Perserve redirect uri
 		template.Render(w, template.Login, template.LoginContext{
 			BaseContext: getBaseContext(r),
 			Providers:   h.providers,
@@ -45,8 +46,13 @@ func (h *Auth) Login(w http.ResponseWriter, r *http.Request) {
 
 	config := provider.OAuth2Config()
 	if r.FormValue("redirect_uri") != "" {
-		config.RedirectURL += "?redirect_uri=" + url.QueryEscape(r.FormValue("redirect_uri"))
-		//config.RedirectURL += "?redirect_uri=" + r.FormValue("redirect_uri")
+		redirect, err := addRedirectUri(config.RedirectURL, r.FormValue("redirect_uri"))
+		if err != nil {
+			slog.Error("Failed to add redirect uri", log.Err(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		config.RedirectURL = redirect
 	}
 
 	http.Redirect(w, r, config.AuthCodeURL(h.createState()), http.StatusFound)
@@ -82,7 +88,15 @@ func (h *Auth) OAuth2Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := provider.OAuth2Config().Exchange(r.Context(), code)
+	cfg := provider.OAuth2Config()
+	redirect, err := addRedirectUri(cfg.RedirectURL, r.FormValue("redirect_uri"))
+	if err != nil {
+		slog.Error("Failed to add redirect uri", log.Err(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	cfg.RedirectURL = redirect
+	token, err := cfg.Exchange(r.Context(), code)
 	if err != nil {
 		slog.Error("Failed to exchange code for token", log.Err(err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -151,4 +165,15 @@ func (h *Auth) stateCleaner(interval time.Duration) {
 	for range time.Tick(interval) {
 		h.cleanExpiredState()
 	}
+}
+
+func addRedirectUri(base string, redirectUri string) (string, error) {
+	u, err := url.Parse(base)
+	if err != nil {
+		return "", err
+	}
+	q := u.Query()
+	q.Set("redirect_uri", redirectUri)
+	u.RawQuery = q.Encode()
+	return u.String(), nil
 }

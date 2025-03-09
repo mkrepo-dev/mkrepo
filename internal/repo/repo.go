@@ -20,8 +20,9 @@ import (
 )
 
 // Create remote repo and initialize it if needed. Returns url to the repo.
-func CreateNewRepo(ctx context.Context, repo internal.Repo, provider provider.ProviderClient) (string, error) {
-	url, cloneUrl, err := provider.CreateRemoteRepo(ctx, repo)
+func CreateNewRepo(ctx context.Context, repo internal.Repo, provider provider.Provider) (string, error) {
+	client := provider.NewClient(ctx, repo.Account.Token)
+	url, cloneUrl, err := client.CreateRemoteRepo(ctx, repo)
 	if err != nil {
 		return "", err
 	}
@@ -31,7 +32,7 @@ func CreateNewRepo(ctx context.Context, repo internal.Repo, provider provider.Pr
 	}
 
 	// TODO: Wait with context
-	err = initializeRepo(repo, cloneUrl)
+	err = initializeRepo(repo, provider, cloneUrl)
 	if err != nil {
 		// TODO: Delete remote repo that cannot be initialized?
 		return url, err
@@ -42,7 +43,7 @@ func CreateNewRepo(ctx context.Context, repo internal.Repo, provider provider.Pr
 	return url, nil
 }
 
-func initializeRepo(repo internal.Repo, cloneUrl string) error {
+func initializeRepo(repo internal.Repo, provider provider.Provider, cloneUrl string) error {
 	dir, err := os.MkdirTemp("", "mkrepo-")
 	if err != nil {
 		return err
@@ -102,7 +103,6 @@ func initializeRepo(repo internal.Repo, cloneUrl string) error {
 	if err != nil {
 		return err
 	}
-	provider := provider.GitHub{}
 	ts := provider.OAuth2Config().TokenSource(context.TODO(), repo.Account.Token)
 	tk, err := ts.Token()
 	if err != nil {

@@ -54,6 +54,7 @@ func (provider *GitHub) Url() string {
 
 func (provider *GitHub) OAuth2Config() *oauth2.Config {
 	// TODO: Fill with custom url if there is any
+	// TODO: Validate if redirect url is parsable
 	return &oauth2.Config{
 		ClientID:     provider.clientId,
 		ClientSecret: provider.clientSecret,

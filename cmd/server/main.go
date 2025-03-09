@@ -45,8 +45,8 @@ func main() {
 	defer db.Close()
 
 	mux := http.NewServeMux()
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(static.FS))))
 	mux.Handle("GET /", handler.NewIndex(providers))
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(static.FS))))
 
 	auth := handler.NewAuth(cfg, db, providers)
 	mux.HandleFunc("GET /auth/login", auth.Login)

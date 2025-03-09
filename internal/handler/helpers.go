@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/FilipSolich/mkrepo/internal/middleware"
@@ -21,4 +22,16 @@ func splitProviderUser(r *http.Request) (string, string) {
 	}
 
 	return parts[0], ""
+}
+
+func loginRedirect(w http.ResponseWriter, r *http.Request, providerKey string, redirectUri string) {
+	query := url.Values{}
+	query.Set("provider", providerKey)
+	query.Set("redirect_uri", redirectUri)
+	redirect := url.URL{
+		Path:     "/auth/login",
+		RawQuery: query.Encode(),
+	}
+
+	http.Redirect(w, r, redirect.String(), http.StatusFound)
 }

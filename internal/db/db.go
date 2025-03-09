@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -65,13 +66,13 @@ type Account struct {
 	AvatarURL   string
 }
 
-func GetAccount(accounts []Account, provider string, username string) Account {
+func GetAccount(accounts []Account, provider string, username string) *Account {
 	for _, account := range accounts {
-		if account.Provider == provider && account.Username == username {
-			return account
+		if account.Provider == provider && (account.Username == username || username == "") {
+			return &account
 		}
 	}
-	return Account{}
+	return nil
 }
 
 func (db *DB) GetSessionAccounts(ctx context.Context, session string) ([]Account, error) {
@@ -114,11 +115,12 @@ func (db *DB) CreateOrOverwriteAccount(ctx context.Context, session string, prov
 	}
 	defer func() {
 		err := tx.Rollback()
-		if err != nil {
+		if err != nil && !errors.Is(err, sql.ErrTxDone) {
 			slog.Error("Failed to rollback transaction", log.Err(err))
 		}
 	}()
 
+	// TODO: Use prepare statement for this and use it for delete account also.
 	_, err = tx.ExecContext(ctx, `DELETE FROM "account" WHERE "session" = ? AND "provider" = ? AND "username" = ?;`, session, provider, userInfo.Username)
 	if err != nil {
 		return err

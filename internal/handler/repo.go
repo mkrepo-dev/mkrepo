@@ -4,8 +4,6 @@ import (
 	"log/slog"
 	"net/http"
 
-	"golang.org/x/oauth2"
-
 	"github.com/FilipSolich/mkrepo/internal"
 	"github.com/FilipSolich/mkrepo/internal/config"
 	"github.com/FilipSolich/mkrepo/internal/db"
@@ -27,9 +25,16 @@ func NewRepo(cfg config.Config, providers provider.Providers) *Repo {
 
 func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 	providerKey, username := splitProviderUser(r)
-	if username == "" {
-		http.Redirect(w, r, "/auth/login?provider="+providerKey, http.StatusFound)
-		return
+	accounts := middleware.Accounts(r.Context())
+	account := db.GetAccount(accounts, providerKey, username)
+
+	if account == nil {
+		if len(accounts) == 0 || providerKey != "" {
+			loginRedirect(w, r, providerKey, r.URL.String())
+			return
+		}
+		account = &accounts[0]
+		providerKey = account.Provider
 	}
 
 	provider, ok := h.providers[providerKey]
@@ -37,9 +42,6 @@ func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unsupported provider", http.StatusBadRequest)
 		return
 	}
-
-	accounts := middleware.Accounts(r.Context())
-	account := db.GetAccount(accounts, providerKey, username)
 
 	owners, err := provider.NewClient(r.Context(), account.Token).GetRepoOwners(r.Context())
 	if err != nil {
@@ -61,11 +63,10 @@ func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
 	providerKey, username := splitProviderUser(r)
 	account := db.GetAccount(middleware.Accounts(r.Context()), providerKey, username)
-
-	session := middleware.Session(r.Context())
+	// TODO: Handler if account is nil
 
 	repository := internal.Repo{
-		Account:      account,
+		Account:      *account,
 		Owner:        r.FormValue("owner"),
 		Name:         r.FormValue("name"),
 		Description:  r.FormValue("description"),
@@ -87,7 +88,7 @@ func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url, err := repo.CreateNewRepo(r.Context(), repository, provider.NewClient(r.Context(), &oauth2.Token{AccessToken: session}))
+	url, err := repo.CreateNewRepo(r.Context(), repository, provider)
 	if err != nil {
 		slog.Error("Failed to create repository", log.Err(err))
 		w.WriteHeader(http.StatusInternalServerError)
