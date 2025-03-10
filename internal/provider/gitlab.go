@@ -54,24 +54,26 @@ func (provider *GitLab) Url() string {
 	return provider.url
 }
 
-func (provider *GitLab) OAuth2Config() *oauth2.Config {
-	return &oauth2.Config{
+func (provider *GitLab) OAuth2Config(redirectUri string) *oauth2.Config {
+	cfg := &oauth2.Config{
 		ClientID:     provider.clientId,
 		ClientSecret: provider.clientSecret,
 		Scopes:       []string{"api"},
 		Endpoint:     endpoints.GitLab,
 		RedirectURL:  "http://localhost:8000/auth/oauth2/callback/gitlab", // TODO: Put this into config
 	}
+	return oauth2WithRedirectUri(cfg, redirectUri)
 }
 
-func (provider *GitLab) NewClient(ctx context.Context, token *oauth2.Token) ProviderClient {
-	httpClient := provider.OAuth2Config().Client(ctx, token)
-	client, err := gitlab.NewOAuthClient(token.AccessToken, gitlab.WithHTTPClient(httpClient))
+func (provider *GitLab) NewClient(ctx context.Context, token *oauth2.Token, redirectUri string) (ProviderClient, *oauth2.Token) {
+	ts := provider.OAuth2Config(redirectUri).TokenSource(ctx, token)
+	tkn, err := ts.Token()
 	if err != nil {
-		slog.Error("Failed to create gitlab client", log.Err(err))
+		slog.Error("Failed to get token", log.Err(err))
 	}
+	client, _ := gitlab.NewOAuthClient(tkn.AccessToken)
 	client.UserAgent = internal.UserAgent
-	return &GitLabClient{Client: client}
+	return &GitLabClient{Client: client}, tkn
 }
 
 type GitLabClient struct {

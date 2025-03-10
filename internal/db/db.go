@@ -41,6 +41,7 @@ func NewDB(ctx context.Context, datasource string) (*DB, error) {
 		"access_token" TEXT NOT NULL,
 		"refresh_token" TEXT NOT NULL,
 		"expiry" INTEGER NOT NULL DEFAULT 0,
+		"redirect_uri" TEXT NOT NULL,
 		"email" TEXT NOT NULL,
 		"username" TEXT NOT NULL,
 		"display_name" TEXT NOT NULL,
@@ -60,6 +61,7 @@ type Account struct {
 	Session     string
 	Provider    string
 	Token       *oauth2.Token
+	RedirectUri string
 	Email       string
 	Username    string
 	DisplayName string
@@ -77,7 +79,7 @@ func GetAccount(accounts []Account, provider string, username string) *Account {
 
 func (db *DB) GetSessionAccounts(ctx context.Context, session string) ([]Account, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT "id", "session", "provider", "access_token", "refresh_token", "expiry", "email", "username", "display_name", "avatar_url"
+		`SELECT "id", "session", "provider", "access_token", "refresh_token", "expiry", "redirect_uri", "email", "username", "display_name", "avatar_url"
 		 FROM "account"
 		 WHERE "session" = ?;`,
 		session,
@@ -90,7 +92,7 @@ func (db *DB) GetSessionAccounts(ctx context.Context, session string) ([]Account
 		var account Account
 		var accessToken, refreshToken string
 		var expiry int64
-		err = rows.Scan(&account.Id, &account.Session, &account.Provider, &accessToken, &refreshToken, &expiry, &account.Email, &account.Username, &account.DisplayName, &account.AvatarURL)
+		err = rows.Scan(&account.Id, &account.Session, &account.Provider, &accessToken, &refreshToken, &expiry, &account.RedirectUri, &account.Email, &account.Username, &account.DisplayName, &account.AvatarURL)
 		if err != nil {
 			return nil, err
 		}
@@ -108,7 +110,7 @@ type UserInfo struct {
 	AvatarURL   string
 }
 
-func (db *DB) CreateOrOverwriteAccount(ctx context.Context, session string, provider string, token *oauth2.Token, userInfo UserInfo) error {
+func (db *DB) CreateOrOverwriteAccount(ctx context.Context, session string, provider string, token *oauth2.Token, redirectUri string, userInfo UserInfo) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -126,9 +128,9 @@ func (db *DB) CreateOrOverwriteAccount(ctx context.Context, session string, prov
 		return err
 	}
 	_, err = tx.ExecContext(ctx,
-		`INSERT INTO "account" ("session", "provider", "access_token", "refresh_token", "expiry", "email", "username", "display_name", "avatar_url")
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-		session, provider, token.AccessToken, token.RefreshToken, token.Expiry.Unix(),
+		`INSERT INTO "account" ("session", "provider", "access_token", "refresh_token", "expiry", "redirect_uri", "email", "username", "display_name", "avatar_url")
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+		session, provider, token.AccessToken, token.RefreshToken, token.Expiry.Unix(), redirectUri,
 		userInfo.Email, userInfo.Username, userInfo.DisplayName, userInfo.AvatarURL,
 	)
 	if err != nil {
@@ -136,6 +138,16 @@ func (db *DB) CreateOrOverwriteAccount(ctx context.Context, session string, prov
 	}
 
 	return tx.Commit()
+}
+
+func (db *DB) UpdateAccountToken(ctx context.Context, session string, provider string, username string, token *oauth2.Token) error {
+	_, err := db.ExecContext(ctx,
+		`UPDATE "account"
+		 SET "access_token" = ?, "refresh_token" = ?, "expiry" = ?
+		 WHERE "session" = ? AND "provider" = ? AND "username" = ?;`,
+		token.AccessToken, token.RefreshToken, token.Expiry.Unix(), session, provider, username,
+	)
+	return err
 }
 
 func (db *DB) DeleteAccount(ctx context.Context, session string, provider string, username string) error {

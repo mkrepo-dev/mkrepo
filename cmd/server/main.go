@@ -53,7 +53,7 @@ func main() {
 	mux.HandleFunc("GET /auth/logout", auth.Logout)
 	mux.HandleFunc("GET /auth/oauth2/callback/{provider}", auth.OAuth2Callback)
 
-	repo := handler.NewRepo(cfg, providers)
+	repo := handler.NewRepo(cfg, db, providers)
 	mux.Handle("GET /new", http.HandlerFunc(repo.Form))
 	mux.Handle("POST /new", http.HandlerFunc(repo.Create))
 

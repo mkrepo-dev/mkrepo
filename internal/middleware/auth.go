@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"net/url"
 
 	"github.com/FilipSolich/mkrepo/internal/db"
 	"github.com/FilipSolich/mkrepo/internal/log"
@@ -55,31 +54,6 @@ func NewAuthenticate(db *db.DB) func(http.Handler) http.Handler {
 				ctx = SetAccounts(ctx, accounts)
 			}
 			ctx = SetSession(ctx, session)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
-}
-
-func NewAuthenticatedWithProvider(db *db.DB) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token, err := r.Cookie("session")
-			if err != nil {
-				q := url.Values{}
-				q.Set("provider", r.FormValue("provider"))
-				q.Set("redirect_uri", r.RequestURI)
-				u := url.URL{Path: "/login", RawQuery: q.Encode()}
-				http.Redirect(w, r, u.String(), http.StatusFound)
-				return
-			}
-			//t, err := db.GetToken(r.Context(), token.Value, "github")
-			//if err != nil {
-			//	slog.Error("Failed to get token", log.Err(err))
-			//	return
-			//}
-			//slog.Info("Authenticated", slog.String("accessToken", t.AccessToken), slog.String("refreshToken", t.RefreshToken), slog.Time("expiry", t.Expiry))
-
-			ctx := SetSession(r.Context(), token.Value)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

@@ -2,18 +2,21 @@ package provider
 
 import (
 	"context"
+	"log/slog"
+	"net/url"
 
 	"github.com/FilipSolich/mkrepo/internal"
 	"github.com/FilipSolich/mkrepo/internal/config"
 	"github.com/FilipSolich/mkrepo/internal/db"
+	"github.com/FilipSolich/mkrepo/internal/log"
 	"golang.org/x/oauth2"
 )
 
 type Provider interface {
 	Name() string
 	Url() string
-	OAuth2Config() *oauth2.Config
-	NewClient(ctx context.Context, token *oauth2.Token) ProviderClient // TODO: use custom http client
+	OAuth2Config(redirectUri string) *oauth2.Config
+	NewClient(ctx context.Context, token *oauth2.Token, redirectUri string) (ProviderClient, *oauth2.Token)
 }
 
 type ProviderClient interface {
@@ -49,4 +52,20 @@ func NewProvidersFromConfig(cfg []config.Provider) Providers {
 		}
 	}
 	return providers
+}
+
+func oauth2WithRedirectUri(config *oauth2.Config, redirectUri string) *oauth2.Config {
+	if redirectUri == "" {
+		return config
+	}
+	u, err := url.Parse(config.RedirectURL)
+	if err != nil {
+		slog.Error("Failed to parse redirect url", log.Err(err))
+		return config
+	}
+	q := u.Query()
+	q.Set("redirect_uri", redirectUri)
+	u.RawQuery = q.Encode()
+	config.RedirectURL = u.String()
+	return config
 }

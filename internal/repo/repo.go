@@ -15,13 +15,20 @@ import (
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 
 	"github.com/FilipSolich/mkrepo/internal"
+	"github.com/FilipSolich/mkrepo/internal/db"
 	"github.com/FilipSolich/mkrepo/internal/provider"
 	"github.com/FilipSolich/mkrepo/internal/template"
 )
 
 // Create remote repo and initialize it if needed. Returns url to the repo.
-func CreateNewRepo(ctx context.Context, repo internal.Repo, provider provider.Provider) (string, error) {
-	client := provider.NewClient(ctx, repo.Account.Token)
+func CreateNewRepo(ctx context.Context, db *db.DB, repo internal.Repo, provider provider.Provider) (string, error) {
+	// TODO: Put dependencies as DB in struct
+	client, token := provider.NewClient(ctx, repo.Account.Token, repo.Account.RedirectUri)
+	repo.Account.Token = token
+	err := db.UpdateAccountToken(ctx, repo.Account.Session, repo.Account.Provider, repo.Account.Username, repo.Account.Token)
+	if err != nil {
+		return "", err
+	}
 	url, cloneUrl, err := client.CreateRemoteRepo(ctx, repo)
 	if err != nil {
 		return "", err
@@ -32,7 +39,7 @@ func CreateNewRepo(ctx context.Context, repo internal.Repo, provider provider.Pr
 	}
 
 	// TODO: Wait with context
-	err = initializeRepo(repo, provider, cloneUrl)
+	err = initializeRepo(ctx, db, repo, provider, cloneUrl)
 	if err != nil {
 		// TODO: Delete remote repo that cannot be initialized?
 		return url, err
@@ -43,7 +50,7 @@ func CreateNewRepo(ctx context.Context, repo internal.Repo, provider provider.Pr
 	return url, nil
 }
 
-func initializeRepo(repo internal.Repo, provider provider.Provider, cloneUrl string) error {
+func initializeRepo(ctx context.Context, db *db.DB, repo internal.Repo, provider provider.Provider, cloneUrl string) error {
 	dir, err := os.MkdirTemp("", "mkrepo-")
 	if err != nil {
 		return err
@@ -103,14 +110,20 @@ func initializeRepo(repo internal.Repo, provider provider.Provider, cloneUrl str
 	if err != nil {
 		return err
 	}
-	ts := provider.OAuth2Config().TokenSource(context.TODO(), repo.Account.Token)
-	tk, err := ts.Token()
+	ts := provider.OAuth2Config(repo.Account.RedirectUri).TokenSource(ctx, repo.Account.Token)
+	token, err := ts.Token()
 	if err != nil {
 		return err
 	}
+	repo.Account.Token = token
+	err = db.UpdateAccountToken(ctx, repo.Account.Session, repo.Account.Provider, repo.Account.Username, repo.Account.Token)
+	if err != nil {
+		return err
+	}
+
 	return r.Push(&git.PushOptions{
-		FollowTags: true, // TODO: Does this do what I think it does?
-		Auth:       &githttp.BasicAuth{Username: "mkrepo", Password: tk.AccessToken},
+		FollowTags: true,
+		Auth:       &githttp.BasicAuth{Username: "mkrepo", Password: repo.Account.Token.AccessToken},
 	})
 }
 

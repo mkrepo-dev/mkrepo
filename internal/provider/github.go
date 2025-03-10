@@ -52,23 +52,22 @@ func (provider *GitHub) Url() string {
 	return provider.url
 }
 
-func (provider *GitHub) OAuth2Config() *oauth2.Config {
-	// TODO: Fill with custom url if there is any
-	// TODO: Validate if redirect url is parsable
-	return &oauth2.Config{
+func (provider *GitHub) OAuth2Config(redirectUri string) *oauth2.Config {
+	// TODO: Validate if redirect url is parsable but not here
+	cfg := &oauth2.Config{
 		ClientID:     provider.clientId,
 		ClientSecret: provider.clientSecret,
 		Scopes:       []string{"repo", "read:org"},
 		RedirectURL:  "http://localhost:8000/auth/oauth2/callback/github", // TODO: Fill this from config. Must match what is set in GitHub.
 		Endpoint:     endpoints.GitHub,
 	}
+	return oauth2WithRedirectUri(cfg, redirectUri)
 }
 
-func (provider *GitHub) NewClient(ctx context.Context, token *oauth2.Token) ProviderClient {
-	httpClient := provider.OAuth2Config().Client(ctx, token)
-	client := github.NewClient(httpClient)
+func (provider *GitHub) NewClient(ctx context.Context, token *oauth2.Token, _ string) (ProviderClient, *oauth2.Token) {
+	client := github.NewClient(nil).WithAuthToken(token.AccessToken)
 	client.UserAgent = internal.UserAgent
-	return &GitHubClient{Client: client}
+	return &GitHubClient{Client: client}, token
 }
 
 type GitHubClient struct {

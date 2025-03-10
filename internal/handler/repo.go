@@ -16,11 +16,12 @@ import (
 
 type Repo struct {
 	cfg       config.Config
+	db        *db.DB
 	providers provider.Providers
 }
 
-func NewRepo(cfg config.Config, providers provider.Providers) *Repo {
-	return &Repo{cfg: cfg, providers: providers}
+func NewRepo(cfg config.Config, db *db.DB, providers provider.Providers) *Repo {
+	return &Repo{cfg: cfg, db: db, providers: providers}
 }
 
 func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
@@ -43,7 +44,16 @@ func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	owners, err := provider.NewClient(r.Context(), account.Token).GetRepoOwners(r.Context())
+	client, token := provider.NewClient(r.Context(), account.Token, account.RedirectUri)
+	account.Token = token
+	err := h.db.UpdateAccountToken(r.Context(), middleware.Session(r.Context()), account.Provider, account.Username, account.Token)
+	if err != nil {
+		slog.Error("Failed to update account token", log.Err(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	owners, err := client.GetRepoOwners(r.Context())
 	if err != nil {
 		slog.Error("Failed to get possible repo owners", log.Err(err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -88,7 +98,7 @@ func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url, err := repo.CreateNewRepo(r.Context(), repository, provider)
+	url, err := repo.CreateNewRepo(r.Context(), h.db, repository, provider)
 	if err != nil {
 		slog.Error("Failed to create repository", log.Err(err))
 		w.WriteHeader(http.StatusInternalServerError)

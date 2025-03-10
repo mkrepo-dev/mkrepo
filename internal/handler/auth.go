@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"sync"
 	"time"
 
@@ -44,16 +43,7 @@ func (h *Auth) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	config := provider.OAuth2Config()
-	if r.FormValue("redirect_uri") != "" {
-		redirect, err := addRedirectUri(config.RedirectURL, r.FormValue("redirect_uri"))
-		if err != nil {
-			slog.Error("Failed to add redirect uri", log.Err(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		config.RedirectURL = redirect
-	}
+	config := provider.OAuth2Config(r.FormValue("redirect_uri"))
 
 	http.Redirect(w, r, config.AuthCodeURL(h.createState()), http.StatusFound)
 }
@@ -88,14 +78,7 @@ func (h *Auth) OAuth2Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cfg := provider.OAuth2Config()
-	redirect, err := addRedirectUri(cfg.RedirectURL, r.FormValue("redirect_uri"))
-	if err != nil {
-		slog.Error("Failed to add redirect uri", log.Err(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	cfg.RedirectURL = redirect
+	cfg := provider.OAuth2Config(r.FormValue("redirect_uri"))
 	token, err := cfg.Exchange(r.Context(), code)
 	if err != nil {
 		slog.Error("Failed to exchange code for token", log.Err(err))
@@ -105,17 +88,17 @@ func (h *Auth) OAuth2Callback(w http.ResponseWriter, r *http.Request) {
 
 	session := middleware.Session(r.Context())
 	if session == "" {
-		session = rand.Text()
+		session = rand.Text() // TODO: Is 128 bit of randomness enough?
 	}
 
-	client := provider.NewClient(r.Context(), token)
+	client, token := provider.NewClient(r.Context(), token, cfg.RedirectURL)
 	info, err := client.GetUserInfo(r.Context())
 	if err != nil {
 		slog.Error("Failed to exchange code for token", log.Err(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	err = h.db.CreateOrOverwriteAccount(r.Context(), session, providerKey, token, info) // TODO: Should be create or update and shoul delete old token from provider if update is made
+	err = h.db.CreateOrOverwriteAccount(r.Context(), session, providerKey, token, cfg.RedirectURL, info)
 	if err != nil {
 		slog.Error("Failed to create account", log.Err(err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -131,6 +114,7 @@ func (h *Auth) OAuth2Callback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, r.FormValue("redirect_uri"), http.StatusFound)
 }
 
+// TODO: State has to be tracked in databse in able to scale horizontally
 func (h *Auth) createState() string {
 	h.statesMu.Lock()
 	defer h.statesMu.Unlock()
@@ -165,15 +149,4 @@ func (h *Auth) stateCleaner(interval time.Duration) {
 	for range time.Tick(interval) {
 		h.cleanExpiredState()
 	}
-}
-
-func addRedirectUri(base string, redirectUri string) (string, error) {
-	u, err := url.Parse(base)
-	if err != nil {
-		return "", err
-	}
-	q := u.Query()
-	q.Set("redirect_uri", redirectUri)
-	u.RawQuery = q.Encode()
-	return u.String(), nil
 }
