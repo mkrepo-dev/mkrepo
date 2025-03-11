@@ -2,14 +2,12 @@ package handler
 
 import (
 	"crypto/rand"
-	"log/slog"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/FilipSolich/mkrepo/internal/config"
 	"github.com/FilipSolich/mkrepo/internal/db"
-	"github.com/FilipSolich/mkrepo/internal/log"
 	"github.com/FilipSolich/mkrepo/internal/middleware"
 	"github.com/FilipSolich/mkrepo/internal/provider"
 	"github.com/FilipSolich/mkrepo/internal/template"
@@ -52,8 +50,7 @@ func (h *Auth) Logout(w http.ResponseWriter, r *http.Request) {
 	provider, username := splitProviderUser(r)
 	err := h.db.DeleteAccount(r.Context(), middleware.Session(r.Context()), provider, username)
 	if err != nil {
-		slog.Error("Failed to delete account", log.Err(err))
-		w.WriteHeader(http.StatusInternalServerError)
+		internalServerError(w, "Failed to delete account", err)
 		return
 	}
 	http.Redirect(w, r, "/", http.StatusFound)
@@ -81,8 +78,7 @@ func (h *Auth) OAuth2Callback(w http.ResponseWriter, r *http.Request) {
 	cfg := provider.OAuth2Config(r.FormValue("redirect_uri"))
 	token, err := cfg.Exchange(r.Context(), code)
 	if err != nil {
-		slog.Error("Failed to exchange code for token", log.Err(err))
-		w.WriteHeader(http.StatusInternalServerError)
+		internalServerError(w, "Failed to exchange code for token", err)
 		return
 	}
 
@@ -94,14 +90,12 @@ func (h *Auth) OAuth2Callback(w http.ResponseWriter, r *http.Request) {
 	client, token := provider.NewClient(r.Context(), token, cfg.RedirectURL)
 	info, err := client.GetUserInfo(r.Context())
 	if err != nil {
-		slog.Error("Failed to exchange code for token", log.Err(err))
-		w.WriteHeader(http.StatusInternalServerError)
+		internalServerError(w, "Failed to get user info", err)
 		return
 	}
 	err = h.db.CreateOrOverwriteAccount(r.Context(), session, providerKey, token, cfg.RedirectURL, info)
 	if err != nil {
-		slog.Error("Failed to create account", log.Err(err))
-		w.WriteHeader(http.StatusInternalServerError)
+		internalServerError(w, "Failed to create account", err)
 		return
 	}
 

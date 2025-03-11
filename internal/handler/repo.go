@@ -1,13 +1,11 @@
 package handler
 
 import (
-	"log/slog"
 	"net/http"
 
 	"github.com/FilipSolich/mkrepo/internal"
 	"github.com/FilipSolich/mkrepo/internal/config"
 	"github.com/FilipSolich/mkrepo/internal/db"
-	"github.com/FilipSolich/mkrepo/internal/log"
 	"github.com/FilipSolich/mkrepo/internal/middleware"
 	"github.com/FilipSolich/mkrepo/internal/provider"
 	"github.com/FilipSolich/mkrepo/internal/repo"
@@ -48,15 +46,13 @@ func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 	account.Token = token
 	err := h.db.UpdateAccountToken(r.Context(), middleware.Session(r.Context()), account.Provider, account.Username, account.Token)
 	if err != nil {
-		slog.Error("Failed to update account token", log.Err(err))
-		w.WriteHeader(http.StatusInternalServerError)
+		internalServerError(w, "Failed to update account token", err)
 		return
 	}
 
 	owners, err := client.GetRepoOwners(r.Context())
 	if err != nil {
-		slog.Error("Failed to get possible repo owners", log.Err(err))
-		w.WriteHeader(http.StatusInternalServerError)
+		internalServerError(w, "Failed to get possible repo owners", err)
 		return
 	}
 
@@ -100,8 +96,7 @@ func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
 
 	url, err := repo.CreateNewRepo(r.Context(), h.db, repository, provider)
 	if err != nil {
-		slog.Error("Failed to create repository", log.Err(err))
-		w.WriteHeader(http.StatusInternalServerError)
+		internalServerError(w, "Failed to create repository", err)
 		return
 	}
 

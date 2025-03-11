@@ -124,12 +124,13 @@ func (client *GitLabClient) GetRepoOwners(ctx context.Context) ([]RepoOwner, err
 		AvatarUrl:   user.AvatarURL,
 	})
 
-	groups, _, err := client.Groups.ListGroups(&gitlab.ListGroupsOptions{})
+	groups, _, err := client.Groups.ListGroups(&gitlab.ListGroupsOptions{
+		MinAccessLevel: gitlab.Ptr(gitlab.DeveloperPermissions),
+	})
 	if err != nil {
 		return owners, err
 	}
 	for _, group := range groups {
-		// TODO: Can user create project in all of this groups?
 		owners = append(owners, RepoOwner{
 			Name:        group.FullPath,
 			DisplayName: group.Name,

@@ -6,7 +6,7 @@ dotenv:
   - .env
 
 env:
-  CGO_ENABLED: 1
+  CGO_ENABLED: 0
   GOAMD64: v2
   GOARM64: v8.0
 

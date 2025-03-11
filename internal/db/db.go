@@ -2,58 +2,57 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log/slog"
-	"time"
+
+	"github.com/jackc/pgx/v5"
+	"golang.org/x/oauth2"
 
 	"github.com/FilipSolich/mkrepo/internal/log"
-	_ "github.com/mattn/go-sqlite3"
-	"golang.org/x/oauth2"
 )
 
 type DB struct {
-	*sql.DB
+	*pgx.Conn
 }
 
 func NewDB(ctx context.Context, datasource string) (*DB, error) {
-	db, err := sql.Open("sqlite3", datasource)
+	conn, err := pgx.Connect(ctx, datasource)
 	if err != nil {
 		return nil, err
 	}
+	db := &DB{Conn: conn}
 
-	_, err = db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS "template" (
-		"id" INTEGER NOT NULL UNIQUE,
+	_, err = db.Exec(ctx, `CREATE TABLE IF NOT EXISTS "template" (
+		"id" SERIAL PRIMARY KEY,
 		"name" TEXT NOT NULL,
 		"url" TEXT NOT NULL UNIQUE,
 		"version" TEXT NOT NULL DEFAULT 'v0.0.0',
 		"stars" INTEGER NOT NULL DEFAULT 0,
-		"created_at" INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		PRIMARY KEY("id" AUTOINCREMENT)
-	) STRICT;`)
+		"created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);`)
 	if err != nil {
 		return nil, err
 	}
-	_, err = db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS "account" (
-		"id" INTEGER NOT NULL UNIQUE,
+
+	_, err = db.Exec(ctx, `CREATE TABLE IF NOT EXISTS "account" (
+		"id" SERIAL PRIMARY KEY,
 		"session" TEXT NOT NULL,
 		"provider" TEXT NOT NULL,
 		"access_token" TEXT NOT NULL,
 		"refresh_token" TEXT NOT NULL,
-		"expiry" INTEGER NOT NULL DEFAULT 0,
+		"expiry" TIMESTAMP NOT NULL DEFAULT 'epoch',
 		"redirect_uri" TEXT NOT NULL,
 		"email" TEXT NOT NULL,
 		"username" TEXT NOT NULL,
 		"display_name" TEXT NOT NULL,
 		"avatar_url" TEXT NOT NULL,
-		PRIMARY KEY("id" AUTOINCREMENT),
 		UNIQUE("session", "provider", "username")
-	) STRICT;`)
+	);`)
 	if err != nil {
 		return nil, err
 	}
 
-	return &DB{DB: db}, nil
+	return db, nil
 }
 
 type Account struct {
@@ -78,10 +77,11 @@ func GetAccount(accounts []Account, provider string, username string) *Account {
 }
 
 func (db *DB) GetSessionAccounts(ctx context.Context, session string) ([]Account, error) {
-	rows, err := db.QueryContext(ctx,
-		`SELECT "id", "session", "provider", "access_token", "refresh_token", "expiry", "redirect_uri", "email", "username", "display_name", "avatar_url"
+	rows, err := db.Query(ctx,
+		`SELECT "id", "session", "provider", "access_token", "refresh_token",
+		 "expiry", "redirect_uri", "email", "username", "display_name", "avatar_url"
 		 FROM "account"
-		 WHERE "session" = ?;`,
+		 WHERE "session" = $1;`,
 		session,
 	)
 	if err != nil {
@@ -89,14 +89,15 @@ func (db *DB) GetSessionAccounts(ctx context.Context, session string) ([]Account
 	}
 	var accounts []Account
 	for rows.Next() {
-		var account Account
-		var accessToken, refreshToken string
-		var expiry int64
-		err = rows.Scan(&account.Id, &account.Session, &account.Provider, &accessToken, &refreshToken, &expiry, &account.RedirectUri, &account.Email, &account.Username, &account.DisplayName, &account.AvatarURL)
+		account := Account{Token: &oauth2.Token{}}
+		err = rows.Scan(
+			&account.Id, &account.Session, &account.Provider, &account.Token.AccessToken,
+			&account.Token.RefreshToken, &account.Token.Expiry, &account.RedirectUri, &account.Email,
+			&account.Username, &account.DisplayName, &account.AvatarURL,
+		)
 		if err != nil {
 			return nil, err
 		}
-		account.Token = &oauth2.Token{AccessToken: accessToken, RefreshToken: refreshToken, Expiry: time.Unix(expiry, 0)}
 		accounts = append(accounts, account)
 	}
 	return accounts, rows.Err()
@@ -111,25 +112,24 @@ type UserInfo struct {
 }
 
 func (db *DB) CreateOrOverwriteAccount(ctx context.Context, session string, provider string, token *oauth2.Token, redirectUri string, userInfo UserInfo) error {
-	tx, err := db.BeginTx(ctx, nil)
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
 	}
 	defer func() {
-		err := tx.Rollback()
-		if err != nil && !errors.Is(err, sql.ErrTxDone) {
+		err := tx.Rollback(ctx)
+		if err != nil && !errors.Is(err, pgx.ErrTxClosed) {
 			slog.Error("Failed to rollback transaction", log.Err(err))
 		}
 	}()
 
-	// TODO: Use prepare statement for this and use it for delete account also.
-	_, err = tx.ExecContext(ctx, `DELETE FROM "account" WHERE "session" = ? AND "provider" = ? AND "username" = ?;`, session, provider, userInfo.Username)
+	_, err = tx.Exec(ctx, `DELETE FROM "account" WHERE "session" = $1 AND "provider" = $2 AND "username" = $3;`, session, provider, userInfo.Username)
 	if err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx,
+	_, err = tx.Exec(ctx,
 		`INSERT INTO "account" ("session", "provider", "access_token", "refresh_token", "expiry", "redirect_uri", "email", "username", "display_name", "avatar_url")
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+		 VALUES ($1, $2, $3, $4, TO_TIMESTAMP($5), $6, $7, $8, $9, $10);`,
 		session, provider, token.AccessToken, token.RefreshToken, token.Expiry.Unix(), redirectUri,
 		userInfo.Email, userInfo.Username, userInfo.DisplayName, userInfo.AvatarURL,
 	)
@@ -137,23 +137,23 @@ func (db *DB) CreateOrOverwriteAccount(ctx context.Context, session string, prov
 		return err
 	}
 
-	return tx.Commit()
+	return tx.Commit(ctx)
 }
 
 func (db *DB) UpdateAccountToken(ctx context.Context, session string, provider string, username string, token *oauth2.Token) error {
-	_, err := db.ExecContext(ctx,
+	_, err := db.Exec(ctx,
 		`UPDATE "account"
-		 SET "access_token" = ?, "refresh_token" = ?, "expiry" = ?
-		 WHERE "session" = ? AND "provider" = ? AND "username" = ?;`,
+		 SET "access_token" = $1, "refresh_token" = $2, "expiry" = TO_TIMESTAMP($3)
+		 WHERE "session" = $4 AND "provider" = $5 AND "username" = $6;`,
 		token.AccessToken, token.RefreshToken, token.Expiry.Unix(), session, provider, username,
 	)
 	return err
 }
 
 func (db *DB) DeleteAccount(ctx context.Context, session string, provider string, username string) error {
-	_, err := db.ExecContext(ctx,
+	_, err := db.Exec(ctx,
 		`DELETE FROM "account"
-		 WHERE "session" = ? AND "provider" = ? AND "username" = ?;`,
+		 WHERE "session" = $1 AND "provider" = $2 AND "username" = $3;`,
 		session, provider, username,
 	)
 	return err

@@ -38,11 +38,12 @@ func main() {
 
 	providers := provider.NewProvidersFromConfig(cfg.Providers)
 
-	db, err := db.NewDB(context.Background(), "./db.sqlite")
+	ctx := context.Background()
+	db, err := db.NewDB(ctx, "postgres://mkrepo:mkrepo@localhost:5432/mkrepo?sslmode=disable")
 	if err != nil {
 		log.Fatal("Cannot open database", err)
 	}
-	defer db.Close()
+	defer db.Close(ctx)
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /", handler.NewIndex(providers))

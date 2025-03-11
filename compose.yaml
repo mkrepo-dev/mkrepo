@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres
+    environment:
+      POSTGRES_USER: mkrepo
+      POSTGRES_PASSWORD: mkrepo
+      POSTGRES_DB: mkrepo
+    ports:
+      - "5432:5432"
+    volumes:
+      - mkrepo-postgres:/var/lib/postgresql/data
+
+volumes:
+  mkrepo-postgres:
