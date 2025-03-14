@@ -30,6 +30,3 @@ __debug_bin
 
 # Taskfile
 .task/
-
-# Database
-db.sqlite
