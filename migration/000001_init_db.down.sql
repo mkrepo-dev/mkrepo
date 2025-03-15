@@ -1,0 +1,6 @@
+BEGIN;
+
+DROP TABLE IF EXISTS "oauth2_state";
+DROP TABLE IF EXISTS "account";
+
+COMMIT;

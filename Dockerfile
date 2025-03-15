@@ -21,6 +21,7 @@ FROM gcr.io/distroless/static-debian12
 WORKDIR /app
 
 COPY --from=build /app/bin/ .
+COPY --from=build /app/LICENSE .
 
 CMD ["./server"]
 
@@ -35,7 +36,7 @@ LABEL \
     org.opencontainers.image.version="$VERSION" \
     org.opencontainers.image.created="$DATETIME" \
     org.opencontainers.image.authors="Filip Solich" \
-    org.opencontainers.image.licenses="Apache-2.0 license" \
+    org.opencontainers.image.licenses="MIT License" \
     org.opencontainers.image.url="mkrepo.io" \
     org.opencontainers.image.documentation="https://github.com/FilipSolich/mkrepo/blob/main/README.md" \
     org.opencontainers.image.source="https://github.com/FilipSolich/mkrepo" \

@@ -8,7 +8,7 @@ import (
 
 	"github.com/FilipSolich/mkrepo/internal/log"
 	"github.com/FilipSolich/mkrepo/internal/middleware"
-	"github.com/FilipSolich/mkrepo/internal/template"
+	"github.com/FilipSolich/mkrepo/template"
 )
 
 func getBaseContext(r *http.Request) template.BaseContext {

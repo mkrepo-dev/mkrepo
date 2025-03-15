@@ -2,24 +2,25 @@ package handler
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/FilipSolich/mkrepo/internal"
-	"github.com/FilipSolich/mkrepo/internal/config"
 	"github.com/FilipSolich/mkrepo/internal/db"
 	"github.com/FilipSolich/mkrepo/internal/middleware"
+	"github.com/FilipSolich/mkrepo/internal/mkrepo"
 	"github.com/FilipSolich/mkrepo/internal/provider"
-	"github.com/FilipSolich/mkrepo/internal/repo"
-	"github.com/FilipSolich/mkrepo/internal/template"
+	"github.com/FilipSolich/mkrepo/template"
 )
 
 type Repo struct {
-	cfg       config.Config
 	db        *db.DB
+	repomaker *mkrepo.RepoMaker
 	providers provider.Providers
+	licenses  template.Licenses
 }
 
-func NewRepo(cfg config.Config, db *db.DB, providers provider.Providers) *Repo {
-	return &Repo{cfg: cfg, db: db, providers: providers}
+func NewRepo(db *db.DB, repomaker *mkrepo.RepoMaker, providers provider.Providers, licenses template.Licenses) *Repo {
+	return &Repo{db: db, repomaker: repomaker, providers: providers, licenses: licenses}
 }
 
 func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
@@ -62,6 +63,8 @@ func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 		Owners:           owners,
 		Name:             r.FormValue("name"),
 		SelectedProvider: providerKey,
+		Licenses:         h.licenses,
+		CurrentYear:      time.Now().Year(),
 	}
 	template.Render(w, template.NewRepoForm, context)
 }
@@ -94,7 +97,7 @@ func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url, err := repo.CreateNewRepo(r.Context(), h.db, repository, provider)
+	url, err := mkrepo.CreateNewRepo(r.Context(), h.db, repository, provider)
 	if err != nil {
 		internalServerError(w, "Failed to create repository", err)
 		return

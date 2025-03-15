@@ -6,7 +6,7 @@ import (
 
 	"github.com/FilipSolich/mkrepo/internal/middleware"
 	"github.com/FilipSolich/mkrepo/internal/provider"
-	"github.com/FilipSolich/mkrepo/internal/template"
+	"github.com/FilipSolich/mkrepo/template"
 )
 
 type Index struct {

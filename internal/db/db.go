@@ -4,55 +4,103 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
+	"time"
 
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/pgx"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/oauth2"
 
 	"github.com/FilipSolich/mkrepo/internal/log"
+	"github.com/FilipSolich/mkrepo/migration"
 )
 
 type DB struct {
-	*pgx.Conn
+	*pgxpool.Pool
 }
 
-func NewDB(ctx context.Context, datasource string) (*DB, error) {
-	conn, err := pgx.Connect(ctx, datasource)
+func New(ctx context.Context, datasource string) (*DB, error) {
+	pool, err := pgxpool.New(ctx, datasource)
 	if err != nil {
 		return nil, err
 	}
-	db := &DB{Conn: conn}
+	db := &DB{Pool: pool}
 
-	_, err = db.Exec(ctx, `CREATE TABLE IF NOT EXISTS "template" (
-		"id" SERIAL PRIMARY KEY,
-		"name" TEXT NOT NULL,
-		"url" TEXT NOT NULL UNIQUE,
-		"version" TEXT NOT NULL DEFAULT 'v0.0.0',
-		"stars" INTEGER NOT NULL DEFAULT 0,
-		"created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-	);`)
+	err = db.Ping(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = db.Exec(ctx, `CREATE TABLE IF NOT EXISTS "account" (
-		"id" SERIAL PRIMARY KEY,
-		"session" TEXT NOT NULL,
-		"provider" TEXT NOT NULL,
-		"access_token" TEXT NOT NULL,
-		"refresh_token" TEXT NOT NULL,
-		"expiry" TIMESTAMP NOT NULL DEFAULT 'epoch',
-		"redirect_uri" TEXT NOT NULL,
-		"email" TEXT NOT NULL,
-		"username" TEXT NOT NULL,
-		"display_name" TEXT NOT NULL,
-		"avatar_url" TEXT NOT NULL,
-		UNIQUE("session", "provider", "username")
-	);`)
+	driver, err := iofs.New(migration.FS, ".")
+	if err != nil {
+		return nil, err
+	}
+	m, err := migrate.NewWithSourceInstance("iofs", driver, strings.ReplaceAll(datasource, "postgres://", "pgx://"))
+	if err != nil {
+		return nil, err
+	}
+	err = m.Up()
+	if err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return nil, err
+	}
+
+	err = db.Clenup(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	return db, nil
+}
+
+func (db *DB) GarbageCollector(ctx context.Context, interval time.Duration) {
+	ticker := time.Tick(interval)
+	for {
+		select {
+		case <-ticker:
+			cleanCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+			err := db.Clenup(cleanCtx)
+			if err != nil {
+				slog.Error("Failed to cleanup", log.Err(err))
+			}
+			cancel()
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (db *DB) Clenup(ctx context.Context) error {
+	_, err := db.Exec(ctx, `DELETE FROM "oauth2_state" WHERE "expires_at" < 'now'::timestamp;`)
+	return err
+}
+
+func (db *DB) CreateOAuth2State(ctx context.Context, state string, expires_at time.Time) error {
+	_, err := db.Exec(ctx,
+		`INSERT INTO "oauth2_state" ("state", "expires_at")
+		 VALUES ($1, $2);`,
+		state, expires_at,
+	)
+	return err
+}
+
+func (db *DB) ValidateAndDeleteOAuth2State(ctx context.Context, state string) error {
+	var expiresAt time.Time
+	err := db.QueryRow(ctx,
+		`DELETE FROM "oauth2_state"
+		 WHERE "state" = $1
+		 RETURNING "expires_at";`,
+		state,
+	).Scan(&expiresAt)
+	if err != nil {
+		return err
+	}
+	if expiresAt.Before(time.Now()) {
+		return errors.New("state expired")
+	}
+	return nil
 }
 
 type Account struct {
@@ -77,9 +125,15 @@ func GetAccount(accounts []Account, provider string, username string) *Account {
 }
 
 func (db *DB) GetSessionAccounts(ctx context.Context, session string) ([]Account, error) {
+	// TODO: Token should not be returned by this function
+	// Token can be rotated when used ad token source. In case of gitlab tokens old token stops working
+	// immediately after new token is generated. This mean that new token has to be store in db. Returning
+	// token here can cause problems in parallel requests. Create functino GetAndRefreshToken which in transaction
+	// locks account row, returns token and refreshes it and stores it if necesary. This way token can be safely used in parallel requests.
+	// This function should be called each time before use.
 	rows, err := db.Query(ctx,
 		`SELECT "id", "session", "provider", "access_token", "refresh_token",
-		 "expiry", "redirect_uri", "email", "username", "display_name", "avatar_url"
+		 "expires_at", "redirect_uri", "email", "username", "display_name", "avatar_url"
 		 FROM "account"
 		 WHERE "session" = $1;`,
 		session,
@@ -128,7 +182,7 @@ func (db *DB) CreateOrOverwriteAccount(ctx context.Context, session string, prov
 		return err
 	}
 	_, err = tx.Exec(ctx,
-		`INSERT INTO "account" ("session", "provider", "access_token", "refresh_token", "expiry", "redirect_uri", "email", "username", "display_name", "avatar_url")
+		`INSERT INTO "account" ("session", "provider", "access_token", "refresh_token", "expires_at", "redirect_uri", "email", "username", "display_name", "avatar_url")
 		 VALUES ($1, $2, $3, $4, TO_TIMESTAMP($5), $6, $7, $8, $9, $10);`,
 		session, provider, token.AccessToken, token.RefreshToken, token.Expiry.Unix(), redirectUri,
 		userInfo.Email, userInfo.Username, userInfo.DisplayName, userInfo.AvatarURL,
@@ -143,7 +197,7 @@ func (db *DB) CreateOrOverwriteAccount(ctx context.Context, session string, prov
 func (db *DB) UpdateAccountToken(ctx context.Context, session string, provider string, username string, token *oauth2.Token) error {
 	_, err := db.Exec(ctx,
 		`UPDATE "account"
-		 SET "access_token" = $1, "refresh_token" = $2, "expiry" = TO_TIMESTAMP($3)
+		 SET "access_token" = $1, "refresh_token" = $2, "expires_at" = TO_TIMESTAMP($3)
 		 WHERE "session" = $4 AND "provider" = $5 AND "username" = $6;`,
 		token.AccessToken, token.RefreshToken, token.Expiry.Unix(), session, provider, username,
 	)

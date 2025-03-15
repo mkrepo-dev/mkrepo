@@ -64,7 +64,9 @@ tasks:
     sources:
       - 'cmd/**/*'
       - 'internal/**/*'
+      - 'migration/**/*'
       - 'static/**/*'
+      - 'template/**/*'
       - 'go.mod'
       - 'go.sum'
     cmds:
@@ -92,6 +94,11 @@ tasks:
       - rm -rf bin
       - rm -rf .task
       - find . -name '__debug_*' -type f -delete
+
+  migrate:create:
+    desc: Create migration file
+    cmds:
+      - go tool migrate create -ext sql -dir migration -seq {{.CLI_ARGS}}
 
   pre-commit:
     desc: Run pre-commit checks

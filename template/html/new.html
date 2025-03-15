@@ -11,7 +11,7 @@
         <label for="provider" class="form-label mb-0"><small><b>Provider</b></small></label>
         <select id="provider" class="form-select" name="provider">
           {{range $key, $provider := .Providers}}
-          <option value="{{$key}}" {{if eq $key $.SelectedProvider}}selected{{end}}>{{$provider.Name}}</option> <!-- TODO: Can selected be just 1. in list? -->
+          <option value="{{$key}}" {{if eq $key $.SelectedProvider}}selected{{end}}>{{$provider.Name}}</option>
           {{end}}
         </select>
       </div>
@@ -31,7 +31,7 @@
     </div>
     <div class="row g-2">
       <div class="col">
-        <label for="description" class="form-label">Description</label>
+        <label for="description" class="form-label mb-0"><small><b>Description</b></small></label>
         <input type="text" class="form-control" id="description" name="description">
       </div>
     </div>
@@ -54,7 +54,7 @@
       </div>
     </div>
     <div class="row g-2 my-1">
-      <div class="col-3">
+      <div class="col-4">
         <label for="gitignore" class="form-label mb-0"><small><b>Add <code>.gitignore</code></b></small></label>
         <select id="gitignore" class="form-select form-select-sm" name="gitignore">
           <option value="none">None</option>
@@ -65,7 +65,7 @@
       </div>
     </div>
     <div class="row g-2 my-1">
-      <div class="col-3">
+      <div class="col-4">
         <label for="dockerfile" class="form-label mb-0"><small><b>Add <code>Dockerfile</code></b></small></label>
         <select id="dockerfile" class="form-select form-select-sm" name="dockerfile">
           <option value="none">None</option>
@@ -80,14 +80,30 @@
       </div>
     </div>
     <div class="row g-2 my-1">
-      <div class="col-3">
+      <div class="col-4">
         <label for="license" class="form-label mb-0"><small><b>Add <code>License</code></b></small></label>
         <select id="license" class="form-select form-select-sm" name="license">
           <option value="none">None</option>
-          <option value="MIT">MIT</option>
-          <option value="Apache">Apache</option>
-          <option value="GPL">GPL</option>
+          {{range $key, $license:= .Licenses}}
+          <option value="{{$key}}" vars="{{range $license.Vars}}{{.}},{{end}}">{{$license.Title}}</option>
+          {{end}}
         </select>
+      </div>
+      <div class="col">
+        <div class="row g-2">
+          <div class="col-4" style="display: none;">
+            <label for="license-year" class="form-label mb-0 text-small"><small><b>Copyright year</b></small></label>
+            <input type="text" class="form-control form-control-sm" id="license-year" name="license-year" placeholder="Year" value="{{.CurrentYear}}">
+          </div>
+          <div class="col-4" style="display: none;">
+            <label for="license-fullname" class="form-label mb-0 text-small"><small><b>Copyright holder</b></small></label>
+            <input type="text" class="form-control form-control-sm" id="license-fullname" name="license-fullname" placeholder="Full name" value="{{(index .Owners 0).DisplayName}}">
+          </div>
+          <div class="col-4" style="display: none;">
+            <label for="license-project" class="form-label mb-0 text-small"><small><b>Project name</b></small></label>
+            <input type="text" class="form-control form-control-sm" id="license-project" name="license-project" placeholder="Project" value="{{.Name}}">
+          </div>
+        </div>
       </div>
     </div>
     <div class="row g-2 my-1">
@@ -98,7 +114,7 @@
     </div>
     <hr class="my-3">
 
-    <button type="submit" class="btn btn-success">Create</button>
+    <button type="submit" class="btn btn-success">Create 🚀</button>
   </form>
 </div>
 {{end}}

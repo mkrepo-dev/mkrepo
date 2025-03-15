@@ -1,4 +1,4 @@
-package repo
+package mkrepo
 
 import (
 	"context"
@@ -17,8 +17,16 @@ import (
 	"github.com/FilipSolich/mkrepo/internal"
 	"github.com/FilipSolich/mkrepo/internal/db"
 	"github.com/FilipSolich/mkrepo/internal/provider"
-	"github.com/FilipSolich/mkrepo/internal/template"
+	"github.com/FilipSolich/mkrepo/template"
 )
+
+type RepoMaker struct {
+	db *db.DB
+}
+
+func New(db *db.DB) *RepoMaker {
+	return &RepoMaker{db: db}
+}
 
 // Create remote repo and initialize it if needed. Returns url to the repo.
 func CreateNewRepo(ctx context.Context, db *db.DB, repo internal.Repo, provider provider.Provider) (string, error) {

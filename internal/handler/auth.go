@@ -3,31 +3,23 @@ package handler
 import (
 	"crypto/rand"
 	"net/http"
-	"sync"
 	"time"
 
-	"github.com/FilipSolich/mkrepo/internal/config"
 	"github.com/FilipSolich/mkrepo/internal/db"
 	"github.com/FilipSolich/mkrepo/internal/middleware"
 	"github.com/FilipSolich/mkrepo/internal/provider"
-	"github.com/FilipSolich/mkrepo/internal/template"
+	"github.com/FilipSolich/mkrepo/template"
 )
 
 var stateLifetime = 15 * time.Minute
 
-// TODO: Can get provider from state intead of url path
 type Auth struct {
-	cfg       config.Config
 	db        *db.DB
 	providers provider.Providers
-	states    map[string]time.Time
-	statesMu  sync.Mutex
 }
 
-func NewAuth(cfg config.Config, db *db.DB, providers provider.Providers) *Auth {
-	handler := &Auth{cfg: cfg, db: db, providers: providers, states: make(map[string]time.Time)}
-	go handler.stateCleaner(time.Hour)
-	return handler
+func NewAuth(db *db.DB, providers provider.Providers) *Auth {
+	return &Auth{db: db, providers: providers}
 }
 
 func (h *Auth) Login(w http.ResponseWriter, r *http.Request) {
@@ -43,7 +35,14 @@ func (h *Auth) Login(w http.ResponseWriter, r *http.Request) {
 
 	config := provider.OAuth2Config(r.FormValue("redirect_uri"))
 
-	http.Redirect(w, r, config.AuthCodeURL(h.createState()), http.StatusFound)
+	state := rand.Text()
+	err := h.db.CreateOAuth2State(r.Context(), state, time.Now().Add(stateLifetime))
+	if err != nil {
+		internalServerError(w, "Failed to create state", err)
+		return
+	}
+
+	http.Redirect(w, r, config.AuthCodeURL(state), http.StatusFound)
 }
 
 func (h *Auth) Logout(w http.ResponseWriter, r *http.Request) {
@@ -69,8 +68,9 @@ func (h *Auth) OAuth2Callback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "code is required", http.StatusBadRequest)
 		return
 	}
-	state := r.FormValue("state")
-	if state == "" || !h.validateState(state) {
+
+	err := h.db.ValidateAndDeleteOAuth2State(r.Context(), r.FormValue("state"))
+	if err != nil {
 		http.Error(w, "invalid state", http.StatusBadRequest)
 		return
 	}
@@ -106,41 +106,4 @@ func (h *Auth) OAuth2Callback(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, cookie)
 
 	http.Redirect(w, r, r.FormValue("redirect_uri"), http.StatusFound)
-}
-
-// TODO: State has to be tracked in databse in able to scale horizontally
-func (h *Auth) createState() string {
-	h.statesMu.Lock()
-	defer h.statesMu.Unlock()
-	state := rand.Text()
-	h.states[state] = time.Now()
-	return state
-}
-
-func (h *Auth) validateState(state string) bool {
-	h.statesMu.Lock()
-	defer h.statesMu.Unlock()
-	if t, ok := h.states[state]; ok {
-		delete(h.states, state)
-		if time.Since(t) < stateLifetime {
-			return true
-		}
-	}
-	return false
-}
-
-func (h *Auth) cleanExpiredState() {
-	h.statesMu.Lock()
-	defer h.statesMu.Unlock()
-	for state, t := range h.states {
-		if time.Since(t) > stateLifetime {
-			delete(h.states, state)
-		}
-	}
-}
-
-func (h *Auth) stateCleaner(interval time.Duration) {
-	for range time.Tick(interval) {
-		h.cleanExpiredState()
-	}
 }

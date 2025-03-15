@@ -19,7 +19,7 @@ var (
 	//go:embed html
 	HtmlFS embed.FS
 
-	//go:embed template lang README.md.tmpl
+	//go:embed template lang license README.md.tmpl
 	RepoFS embed.FS
 )
 
@@ -52,6 +52,8 @@ type NewRepoFormContext struct {
 	Providers        provider.Providers
 	SelectedProvider string
 	Owners           []provider.RepoOwner
+	Licenses         Licenses
+	CurrentYear      int
 }
 
 type ReadmeContext struct {

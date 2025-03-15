@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os/signal"
@@ -15,8 +16,10 @@ import (
 	"github.com/FilipSolich/mkrepo/internal/handler"
 	"github.com/FilipSolich/mkrepo/internal/log"
 	"github.com/FilipSolich/mkrepo/internal/middleware"
+	"github.com/FilipSolich/mkrepo/internal/mkrepo"
 	"github.com/FilipSolich/mkrepo/internal/provider"
 	"github.com/FilipSolich/mkrepo/static"
+	"github.com/FilipSolich/mkrepo/template"
 )
 
 func main() {
@@ -38,23 +41,35 @@ func main() {
 
 	providers := provider.NewProvidersFromConfig(cfg.Providers)
 
+	sub, err := fs.Sub(template.RepoFS, "license")
+	if err != nil {
+		log.Fatal("Cannot get sub", err)
+	}
+	licenses, err := template.PrepareLicenses(sub)
+	if err != nil {
+		log.Fatal("Cannot prepare licenses", err)
+	}
+
 	ctx := context.Background()
-	db, err := db.NewDB(ctx, "postgres://mkrepo:mkrepo@localhost:5432/mkrepo?sslmode=disable")
+	db, err := db.New(ctx, "postgres://mkrepo:mkrepo@localhost:5432/mkrepo?sslmode=disable")
 	if err != nil {
 		log.Fatal("Cannot open database", err)
 	}
-	defer db.Close(ctx)
+	defer db.Close()
+	go db.GarbageCollector(ctx, 12*time.Hour)
+
+	repomaker := mkrepo.New(db)
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /", handler.NewIndex(providers))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(static.FS))))
 
-	auth := handler.NewAuth(cfg, db, providers)
+	auth := handler.NewAuth(db, providers)
 	mux.HandleFunc("GET /auth/login", auth.Login)
 	mux.HandleFunc("GET /auth/logout", auth.Logout)
 	mux.HandleFunc("GET /auth/oauth2/callback/{provider}", auth.OAuth2Callback)
 
-	repo := handler.NewRepo(cfg, db, providers)
+	repo := handler.NewRepo(db, repomaker, providers, licenses)
 	mux.Handle("GET /new", http.HandlerFunc(repo.Form))
 	mux.Handle("POST /new", http.HandlerFunc(repo.Create))
 

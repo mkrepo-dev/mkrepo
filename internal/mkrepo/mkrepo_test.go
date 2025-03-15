@@ -1,4 +1,4 @@
-package repo
+package mkrepo
 
 import (
 	"bytes"
