@@ -89,16 +89,11 @@ func (client *GitHubClient) GetUserInfo(ctx context.Context) (db.UserInfo, error
 	return info, nil
 }
 
-func (client *GitHubClient) CreateRemoteRepo(ctx context.Context, repo internal.Repo) (string, string, error) {
-	var org string
-	// TODO: Fix this. AuthorName is diffrent then user login. Find a way to diffrentiate between user and org.
-	if repo.Owner != repo.Account.Username {
-		org = repo.Owner
-	}
-	r, _, err := client.Repositories.Create(ctx, org, &github.Repository{
+func (client *GitHubClient) CreateRemoteRepo(ctx context.Context, repo CreateRepo) (string, string, error) {
+	r, _, err := client.Repositories.Create(ctx, repo.Namespace, &github.Repository{
 		Name:        &repo.Name,
 		Description: &repo.Description,
-		Visibility:  &repo.Visibility,
+		Visibility:  github.Ptr(string(repo.Visibility)),
 	})
 	if err != nil {
 		return "", "", err
@@ -106,8 +101,8 @@ func (client *GitHubClient) CreateRemoteRepo(ctx context.Context, repo internal.
 	return r.GetHTMLURL(), r.GetCloneURL(), nil
 }
 
-func (client *GitHubClient) CreateWebhook(ctx context.Context, repo internal.Repo) error {
-	_, _, err := client.Repositories.CreateHook(ctx, repo.Owner, repo.Name, &github.Hook{ // TODO: Make sure repo name is correct here
+func (client *GitHubClient) CreateWebhook(ctx context.Context, repo CreateRepo) error {
+	_, _, err := client.Repositories.CreateHook(ctx, repo.Namespace, repo.Name, &github.Hook{ // TODO: Make sure repo name is correct here
 		Active: github.Ptr(true),
 		Events: []string{"push"},
 		Config: &github.HookConfig{
@@ -126,7 +121,8 @@ func (client *GitHubClient) GetRepoOwners(ctx context.Context) ([]RepoOwner, err
 		return nil, err
 	}
 	owners = append(owners, RepoOwner{
-		Name:        user.GetLogin(),
+		Namespace:   "",
+		Path:        user.GetLogin(),
 		DisplayName: user.GetName(),
 		AvatarUrl:   user.GetAvatarURL(),
 	})
@@ -142,7 +138,8 @@ func (client *GitHubClient) GetRepoOwners(ctx context.Context) ([]RepoOwner, err
 		}
 
 		orgOwner := RepoOwner{
-			Name:        org.GetLogin(),
+			Namespace:   org.GetLogin(),
+			Path:        org.GetLogin(),
 			DisplayName: org.GetName(),
 			AvatarUrl:   org.GetAvatarURL(),
 		}

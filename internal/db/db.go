@@ -63,7 +63,7 @@ func (db *DB) GarbageCollector(ctx context.Context, interval time.Duration) {
 			cleanCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 			err := db.Clenup(cleanCtx)
 			if err != nil {
-				slog.Error("Failed to cleanup", log.Err(err))
+				slog.Error("Failed to cleanup DB", log.Err(err))
 			}
 			cancel()
 		case <-ctx.Done():
@@ -86,7 +86,7 @@ func (db *DB) CreateOAuth2State(ctx context.Context, state string, expires_at ti
 	return err
 }
 
-func (db *DB) ValidateAndDeleteOAuth2State(ctx context.Context, state string) error {
+func (db *DB) GetAndDeleteOAuth2State(ctx context.Context, state string) (string, time.Time, error) {
 	var expiresAt time.Time
 	err := db.QueryRow(ctx,
 		`DELETE FROM "oauth2_state"
@@ -95,12 +95,9 @@ func (db *DB) ValidateAndDeleteOAuth2State(ctx context.Context, state string) er
 		state,
 	).Scan(&expiresAt)
 	if err != nil {
-		return err
+		return "", time.Time{}, err
 	}
-	if expiresAt.Before(time.Now()) {
-		return errors.New("state expired")
-	}
-	return nil
+	return state, expiresAt, nil
 }
 
 type Account struct {
@@ -177,14 +174,18 @@ func (db *DB) CreateOrOverwriteAccount(ctx context.Context, session string, prov
 		}
 	}()
 
-	_, err = tx.Exec(ctx, `DELETE FROM "account" WHERE "session" = $1 AND "provider" = $2 AND "username" = $3;`, session, provider, userInfo.Username)
+	_, err = tx.Exec(ctx,
+		`DELETE FROM "account"
+		 WHERE "session" = $1 AND "provider" = $2 AND "username" = $3;`,
+		session, provider, userInfo.Username,
+	)
 	if err != nil {
 		return err
 	}
 	_, err = tx.Exec(ctx,
 		`INSERT INTO "account" ("session", "provider", "access_token", "refresh_token", "expires_at", "redirect_uri", "email", "username", "display_name", "avatar_url")
-		 VALUES ($1, $2, $3, $4, TO_TIMESTAMP($5), $6, $7, $8, $9, $10);`,
-		session, provider, token.AccessToken, token.RefreshToken, token.Expiry.Unix(), redirectUri,
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);`,
+		session, provider, token.AccessToken, token.RefreshToken, token.Expiry, redirectUri,
 		userInfo.Email, userInfo.Username, userInfo.DisplayName, userInfo.AvatarURL,
 	)
 	if err != nil {
@@ -197,9 +198,9 @@ func (db *DB) CreateOrOverwriteAccount(ctx context.Context, session string, prov
 func (db *DB) UpdateAccountToken(ctx context.Context, session string, provider string, username string, token *oauth2.Token) error {
 	_, err := db.Exec(ctx,
 		`UPDATE "account"
-		 SET "access_token" = $1, "refresh_token" = $2, "expires_at" = TO_TIMESTAMP($3)
+		 SET "access_token" = $1, "refresh_token" = $2, "expires_at" = $3
 		 WHERE "session" = $4 AND "provider" = $5 AND "username" = $6;`,
-		token.AccessToken, token.RefreshToken, token.Expiry.Unix(), session, provider, username,
+		token.AccessToken, token.RefreshToken, token.Expiry, session, provider, username,
 	)
 	return err
 }

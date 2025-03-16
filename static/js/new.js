@@ -4,8 +4,20 @@ $("#owner").on("input", updateUrl);
 
 function updateUrl() {
   var name = $("#name").val().trim().replace(/\s+/g, "-");
-  var owner = $("#owner").val();
-  $("#url-path").text(owner+"/"+name);
+  var path = $("#owner option:selected").attr("path");
+  $("#url-path").text(path+"/"+name);
+}
+
+$(document).ready(updateDockerIgnore);
+$("#dockerfile").on("change", updateDockerIgnore);
+
+function updateDockerIgnore() {
+  if ($("#dockerfile").val() == "none") {
+    $("#dockerignore").prop("disabled", true);
+    $("#dockerignore").prop("checked", false);
+  } else {
+    $("#dockerignore").prop("disabled", false);
+  }
 }
 
 $(document).ready(updateLicenseVars);
@@ -23,4 +35,23 @@ function updateLicenseVars() {
       input.parent().hide();
     }
   });
+}
+
+$(document).ready(updateInitTag);
+$("#readme").on("change", updateInitTag);
+$("#gitignore").on("change", updateInitTag);
+$("#dockerfile").on("change", updateInitTag);
+$("#license").on("change", updateInitTag);
+
+function updateInitTag() {
+  if (!$("#readme").prop("checked")
+    && ($("#gitignore").val() == "none")
+    && ($("#dockerfile").val() == "none")
+    && ($("#license").val() == "none")
+  ) {
+    $("#tag").prop("disabled", true);
+    $("#tag").prop("checked", false);
+  } else {
+    $("#tag").prop("disabled", false);
+  }
 }

@@ -58,7 +58,7 @@ func main() {
 	defer db.Close()
 	go db.GarbageCollector(ctx, 12*time.Hour)
 
-	repomaker := mkrepo.New(db)
+	repomaker := mkrepo.New(db, licenses)
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /", handler.NewIndex(providers))

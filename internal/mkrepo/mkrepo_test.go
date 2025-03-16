@@ -5,14 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/FilipSolich/mkrepo/internal"
 )
 
 func Test_addTemplateFiles(t *testing.T) {
 	repo := t.TempDir()
 	type args struct {
-		repo internal.Repo
+		repo CreateRepo
 		dir  string
 	}
 	tests := []struct {
@@ -24,7 +22,7 @@ func Test_addTemplateFiles(t *testing.T) {
 		{
 			name: "Test addTemplateFiles",
 			args: args{
-				repo: internal.Repo{
+				repo: CreateRepo{
 					Name: "This is template repo",
 				},
 				dir: repo,

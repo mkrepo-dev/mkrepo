@@ -2,9 +2,9 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
-	"github.com/FilipSolich/mkrepo/internal"
 	"github.com/FilipSolich/mkrepo/internal/db"
 	"github.com/FilipSolich/mkrepo/internal/middleware"
 	"github.com/FilipSolich/mkrepo/internal/mkrepo"
@@ -73,22 +73,45 @@ func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
 	providerKey, username := splitProviderUser(r)
 	account := db.GetAccount(middleware.Accounts(r.Context()), providerKey, username)
 	// TODO: Handler if account is nil
+	// TODO: Do better validation of input values
 
-	repository := internal.Repo{
+	err := r.ParseForm()
+	if err != nil {
+		http.Error(w, "failed to parse form", http.StatusBadRequest)
+		return
+	}
+
+	readme := r.Form.Has("readme")
+	dockerignore := r.Form.Has("dockerignore")
+	sha256 := r.Form.Has("sha256")
+	var tag string
+	if r.Form.Has("tag") {
+		tag = "v0.0.0"
+	}
+
+	licenseYear, err := strconv.Atoi(r.FormValue("license-year"))
+	if err != nil {
+		http.Error(w, "invalid license year", http.StatusBadRequest)
+		return
+	}
+	repository := mkrepo.CreateRepo{
 		Account:      *account,
-		Owner:        r.FormValue("owner"),
+		Namespace:    r.FormValue("owner"),
 		Name:         r.FormValue("name"),
 		Description:  r.FormValue("description"),
-		Visibility:   r.FormValue("visibility"),
-		Readme:       r.FormValue("readme") == "checked",
+		Visibility:   provider.RepoVisibility(r.FormValue("visibility")),
+		Readme:       readme,
 		Gitignore:    r.FormValue("gitignore"),
 		Dockerfile:   r.FormValue("dockerfile"),
-		Dockerignore: r.FormValue("dockerignore") == "checked",
-		License:      r.FormValue("license"),
-		Tag:          r.FormValue("tag"),
-		IsTemplate:   r.FormValue("template") == "checked",
-		//IsTemplate:   r.FormValue("is_template") == "checked",
-		//Sha256:       r.FormValue("sha256") == "checked",
+		Dockerignore: dockerignore,
+		LicenseKey:   r.FormValue("license"),
+		LicenseContext: template.LicenseContext{
+			Year:     licenseYear,
+			Fullname: r.FormValue("license-fullname"),
+			Project:  r.FormValue("license-project"),
+		},
+		Tag:    tag,
+		Sha256: sha256,
 	}
 
 	provider, ok := h.providers[providerKey]
@@ -97,7 +120,9 @@ func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url, err := mkrepo.CreateNewRepo(r.Context(), h.db, repository, provider)
+	// Spawn goroutine to create new repo
+
+	url, err := h.repomaker.CreateNewRepo(r.Context(), repository, provider)
 	if err != nil {
 		internalServerError(w, "Failed to create repository", err)
 		return

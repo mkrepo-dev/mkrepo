@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"log/slog"
+	"strconv"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/endpoints"
@@ -95,20 +96,27 @@ func (client *GitLabClient) GetUserInfo(ctx context.Context) (db.UserInfo, error
 	return info, nil
 }
 
-func (client *GitLabClient) CreateRemoteRepo(ctx context.Context, repo internal.Repo) (string, string, error) {
-	// TODO: Handler groups
-	r, _, err := client.Projects.CreateProject(&gitlab.CreateProjectOptions{
+func (client *GitLabClient) CreateRemoteRepo(ctx context.Context, repo CreateRepo) (string, string, error) {
+	opt := &gitlab.CreateProjectOptions{
 		Name:        &repo.Name,
 		Description: &repo.Description,
 		Visibility:  gitlab.Ptr(gitlab.VisibilityValue(repo.Visibility)),
-	})
+	}
+	if repo.Namespace != "" {
+		namespace, err := strconv.Atoi(repo.Namespace)
+		if err != nil {
+			return "", "", err
+		}
+		opt.NamespaceID = &namespace
+	}
+	r, _, err := client.Projects.CreateProject(opt)
 	if err != nil {
 		return "", "", err
 	}
 	return r.WebURL, r.HTTPURLToRepo, nil
 }
 
-func (client *GitLabClient) CreateWebhook(ctx context.Context, repo internal.Repo) error {
+func (client *GitLabClient) CreateWebhook(ctx context.Context, repo CreateRepo) error {
 	return nil
 }
 
@@ -119,7 +127,8 @@ func (client *GitLabClient) GetRepoOwners(ctx context.Context) ([]RepoOwner, err
 		return nil, err
 	}
 	owners = append(owners, RepoOwner{
-		Name:        user.Username,
+		Namespace:   "",
+		Path:        user.Username,
 		DisplayName: user.Name,
 		AvatarUrl:   user.AvatarURL,
 	})
@@ -132,7 +141,8 @@ func (client *GitLabClient) GetRepoOwners(ctx context.Context) ([]RepoOwner, err
 	}
 	for _, group := range groups {
 		owners = append(owners, RepoOwner{
-			Name:        group.FullPath,
+			Namespace:   strconv.Itoa(group.ID),
+			Path:        group.FullPath,
 			DisplayName: group.Name,
 			AvatarUrl:   group.AvatarURL,
 		})

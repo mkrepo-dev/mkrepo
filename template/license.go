@@ -1,10 +1,13 @@
 package template
 
 import (
+	"fmt"
 	"io"
 	"io/fs"
+	"path/filepath"
 	"regexp"
 	"strings"
+	stdtemplate "text/template"
 )
 
 type LicenseContext struct {
@@ -20,6 +23,7 @@ type License struct {
 	Filename string
 	With     []string
 	Vars     []string
+	Template *stdtemplate.Template
 }
 
 var (
@@ -72,6 +76,11 @@ func PrepareLicenses(licenseFS fs.FS) (Licenses, error) {
 			}
 		}
 
+		license.Template, err = stdtemplate.ParseFS(licenseFS, path)
+		if err != nil {
+			return err
+		}
+
 		licenses[key] = license
 		return nil
 	})
@@ -80,4 +89,26 @@ func PrepareLicenses(licenseFS fs.FS) (Licenses, error) {
 	}
 
 	return licenses, nil
+}
+
+func AddLicense(licenses Licenses, licenseKey string, context LicenseContext, dir string) error {
+	license, ok := licenses[licenseKey]
+	if !ok {
+		return fmt.Errorf("license %s not found", licenseKey)
+	}
+	err := CreateFile(filepath.Join(dir, license.Filename), license.Template, context)
+	if err != nil {
+		return err
+	}
+	for _, licenseKey := range license.With {
+		license, ok := licenses[licenseKey]
+		if !ok {
+			return fmt.Errorf("license %s not found", licenseKey)
+		}
+		err := CreateFile(filepath.Join(dir, license.Filename), license.Template, context)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

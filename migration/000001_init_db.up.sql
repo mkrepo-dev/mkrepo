@@ -2,7 +2,7 @@ BEGIN;
 
 CREATE TABLE IF NOT EXISTS "oauth2_state" (
     "state" text PRIMARY KEY,
-    "expires_at" timestamp NOT NULL DEFAULT 'now'::timestamp
+    "expires_at" timestamp NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS "account" (
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS "account" (
 	"provider" text NOT NULL,
 	"access_token" text NOT NULL,
 	"refresh_token" text NOT NULL,
-	"expires_at" timestamp NOT NULL DEFAULT 'epoch'::timestamp,
+	"expires_at" timestamp NOT NULL,
 	"redirect_uri" text NOT NULL,
 	"email" text NOT NULL,
 	"username" text NOT NULL,

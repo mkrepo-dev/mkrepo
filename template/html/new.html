@@ -2,7 +2,7 @@
 
 {{define "content"}}
 <div class="container" style="max-width: 700px;">
-  <h1>mkrepo</h1>
+  <a href="/" class="text-decoration-none"><h1><code>mkrepo</code></h1></a>
   <hr class="my-3">
 
   <form action="/new" method="post">
@@ -19,7 +19,7 @@
         <label for="owner" class="form-label mb-0"><small><b>Owner</b></small></label>
         <select id="owner" class="form-select" name="owner">
           {{range .Owners}}
-          <option value="{{.Name}}">{{.DisplayName}}</option>
+          <option value="{{.Namespace}}" path="{{.Path}}">{{.DisplayName}}</option>
           {{end}}
         </select>
       </div>
@@ -75,7 +75,7 @@
         </select>
       </div>
       <div class="col form-check" style="margin-top: 2.25rem;">
-        <input type="checkbox" class="form-check-input" id="dockerignore" name="dockerignore" value="checked">
+        <input type="checkbox" class="form-check-input" id="dockerignore" name="dockerignore" value="checked" disabled>
         <label for="dockerignore" class="form-check-label">Add <code>.dockerignore</code></label>
       </div>
     </div>
@@ -83,7 +83,7 @@
       <div class="col-4">
         <label for="license" class="form-label mb-0"><small><b>Add <code>License</code></b></small></label>
         <select id="license" class="form-select form-select-sm" name="license">
-          <option value="none">None</option>
+          <option value="none" vars="">None</option>
           {{range $key, $license:= .Licenses}}
           <option value="{{$key}}" vars="{{range $license.Vars}}{{.}},{{end}}">{{$license.Title}}</option>
           {{end}}

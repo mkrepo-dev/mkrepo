@@ -69,8 +69,8 @@ func (h *Auth) OAuth2Callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.db.ValidateAndDeleteOAuth2State(r.Context(), r.FormValue("state"))
-	if err != nil {
+	_, expiresAt, err := h.db.GetAndDeleteOAuth2State(r.Context(), r.FormValue("state"))
+	if err != nil || expiresAt.Before(time.Now()) {
 		http.Error(w, "invalid state", http.StatusBadRequest)
 		return
 	}
