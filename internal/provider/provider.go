@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"log/slog"
+	"net/http"
 	"net/url"
 
 	"github.com/FilipSolich/mkrepo/internal/config"
@@ -19,6 +20,7 @@ const (
 )
 
 type CreateRepo struct {
+	ID          int
 	Namespace   string
 	Name        string
 	Description string
@@ -32,10 +34,17 @@ type RepoOwner struct {
 	AvatarUrl   string
 }
 
+type WebhookEvent struct {
+	Tag      string
+	Url      string
+	CloneUrl string
+}
+
 type Provider interface {
 	Name() string
 	Url() string
 	OAuth2Config(redirectUri string) *oauth2.Config
+	ParseWebhookEvent(r *http.Request) (WebhookEvent, error)
 	NewClient(ctx context.Context, token *oauth2.Token, redirectUri string) (ProviderClient, *oauth2.Token)
 }
 

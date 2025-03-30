@@ -167,12 +167,7 @@ func (db *DB) CreateOrOverwriteAccount(ctx context.Context, session string, prov
 	if err != nil {
 		return err
 	}
-	defer func() {
-		err := tx.Rollback(ctx)
-		if err != nil && !errors.Is(err, pgx.ErrTxClosed) {
-			slog.Error("Failed to rollback transaction", log.Err(err))
-		}
-	}()
+	defer rollback(tx)
 
 	_, err = tx.Exec(ctx,
 		`DELETE FROM "account"
@@ -212,4 +207,60 @@ func (db *DB) DeleteAccount(ctx context.Context, session string, provider string
 		session, provider, username,
 	)
 	return err
+}
+
+func (db *DB) CreateTemplate(ctx context.Context, name string, description string, url string, version string) error {
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return err
+	}
+	defer rollback(tx)
+
+	var id int64
+	err = tx.QueryRow(ctx,
+		`INSERT INTO "template" ("name", "url")
+		 VALUES ($1, $2)
+		 RETURNING "id";`,
+		name, url,
+	).Scan(&id)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(ctx,
+		`INSERT INTO "template_name" ("description", "version", "template_id")
+		 VALUES ($1, $2, $3);`,
+		description, version, id,
+	)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (db *DB) UpdateTemplateStars(ctx context.Context, url string, stars int) error {
+	_, err := db.Exec(ctx,
+		`UPDATE "template"
+		 SET "stars" = $1
+		 WHERE "url" = $2;`,
+		stars, url,
+	)
+	return err
+}
+
+func (db *DB) CreateTemplateVersion(ctx context.Context, url string, description string, language string, version string) error {
+	_, err := db.Exec(ctx,
+		`INSERT INTO "template_name" ("description", "language", "version", "template_id")
+		 VALUES ($1, $2, $3, (SELECT "id" FROM "template" WHERE "url" = $4 LIMIT 1));`,
+		description, language, version, url,
+	)
+	return err
+}
+
+func rollback(tx pgx.Tx) {
+	err := tx.Rollback(context.Background())
+	if err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+		slog.Error("Failed to rollback transaction", log.Err(err))
+	}
 }

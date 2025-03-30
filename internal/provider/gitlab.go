@@ -2,8 +2,13 @@ package provider
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
 	"strconv"
+	"strings"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/endpoints"
@@ -66,6 +71,32 @@ func (provider *GitLab) OAuth2Config(redirectUri string) *oauth2.Config {
 	return oauth2WithRedirectUri(cfg, redirectUri)
 }
 
+func (provider *GitLab) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
+	token := r.Header.Get("X-Gitlab-Token")
+	if token != "" { // TODO: Uset same token as in CreateWebhook
+		return WebhookEvent{}, errors.New("invalid request")
+	}
+	payload, err := io.ReadAll(r.Body)
+	if err != nil {
+		return WebhookEvent{}, err
+	}
+	event, err := gitlab.ParseWebhook(gitlab.HookEventType(r), payload)
+	if err != nil {
+		return WebhookEvent{}, err
+	}
+	switch event := event.(type) {
+	case *gitlab.TagEvent:
+		fmt.Println(event)
+		return WebhookEvent{
+			Tag:      strings.TrimPrefix(strings.TrimPrefix(event.Ref, "refs/tags/"), "v"),
+			Url:      event.Repository.WebURL,
+			CloneUrl: event.Repository.HTTPURL,
+		}, nil
+	default:
+		return WebhookEvent{}, errors.New("unsupported event type")
+	}
+}
+
 func (provider *GitLab) NewClient(ctx context.Context, token *oauth2.Token, redirectUri string) (ProviderClient, *oauth2.Token) {
 	ts := provider.OAuth2Config(redirectUri).TokenSource(ctx, token)
 	tkn, err := ts.Token()
@@ -117,7 +148,15 @@ func (client *GitLabClient) CreateRemoteRepo(ctx context.Context, repo CreateRep
 }
 
 func (client *GitLabClient) CreateWebhook(ctx context.Context, repo CreateRepo) error {
-	return nil
+	_, _, err := client.Projects.AddProjectHook(repo.ID, &gitlab.AddProjectHookOptions{
+		Name:                  gitlab.Ptr("mkrepo"),
+		Description:           gitlab.Ptr("mkrepo webhook"),
+		URL:                   gitlab.Ptr(""),
+		TagPushEvents:         gitlab.Ptr(true),
+		Token:                 gitlab.Ptr(""), // TODO: Put this into config
+		EnableSSLVerification: gitlab.Ptr(true),
+	})
+	return err
 }
 
 func (client *GitLabClient) GetRepoOwners(ctx context.Context) ([]RepoOwner, error) {

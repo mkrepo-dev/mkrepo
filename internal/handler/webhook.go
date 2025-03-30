@@ -3,38 +3,38 @@ package handler
 import (
 	"fmt"
 	"net/http"
-	"strings"
-
-	"github.com/google/go-github/v69/github"
 
 	"github.com/FilipSolich/mkrepo/internal/db"
+	"github.com/FilipSolich/mkrepo/internal/provider"
 )
 
 type Webhook struct {
-	db *db.DB
+	db        *db.DB
+	providers provider.Providers
 }
 
-func NewWebhook(db *db.DB) *Webhook {
-	return &Webhook{db: db}
+func NewWebhook(db *db.DB, providers provider.Providers) *Webhook {
+	return &Webhook{
+		db:        db,
+		providers: providers,
+	}
 }
 
 // TODO: Implement webhook handler for all providers
 func (h *Webhook) Handle(w http.ResponseWriter, r *http.Request) {
-	payload, err := github.ValidatePayload(r, nil)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+	providerKey := r.PathValue("provider")
+	provider, ok := h.providers[providerKey]
+	if !ok {
+		http.Error(w, "unsupported provider", http.StatusBadRequest)
 		return
 	}
-	event, err := github.ParseWebHook(github.WebHookType(r), payload)
+
+	event, err := provider.ParseWebhookEvent(r)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		http.Error(w, "failed to parse webhook event", http.StatusBadRequest)
 		return
 	}
-	switch event := event.(type) {
-	case *github.PushEvent:
-		tag, ok := strings.CutPrefix(event.GetRef(), "refs/tags/")
-		if ok {
-			fmt.Println(tag)
-		}
-	}
+	fmt.Println("Webhook event:", event)
+
+	// TODO: Handle logic: pull repo -> parse mkrepo.yaml -> update db (long term cache repo)
 }

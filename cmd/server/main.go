@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"io/fs"
 	"log/slog"
 	"net/http"
 	"os/signal"
@@ -41,24 +40,20 @@ func main() {
 
 	providers := provider.NewProvidersFromConfig(cfg.Providers)
 
-	sub, err := fs.Sub(template.RepoFS, "license")
-	if err != nil {
-		log.Fatal("Cannot get sub", err)
-	}
-	licenses, err := template.PrepareLicenses(sub)
+	licenses, err := template.PrepareLicenses(template.LicenseFS)
 	if err != nil {
 		log.Fatal("Cannot prepare licenses", err)
 	}
 
 	ctx := context.Background()
-	db, err := db.New(ctx, "postgres://mkrepo:mkrepo@localhost:5432/mkrepo?sslmode=disable")
+	db, err := db.New(ctx, "postgres://mkrepo:mkrepo@localhost:5432/mkrepo?sslmode=disable") // TODO: Use this from env or config
 	if err != nil {
 		log.Fatal("Cannot open database", err)
 	}
 	defer db.Close()
 	go db.GarbageCollector(ctx, 12*time.Hour)
 
-	repomaker := mkrepo.New(db, licenses)
+	repomaker := mkrepo.New(db, providers, licenses)
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /", handler.NewIndex(providers))
@@ -73,8 +68,8 @@ func main() {
 	mux.Handle("GET /new", http.HandlerFunc(repo.Form))
 	mux.Handle("POST /new", http.HandlerFunc(repo.Create))
 
-	webhook := handler.NewWebhook(db)
-	mux.Handle("POST /webhook/handler", http.HandlerFunc(webhook.Handle))
+	webhook := handler.NewWebhook(db, providers)
+	mux.Handle("POST /webhook/handler/{provider}", http.HandlerFunc(webhook.Handle))
 
 	wrapped := middleware.NewAuthenticate(db)(mux)
 
@@ -89,7 +84,7 @@ func main() {
 	errCh := make(chan error)
 	go func() {
 		slog.Info("Starting listening", slog.String("addr", server.Addr))
-		errCh <- server.ListenAndServe()
+		errCh <- server.ListenAndServe() // TODO: Use TLS
 	}()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

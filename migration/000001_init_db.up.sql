@@ -6,12 +6,12 @@ CREATE TABLE IF NOT EXISTS "oauth2_state" (
 );
 
 CREATE TABLE IF NOT EXISTS "account" (
-	"id" serial PRIMARY KEY,
+	"id" bigserial PRIMARY KEY,
 	"session" text NOT NULL,
 	"provider" text NOT NULL,
 	"access_token" text NOT NULL,
-	"refresh_token" text NOT NULL,
-	"expires_at" timestamp NOT NULL,
+	"refresh_token" text NOT NULL DEFAULT '',
+	"expires_at" timestamp NOT NULL DEFAULT '0001-01-01 00:00:00+00'::timestamp,
 	"redirect_uri" text NOT NULL,
 	"email" text NOT NULL,
 	"username" text NOT NULL,
@@ -20,13 +20,20 @@ CREATE TABLE IF NOT EXISTS "account" (
 	UNIQUE("session", "provider", "username")
 );
 
--- CREATE TABLE IF NOT EXISTS "template" (
--- 	"id" serial PRIMARY KEY,
--- 	"name" text NOT NULL,
--- 	"url" text NOT NULL UNIQUE,
--- 	"version" text NOT NULL DEFAULT 'v0.0.0',
--- 	"stars" int NOT NULL DEFAULT 0,
--- 	"created_at" timestamp NOT NULL DEFAULT 'now'::timestamp,
--- );
+CREATE TABLE IF NOT EXISTS "template" (
+	"id" bigserial PRIMARY KEY,
+	"name" text NOT NULL,
+	"url" text NOT NULL UNIQUE,
+	"stars" int NOT NULL DEFAULT 0 CHECK ("stars" >= 0)
+);
+
+CREATE TABLE IF NOT EXISTS "template_version" (
+	"id" bigserial PRIMARY KEY,
+	"description" text NOT NULL DEFAULT '',
+	"language" text NOT NULL DEFAULT '',
+	"version" text NOT NULL,
+	"template_id" bigint NOT NULL REFERENCES "template" ("id") ON DELETE CASCADE,
+	UNIQUE ("template_id", "version")
+);
 
 COMMIT;

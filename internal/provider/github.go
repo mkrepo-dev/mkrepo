@@ -2,8 +2,12 @@ package provider
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"strings"
 
-	"github.com/google/go-github/v69/github"
+	"github.com/google/go-github/v70/github"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/endpoints"
 
@@ -64,6 +68,32 @@ func (provider *GitHub) OAuth2Config(redirectUri string) *oauth2.Config {
 	return oauth2WithRedirectUri(cfg, redirectUri)
 }
 
+func (provider *GitHub) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
+	payload, err := github.ValidatePayload(r, []byte("")) // TODO: Fill this with secret
+	if err != nil {
+		return WebhookEvent{}, err
+	}
+	event, err := github.ParseWebHook(github.WebHookType(r), payload)
+	if err != nil {
+		return WebhookEvent{}, err
+
+	}
+	switch event := event.(type) {
+	case *github.CreateEvent:
+		if event.GetRefType() != "tag" {
+			return WebhookEvent{}, errors.New("unsupported event type")
+		}
+		fmt.Println(event.GetRef())
+		return WebhookEvent{
+			Tag:      strings.TrimPrefix(strings.TrimPrefix(event.GetRef(), "refs/tags/"), "v"), // TODO: Is ref tag or does it contain refs/tags/?
+			Url:      event.GetRepo().GetHTMLURL(),
+			CloneUrl: event.GetRepo().GetCloneURL(),
+		}, nil
+	default:
+		return WebhookEvent{}, errors.New("unsupported event type")
+	}
+}
+
 func (provider *GitHub) NewClient(ctx context.Context, token *oauth2.Token, _ string) (ProviderClient, *oauth2.Token) {
 	client := github.NewClient(nil).WithAuthToken(token.AccessToken)
 	client.UserAgent = internal.UserAgent
@@ -104,11 +134,12 @@ func (client *GitHubClient) CreateRemoteRepo(ctx context.Context, repo CreateRep
 func (client *GitHubClient) CreateWebhook(ctx context.Context, repo CreateRepo) error {
 	_, _, err := client.Repositories.CreateHook(ctx, repo.Namespace, repo.Name, &github.Hook{ // TODO: Make sure repo name is correct here
 		Active: github.Ptr(true),
-		Events: []string{"push"},
+		Events: []string{"create"},
 		Config: &github.HookConfig{
 			ContentType: github.Ptr("json"),
 			InsecureSSL: github.Ptr("0"),
 			URL:         github.Ptr("https://example.com/webhook"), // TODO: Change this
+			Secret:      github.Ptr(""),                            // TODO: Change this
 		},
 	})
 	return err

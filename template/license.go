@@ -1,14 +1,16 @@
 package template
 
 import (
-	"fmt"
+	"embed"
 	"io"
 	"io/fs"
-	"path/filepath"
 	"regexp"
 	"strings"
 	stdtemplate "text/template"
 )
+
+//go:embed license
+var LicenseFS embed.FS
 
 type LicenseContext struct {
 	Year     int
@@ -16,7 +18,7 @@ type LicenseContext struct {
 	Project  string
 }
 
-type Licenses map[string]License
+type Licenses map[string]*License
 
 type License struct {
 	Title    string
@@ -81,7 +83,7 @@ func PrepareLicenses(licenseFS fs.FS) (Licenses, error) {
 			return err
 		}
 
-		licenses[key] = license
+		licenses[key] = &license
 		return nil
 	})
 	if err != nil {
@@ -89,26 +91,4 @@ func PrepareLicenses(licenseFS fs.FS) (Licenses, error) {
 	}
 
 	return licenses, nil
-}
-
-func AddLicense(licenses Licenses, licenseKey string, context LicenseContext, dir string) error {
-	license, ok := licenses[licenseKey]
-	if !ok {
-		return fmt.Errorf("license %s not found", licenseKey)
-	}
-	err := CreateFile(filepath.Join(dir, license.Filename), license.Template, context)
-	if err != nil {
-		return err
-	}
-	for _, licenseKey := range license.With {
-		license, ok := licenses[licenseKey]
-		if !ok {
-			return fmt.Errorf("license %s not found", licenseKey)
-		}
-		err := CreateFile(filepath.Join(dir, license.Filename), license.Template, context)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }

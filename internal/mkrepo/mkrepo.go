@@ -2,9 +2,11 @@ package mkrepo
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	texttemplate "text/template"
 	"time"
 
 	"github.com/go-git/go-git/v5"
@@ -19,18 +21,48 @@ import (
 	"github.com/FilipSolich/mkrepo/template"
 )
 
-type RepoMaker struct {
-	db       *db.DB
-	licenses template.Licenses
+type CreateRepo struct {
+	// TODO: Pass account as parameter to CreateNewRepo
+	Account db.Account
+
+	// Remote repo information
+	Namespace   string
+	Name        string
+	Description string
+	Visibility  provider.RepoVisibility
+
+	// Initialization options
+	Readme         bool
+	Gitignore      string
+	License        *template.License
+	LicenseContext template.LicenseContext
+	Dockerfile     string
+	Dockerignore   bool
+
+	// Extra git options
+	Sha256 bool
+	Tag    string
+
+	// Rest
+	IsTemplate bool
 }
 
-func New(db *db.DB, licenses template.Licenses) *RepoMaker {
-	return &RepoMaker{db: db, licenses: licenses}
+func (r *CreateRepo) NeedInitialization() bool {
+	return r.Readme || r.Gitignore != "none" || r.Dockerfile != "none" || r.License != nil || r.IsTemplate
+}
+
+type RepoMaker struct {
+	db        *db.DB
+	providers provider.Providers
+	licenses  template.Licenses
+}
+
+func New(db *db.DB, providers provider.Providers, licenses template.Licenses) *RepoMaker {
+	return &RepoMaker{db: db, providers: providers, licenses: licenses}
 }
 
 // Create remote repo and initialize it if needed. Returns url to the repo.
 func (rm *RepoMaker) CreateNewRepo(ctx context.Context, repo CreateRepo, prov provider.Provider) (string, error) {
-	// TODO: Put dependencies as DB in struct
 	client, token := prov.NewClient(ctx, repo.Account.Token, repo.Account.RedirectUri)
 	repo.Account.Token = token
 	err := rm.db.UpdateAccountToken(ctx, repo.Account.Session, repo.Account.Provider, repo.Account.Username, repo.Account.Token)
@@ -135,7 +167,7 @@ func (rm *RepoMaker) initializeRepo(ctx context.Context, repo CreateRepo, provid
 		return err
 	}
 
-	return r.Push(&git.PushOptions{
+	return r.PushContext(ctx, &git.PushOptions{
 		FollowTags: true,
 		Auth:       &githttp.BasicAuth{Username: "mkrepo", Password: repo.Account.Token.AccessToken},
 	})
@@ -152,8 +184,8 @@ func (rm *RepoMaker) addFiles(repo CreateRepo, dir string) error {
 			return err
 		}
 	}
-	if repo.LicenseKey != "none" {
-		err := template.AddLicense(rm.licenses, repo.LicenseKey, repo.LicenseContext, dir)
+	if repo.License != nil {
+		err := rm.addLicense(repo, dir)
 		if err != nil {
 			return err
 		}
@@ -175,5 +207,32 @@ func addTemplateFiles(repo CreateRepo, dir string) error {
 }
 
 func addReadme(repo CreateRepo, dir string) error {
-	return template.CreateFile(filepath.Join(dir, "README.md"), template.Readme, template.ReadmeContext{Name: repo.Name})
+	return createFile(filepath.Join(dir, "README.md"), template.Readme, template.ReadmeContext{Name: repo.Name})
+}
+
+func (rm *RepoMaker) addLicense(repo CreateRepo, dir string) error {
+	err := createFile(filepath.Join(dir, repo.License.Filename), repo.License.Template, repo.LicenseContext)
+	if err != nil {
+		return err
+	}
+	for _, licenseKey := range repo.License.With {
+		license, ok := rm.licenses[licenseKey]
+		if !ok {
+			return fmt.Errorf("license %s not found", licenseKey)
+		}
+		err := createFile(filepath.Join(dir, license.Filename), license.Template, repo.LicenseContext)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func createFile(filepath string, tmpl *texttemplate.Template, context any) error {
+	f, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return tmpl.Execute(f, context)
 }

@@ -66,7 +66,7 @@ func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 		Licenses:         h.licenses,
 		CurrentYear:      time.Now().Year(),
 	}
-	template.Render(w, template.NewRepoForm, context)
+	template.Render(w, template.NewRepo, context)
 }
 
 func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
@@ -89,11 +89,22 @@ func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
 		tag = "v0.0.0"
 	}
 
+	var license *template.License
+	if r.Form.Has("license") {
+		var ok bool
+		license, ok = h.licenses[r.FormValue("license")]
+		if !ok {
+			http.Error(w, "invalid license", http.StatusBadRequest)
+			return
+		}
+	}
+
 	licenseYear, err := strconv.Atoi(r.FormValue("license-year"))
 	if err != nil {
 		http.Error(w, "invalid license year", http.StatusBadRequest)
 		return
 	}
+
 	repository := mkrepo.CreateRepo{
 		Account:      *account,
 		Namespace:    r.FormValue("owner"),
@@ -104,7 +115,7 @@ func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
 		Gitignore:    r.FormValue("gitignore"),
 		Dockerfile:   r.FormValue("dockerfile"),
 		Dockerignore: dockerignore,
-		LicenseKey:   r.FormValue("license"),
+		License:      license,
 		LicenseContext: template.LicenseContext{
 			Year:     licenseYear,
 			Fullname: r.FormValue("license-fullname"),
