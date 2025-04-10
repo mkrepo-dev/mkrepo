@@ -15,19 +15,23 @@ vars:
 
   DATETIME:
     sh: date --utc --iso-8601=seconds
-  VERSION:
+  EXACT_VERSION:
+    sh: if git describe --exact-match --tags HEAD > /dev/null 2>&1; then echo 0; else echo 1; fi
+  VERSION_NUMBER:
     sh: git describe --tags --abbrev=0 | sed 's/^v//'
   REVISION:
     sh: git rev-parse HEAD
   REVISION_SHORT:
     sh: git rev-parse --short HEAD
+  VERSION:
+    sh: if [ {{.EXACT_VERSION}} = 0 ]; then echo {{.VERSION_NUMBER}}; else echo "{{.VERSION_NUMBER}}+{{.REVISION_SHORT}}"; fi
 
   REGISTRY: ghcr.io
   NAMESPACE: filipsolich
   IMAGE: '{{.REGISTRY}}/{{.NAMESPACE}}/mkrepo'
+  TAG_DEV: '{{.IMAGE}}:dev'
   TAG_LATEST: '{{.IMAGE}}:latest'
-  TAG_VERSION: '{{.IMAGE}}:{{.VERSION}}'
-  TAG_VERSION_REVISION: '{{.TAG_VERSION}}-{{.REVISION_SHORT}}'
+  TAG_VERSION_NUMBER: '{{.IMAGE}}:{{.VERSION_NUMBER}}'
 
 tasks:
   default:
@@ -113,25 +117,32 @@ tasks:
   docker:build:
     desc: Build Docker image
     cmds:
-      - docker build
-        --build-arg MODULE={{.MODULE}}
-        --build-arg VERSION={{.VERSION}}
-        --build-arg REVISION={{.REVISION}}
-        --build-arg DATETIME={{.DATETIME}}
-        --build-arg IMAGE_REF={{.TAG_VERSION_REVISION}}
-        -t {{.TAG_LATEST}} -t {{.TAG_VERSION_REVISION}} .
-      - if git describe --exact-match --tags HEAD > /dev/null 2>&1; then docker tag {{.TAG_VERSION_REVISION}} {{.TAG_VERSION}}; fi
+      - |
+        if [ {{.EXACT_VERSION}} = 0 ]; then
+          echo "Builder image for version {{.VERSION}}"
+          docker build --build-arg VERSION={{.VERSION}} --build-arg REVISION={{.REVISION}} \
+            --build-arg DATETIME={{.DATETIME}} --build-arg IMAGE_REF={{.TAG_VERSION_NUMBER}} \
+            -t {{.TAG_LATEST}} -t {{.TAG_VERSION_NUMBER}} .
+        else
+          echo "Builder image for dev version {{.VERSION}}"
+          docker build --build-arg VERSION={{.VERSION}} --build-arg REVISION={{.REVISION}} \
+            --build-arg DATETIME={{.DATETIME}} --build-arg IMAGE_REF={{.TAG_DEV}} \
+            -t {{.TAG_DEV}} .
+        fi
 
   docker:push:
     desc: Push Docker image
     cmds:
-      - docker push {{.TAG_LATEST}}
-      - docker push {{.TAG_VERSION_REVISION}}
-      - if git describe --exact-match --tags HEAD > /dev/null 2>&1; then docker push {{.TAG_VERSION}}; fi
+      - |
+        if [ {{.EXACT_VERSION}} = 0 ]; then
+          docker push {{.TAG_LATEST}} {{.TAG_VERSION_NUMBER}}
+        else
+          docker push {{.TAG_DEV}}
+        fi
 
   release:
     desc: Release new version
-    prompt: Do you want to release new version?
+    prompt: Do you want to release new version {{.VERSION}}?
     preconditions:
       - git diff-index --quiet HEAD --
     cmds:
