@@ -34,8 +34,8 @@ LABEL \
     org.opencontainers.image.authors="Filip Solich" \
     org.opencontainers.image.licenses="MIT License" \
     org.opencontainers.image.url="mkrepo.dev" \
-    org.opencontainers.image.documentation="https://github.com/FilipSolich/mkrepo/blob/main/README.md" \
-    org.opencontainers.image.source="https://github.com/FilipSolich/mkrepo" \
+    org.opencontainers.image.documentation="https://github.com/mkrepo-dev/mkrepo/blob/main/README.md" \
+    org.opencontainers.image.source="https://github.com/mkrepo-dev/mkrepo" \
     org.opencontainers.image.revision="$REVISION" \
     org.opencontainers.image.ref.name="$IMAGE_REF" \
     org.opencontainers.image.base.name="gcr.io/distroless/static-debian12"

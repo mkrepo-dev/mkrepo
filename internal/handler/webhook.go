@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/FilipSolich/mkrepo/internal/db"
-	"github.com/FilipSolich/mkrepo/internal/provider"
+	"github.com/mkrepo-dev/mkrepo/internal/db"
+	"github.com/mkrepo-dev/mkrepo/internal/provider"
 )
 
 type Webhook struct {

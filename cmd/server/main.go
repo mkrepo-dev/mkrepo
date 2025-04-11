@@ -9,16 +9,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/FilipSolich/mkrepo/internal"
-	"github.com/FilipSolich/mkrepo/internal/config"
-	"github.com/FilipSolich/mkrepo/internal/db"
-	"github.com/FilipSolich/mkrepo/internal/handler"
-	"github.com/FilipSolich/mkrepo/internal/log"
-	"github.com/FilipSolich/mkrepo/internal/middleware"
-	"github.com/FilipSolich/mkrepo/internal/mkrepo"
-	"github.com/FilipSolich/mkrepo/internal/provider"
-	"github.com/FilipSolich/mkrepo/static"
-	"github.com/FilipSolich/mkrepo/template"
+	"github.com/mkrepo-dev/mkrepo/internal"
+	"github.com/mkrepo-dev/mkrepo/internal/config"
+	"github.com/mkrepo-dev/mkrepo/internal/db"
+	"github.com/mkrepo-dev/mkrepo/internal/handler"
+	"github.com/mkrepo-dev/mkrepo/internal/log"
+	"github.com/mkrepo-dev/mkrepo/internal/middleware"
+	"github.com/mkrepo-dev/mkrepo/internal/mkrepo"
+	"github.com/mkrepo-dev/mkrepo/internal/provider"
+	"github.com/mkrepo-dev/mkrepo/static"
+	"github.com/mkrepo-dev/mkrepo/template"
 )
 
 func main() {

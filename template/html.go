@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"text/template"
 
-	"github.com/FilipSolich/mkrepo/internal/db"
-	"github.com/FilipSolich/mkrepo/internal/log"
-	"github.com/FilipSolich/mkrepo/internal/provider"
+	"github.com/mkrepo-dev/mkrepo/internal/db"
+	"github.com/mkrepo-dev/mkrepo/internal/log"
+	"github.com/mkrepo-dev/mkrepo/internal/provider"
 )
 
 //go:embed html

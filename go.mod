@@ -1,4 +1,4 @@
-module github.com/FilipSolich/mkrepo
+module github.com/mkrepo-dev/mkrepo
 
 go 1.24
 

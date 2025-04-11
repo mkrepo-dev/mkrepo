@@ -14,8 +14,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/oauth2"
 
-	"github.com/FilipSolich/mkrepo/internal/log"
-	"github.com/FilipSolich/mkrepo/migration"
+	"github.com/mkrepo-dev/mkrepo/internal/log"
+	"github.com/mkrepo-dev/mkrepo/migration"
 )
 
 type DB struct {

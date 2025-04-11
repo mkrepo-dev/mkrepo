@@ -6,7 +6,7 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/FilipSolich/mkrepo/internal/log"
+	"github.com/mkrepo-dev/mkrepo/internal/log"
 )
 
 var (

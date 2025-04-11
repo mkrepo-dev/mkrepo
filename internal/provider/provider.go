@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/FilipSolich/mkrepo/internal/config"
-	"github.com/FilipSolich/mkrepo/internal/db"
-	"github.com/FilipSolich/mkrepo/internal/log"
+	"github.com/mkrepo-dev/mkrepo/internal/config"
+	"github.com/mkrepo-dev/mkrepo/internal/db"
+	"github.com/mkrepo-dev/mkrepo/internal/log"
 	"golang.org/x/oauth2"
 )
 

@@ -5,11 +5,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/FilipSolich/mkrepo/internal/db"
-	"github.com/FilipSolich/mkrepo/internal/middleware"
-	"github.com/FilipSolich/mkrepo/internal/mkrepo"
-	"github.com/FilipSolich/mkrepo/internal/provider"
-	"github.com/FilipSolich/mkrepo/template"
+	"github.com/mkrepo-dev/mkrepo/internal/db"
+	"github.com/mkrepo-dev/mkrepo/internal/middleware"
+	"github.com/mkrepo-dev/mkrepo/internal/mkrepo"
+	"github.com/mkrepo-dev/mkrepo/internal/provider"
+	"github.com/mkrepo-dev/mkrepo/template"
 )
 
 type Repo struct {

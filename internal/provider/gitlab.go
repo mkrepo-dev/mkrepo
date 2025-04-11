@@ -13,10 +13,10 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/endpoints"
 
-	"github.com/FilipSolich/mkrepo/internal"
-	"github.com/FilipSolich/mkrepo/internal/config"
-	"github.com/FilipSolich/mkrepo/internal/db"
-	"github.com/FilipSolich/mkrepo/internal/log"
+	"github.com/mkrepo-dev/mkrepo/internal"
+	"github.com/mkrepo-dev/mkrepo/internal/config"
+	"github.com/mkrepo-dev/mkrepo/internal/db"
+	"github.com/mkrepo-dev/mkrepo/internal/log"
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
 

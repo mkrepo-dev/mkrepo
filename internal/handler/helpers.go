@@ -6,9 +6,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/FilipSolich/mkrepo/internal/log"
-	"github.com/FilipSolich/mkrepo/internal/middleware"
-	"github.com/FilipSolich/mkrepo/template"
+	"github.com/mkrepo-dev/mkrepo/internal/log"
+	"github.com/mkrepo-dev/mkrepo/internal/middleware"
+	"github.com/mkrepo-dev/mkrepo/template"
 )
 
 func getBaseContext(r *http.Request) template.BaseContext {
