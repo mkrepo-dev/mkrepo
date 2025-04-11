@@ -27,7 +27,7 @@ vars:
     sh: if [ {{.EXACT_VERSION}} = 0 ]; then echo {{.VERSION_NUMBER}}; else echo "{{.VERSION_NUMBER}}+{{.REVISION_SHORT}}"; fi
 
   REGISTRY: ghcr.io
-  NAMESPACE: filipsolich
+  NAMESPACE: mkrepo-dev
   IMAGE: '{{.REGISTRY}}/{{.NAMESPACE}}/mkrepo'
   TAG_DEV: '{{.IMAGE}}:dev'
   TAG_LATEST: '{{.IMAGE}}:latest'
