@@ -81,24 +81,14 @@ func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	readme := r.Form.Has("readme")
-	dockerignore := r.Form.Has("dockerignore")
-	sha256 := r.Form.Has("sha256")
 	var tag string
 	if r.Form.Has("tag") {
 		tag = "v0.0.0"
 	}
-
-	var license *template.License
+	var license string
 	if r.Form.Has("license") {
-		var ok bool
-		license, ok = h.licenses[r.FormValue("license")]
-		if !ok {
-			http.Error(w, "invalid license", http.StatusBadRequest)
-			return
-		}
+		license = r.FormValue("license")
 	}
-
 	licenseYear, err := strconv.Atoi(r.FormValue("license-year"))
 	if err != nil {
 		http.Error(w, "invalid license year", http.StatusBadRequest)
@@ -111,18 +101,19 @@ func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
 		Name:         r.FormValue("name"),
 		Description:  r.FormValue("description"),
 		Visibility:   provider.RepoVisibility(r.FormValue("visibility")),
-		Readme:       readme,
+		Readme:       r.Form.Has("readme"),
 		Gitignore:    r.FormValue("gitignore"),
 		Dockerfile:   r.FormValue("dockerfile"),
-		Dockerignore: dockerignore,
-		License:      license,
+		Dockerignore: r.Form.Has("dockerignore"),
+		LicenseKey:   license,
 		LicenseContext: template.LicenseContext{
 			Year:     licenseYear,
 			Fullname: r.FormValue("license-fullname"),
 			Project:  r.FormValue("license-project"),
 		},
-		Tag:    tag,
-		Sha256: sha256,
+		Tag:        tag,
+		Sha256:     r.Form.Has("sha256"),
+		IsTemplate: r.Form.Has("template"),
 	}
 
 	provider, ok := h.providers[providerKey]

@@ -23,7 +23,6 @@ import (
 
 func main() {
 	log.SetupLogger()
-
 	version := internal.ReadVersion()
 	slog.Info("Started mkrepo server",
 		slog.String("version", version.Version), slog.String("goVersion", version.GoVersion),
@@ -38,7 +37,7 @@ func main() {
 		log.Fatal("Cannot load config", err)
 	}
 
-	providers := provider.NewProvidersFromConfig(cfg.Providers)
+	providers := provider.NewProvidersFromConfig(cfg)
 
 	licenses, err := template.PrepareLicenses(template.LicenseFS)
 	if err != nil {
@@ -69,12 +68,12 @@ func main() {
 	mux.Handle("POST /new", http.HandlerFunc(repo.Create))
 
 	webhook := handler.NewWebhook(db, providers)
-	mux.Handle("POST /webhook/handler/{provider}", http.HandlerFunc(webhook.Handle))
+	mux.Handle("POST /webhook/{provider}", http.HandlerFunc(webhook.Handle))
 
 	wrapped := middleware.NewAuthenticate(db)(mux)
 
 	server := &http.Server{
-		Addr:         ":8000",
+		Addr:         ":8080",
 		Handler:      wrapped,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 60 * time.Second,

@@ -57,7 +57,7 @@
       <div class="col-4">
         <label for="gitignore" class="form-label mb-0"><small><b>Add <code>.gitignore</code></b></small></label>
         <select id="gitignore" class="form-select form-select-sm" name="gitignore">
-          <option value="none">None</option>
+          <option value="">None</option>
           <option value="go">Go</option>
           <option value="node">Node</option>
           <option value="python">Python</option>
@@ -68,7 +68,7 @@
       <div class="col-4">
         <label for="dockerfile" class="form-label mb-0"><small><b>Add <code>Dockerfile</code></b></small></label>
         <select id="dockerfile" class="form-select form-select-sm" name="dockerfile">
-          <option value="none">None</option>
+          <option value="">None</option>
           <option value="go">Go</option>
           <option value="node">Node</option>
           <option value="python">Python</option>
@@ -83,7 +83,7 @@
       <div class="col-4">
         <label for="license" class="form-label mb-0"><small><b>Add <code>License</code></b></small></label>
         <select id="license" class="form-select form-select-sm" name="license">
-          <option value="none" vars="">None</option>
+          <option value="" vars="">None</option>
           {{range $key, $license:= .Licenses}}
           <option value="{{$key}}" vars="{{range $license.Vars}}{{.}},{{end}}">{{$license.Title}}</option>
           {{end}}
@@ -110,6 +110,12 @@
       <div class="col form-check">
         <input type="checkbox" class="form-check-input" id="tag" name="tag" value="v0.0.0">
         <label for="tag" class="form-check-label">Create init tag <code>v0.0.0</code></label>
+      </div>
+    </div>
+    <div class="row g-2 my-1">
+      <div class="col form-check">
+        <input type="checkbox" class="form-check-input" id="template" name="template" value="">
+        <label for="template" class="form-check-label">Create template</label>
       </div>
     </div>
     <hr class="my-3">

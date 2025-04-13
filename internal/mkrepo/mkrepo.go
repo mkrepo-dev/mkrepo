@@ -34,7 +34,7 @@ type CreateRepo struct {
 	// Initialization options
 	Readme         bool
 	Gitignore      string
-	License        *template.License
+	LicenseKey     string
 	LicenseContext template.LicenseContext
 	Dockerfile     string
 	Dockerignore   bool
@@ -48,7 +48,7 @@ type CreateRepo struct {
 }
 
 func (r *CreateRepo) NeedInitialization() bool {
-	return r.Readme || r.Gitignore != "none" || r.Dockerfile != "none" || r.License != nil || r.IsTemplate
+	return r.Readme || r.Gitignore != "" || r.Dockerfile != "" || r.LicenseKey != "" || r.IsTemplate
 }
 
 type RepoMaker struct {
@@ -69,7 +69,7 @@ func (rm *RepoMaker) CreateNewRepo(ctx context.Context, repo CreateRepo, prov pr
 	if err != nil {
 		return "", err
 	}
-	url, cloneUrl, err := client.CreateRemoteRepo(ctx, provider.CreateRepo{
+	id, owner, url, cloneUrl, err := client.CreateRemoteRepo(ctx, provider.CreateRepo{
 		Namespace:   repo.Namespace,
 		Name:        repo.Name,
 		Description: repo.Description,
@@ -92,6 +92,16 @@ func (rm *RepoMaker) CreateNewRepo(ctx context.Context, repo CreateRepo, prov pr
 	}
 
 	// TODO: For template repo register webhook
+	if repo.IsTemplate {
+		err = client.CreateWebhook(ctx, provider.CreateWebhook{
+			ID:    id,
+			Owner: owner,
+			Name:  repo.Name,
+		})
+		if err != nil {
+			return url, err
+		}
+	}
 
 	return url, nil
 }
@@ -184,7 +194,7 @@ func (rm *RepoMaker) addFiles(repo CreateRepo, dir string) error {
 			return err
 		}
 	}
-	if repo.License != nil {
+	if repo.LicenseKey != "" {
 		err := rm.addLicense(repo, dir)
 		if err != nil {
 			return err
@@ -211,11 +221,15 @@ func addReadme(repo CreateRepo, dir string) error {
 }
 
 func (rm *RepoMaker) addLicense(repo CreateRepo, dir string) error {
-	err := createFile(filepath.Join(dir, repo.License.Filename), repo.License.Template, repo.LicenseContext)
+	license, ok := rm.licenses[repo.LicenseKey]
+	if !ok {
+		return fmt.Errorf("license %s not found", repo.LicenseKey)
+	}
+	err := createFile(filepath.Join(dir, license.Filename), license.Template, repo.LicenseContext)
 	if err != nil {
 		return err
 	}
-	for _, licenseKey := range repo.License.With {
+	for _, licenseKey := range license.With {
 		license, ok := rm.licenses[licenseKey]
 		if !ok {
 			return fmt.Errorf("license %s not found", licenseKey)

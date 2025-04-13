@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -21,59 +20,54 @@ import (
 )
 
 type GitLab struct {
-	name         string
-	clientId     string
-	clientSecret string
-	url          string
-	apiUrl       string
+	config        config.Provider
+	baseUrl       string
+	webhookSecret string
 }
 
 var _ Provider = &GitLab{}
 
-func NewGitLabFromConfig(cfg config.Provider) *GitLab {
-	name := "GitLab"
-	if cfg.Name != "" {
-		name = cfg.Name
+func NewGitLabFromConfig(cfg config.Provider, baseUrl string, secret string) *GitLab {
+	gl := &GitLab{
+		config:        cfg,
+		baseUrl:       baseUrl,
+		webhookSecret: secret,
 	}
-	url := "https://gitlab.com"
-	if cfg.Url != "" {
-		url = cfg.Url
+
+	if gl.config.Name == "" {
+		gl.config.Name = "GitLab"
 	}
-	apiUrl := "https://gitlab.com/api/v4"
-	if cfg.ApiUrl != "" {
-		apiUrl = cfg.ApiUrl
+	if gl.config.Url == "" {
+		gl.config.Url = "https://gitlab.com"
 	}
-	return &GitLab{
-		name:         name,
-		clientId:     cfg.ClientID,
-		clientSecret: cfg.ClientSecret,
-		url:          url,
-		apiUrl:       apiUrl,
+	if gl.config.ApiUrl == "" {
+		gl.config.ApiUrl = "https://gitlab.com/api/v4"
 	}
+	return gl
 }
 
 func (provider *GitLab) Name() string {
-	return provider.name
+	return provider.config.Name
 }
 
 func (provider *GitLab) Url() string {
-	return provider.url
+	return provider.config.Url
 }
 
 func (provider *GitLab) OAuth2Config(redirectUri string) *oauth2.Config {
 	cfg := &oauth2.Config{
-		ClientID:     provider.clientId,
-		ClientSecret: provider.clientSecret,
+		ClientID:     provider.config.ClientID,
+		ClientSecret: provider.config.ClientSecret,
 		Scopes:       []string{"api"},
 		Endpoint:     endpoints.GitLab,
-		RedirectURL:  "http://localhost:8000/auth/oauth2/callback/gitlab", // TODO: Put this into config
+		RedirectURL:  buildAuthCallbackUrl(provider.baseUrl, provider.config.Key),
 	}
 	return oauth2WithRedirectUri(cfg, redirectUri)
 }
 
 func (provider *GitLab) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
 	token := r.Header.Get("X-Gitlab-Token")
-	if token != "" { // TODO: Uset same token as in CreateWebhook
+	if token != provider.webhookSecret {
 		return WebhookEvent{}, errors.New("invalid request")
 	}
 	payload, err := io.ReadAll(r.Body)
@@ -86,14 +80,13 @@ func (provider *GitLab) ParseWebhookEvent(r *http.Request) (WebhookEvent, error)
 	}
 	switch event := event.(type) {
 	case *gitlab.TagEvent:
-		fmt.Println(event)
 		return WebhookEvent{
 			Tag:      strings.TrimPrefix(strings.TrimPrefix(event.Ref, "refs/tags/"), "v"),
 			Url:      event.Repository.WebURL,
 			CloneUrl: event.Repository.HTTPURL,
 		}, nil
 	default:
-		return WebhookEvent{}, errors.New("unsupported event type")
+		return WebhookEvent{}, ErrIgnoreEvent
 	}
 }
 
@@ -105,11 +98,19 @@ func (provider *GitLab) NewClient(ctx context.Context, token *oauth2.Token, redi
 	}
 	client, _ := gitlab.NewOAuthClient(tkn.AccessToken)
 	client.UserAgent = internal.UserAgent
-	return &GitLabClient{Client: client}, tkn
+	return &GitLabClient{
+		Client:        client,
+		providerKey:   provider.config.Key,
+		baseUrl:       provider.baseUrl,
+		webhookSecret: provider.webhookSecret,
+	}, tkn
 }
 
 type GitLabClient struct {
 	*gitlab.Client
+	providerKey   string
+	baseUrl       string
+	webhookSecret string
 }
 
 var _ ProviderClient = &GitLabClient{}
@@ -127,7 +128,7 @@ func (client *GitLabClient) GetUserInfo(ctx context.Context) (db.UserInfo, error
 	return info, nil
 }
 
-func (client *GitLabClient) CreateRemoteRepo(ctx context.Context, repo CreateRepo) (string, string, error) {
+func (client *GitLabClient) CreateRemoteRepo(ctx context.Context, repo CreateRepo) (int64, string, string, string, error) {
 	opt := &gitlab.CreateProjectOptions{
 		Name:        &repo.Name,
 		Description: &repo.Description,
@@ -136,25 +137,26 @@ func (client *GitLabClient) CreateRemoteRepo(ctx context.Context, repo CreateRep
 	if repo.Namespace != "" {
 		namespace, err := strconv.Atoi(repo.Namespace)
 		if err != nil {
-			return "", "", err
+			return 0, "", "", "", err
 		}
 		opt.NamespaceID = &namespace
 	}
 	r, _, err := client.Projects.CreateProject(opt)
 	if err != nil {
-		return "", "", err
+		// TODO: Report if repo already exists
+		return 0, "", "", "", err
 	}
-	return r.WebURL, r.HTTPURLToRepo, nil
+	return int64(r.ID), r.Owner.Username, r.WebURL, r.HTTPURLToRepo, nil
 }
 
-func (client *GitLabClient) CreateWebhook(ctx context.Context, repo CreateRepo) error {
-	_, _, err := client.Projects.AddProjectHook(repo.ID, &gitlab.AddProjectHookOptions{
+func (client *GitLabClient) CreateWebhook(ctx context.Context, webhook CreateWebhook) error {
+	_, _, err := client.Projects.AddProjectHook(webhook.ID, &gitlab.AddProjectHookOptions{
 		Name:                  gitlab.Ptr("mkrepo"),
 		Description:           gitlab.Ptr("mkrepo webhook"),
-		URL:                   gitlab.Ptr(""),
+		URL:                   gitlab.Ptr(buildWebhookUrl(client.baseUrl, client.providerKey)),
 		TagPushEvents:         gitlab.Ptr(true),
-		Token:                 gitlab.Ptr(""), // TODO: Put this into config
-		EnableSSLVerification: gitlab.Ptr(true),
+		Token:                 gitlab.Ptr(client.webhookSecret),
+		EnableSSLVerification: gitlab.Ptr(true), // TODO: Make this configurable
 	})
 	return err
 }

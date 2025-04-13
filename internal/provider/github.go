@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -17,59 +16,53 @@ import (
 )
 
 type GitHub struct {
-	name         string
-	clientId     string
-	clientSecret string
-	url          string
-	apiUrl       string // TODO: Use api url
+	config        config.Provider
+	baseUrl       string
+	webhookSecret string
 }
 
 var _ Provider = &GitHub{}
 
-func NewGitHubFromConfig(cfg config.Provider) *GitHub {
-	name := "GitHub"
-	if cfg.Name != "" {
-		name = cfg.Name
+func NewGitHubFromConfig(cfg config.Provider, baseUrl string, secret string) *GitHub {
+	gh := &GitHub{
+		config:        cfg,
+		baseUrl:       baseUrl,
+		webhookSecret: secret,
 	}
-	url := "https://github.com"
-	if cfg.Url != "" {
-		url = cfg.Url
+	if gh.config.Name == "" {
+		gh.config.Name = "GitHub"
 	}
-	apiUrl := "https://api.github.com"
-	if cfg.ApiUrl != "" {
-		apiUrl = cfg.ApiUrl
+	if gh.config.Url == "" {
+		gh.config.Url = "https://github.com"
 	}
-	return &GitHub{
-		name:         name,
-		clientId:     cfg.ClientID,
-		clientSecret: cfg.ClientSecret,
-		url:          url,
-		apiUrl:       apiUrl,
+	if gh.config.ApiUrl == "" { // TODO: Use api url
+		gh.config.ApiUrl = "https://api.github.com"
 	}
+	return gh
 }
 
 func (provider *GitHub) Name() string {
-	return provider.name
+	return provider.config.Name
 }
 
 func (provider *GitHub) Url() string {
-	return provider.url
+	return provider.config.Url
 }
 
 func (provider *GitHub) OAuth2Config(redirectUri string) *oauth2.Config {
 	// TODO: Validate if redirect url is parsable but not here
 	cfg := &oauth2.Config{
-		ClientID:     provider.clientId,
-		ClientSecret: provider.clientSecret,
+		ClientID:     provider.config.ClientID,
+		ClientSecret: provider.config.ClientSecret,
 		Scopes:       []string{"repo", "read:org"},
-		RedirectURL:  "http://localhost:8000/auth/oauth2/callback/github", // TODO: Fill this from config. Must match what is set in GitHub.
+		RedirectURL:  buildAuthCallbackUrl(provider.baseUrl, provider.config.Key),
 		Endpoint:     endpoints.GitHub,
 	}
 	return oauth2WithRedirectUri(cfg, redirectUri)
 }
 
 func (provider *GitHub) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
-	payload, err := github.ValidatePayload(r, []byte("")) // TODO: Fill this with secret
+	payload, err := github.ValidatePayload(r, []byte(provider.webhookSecret))
 	if err != nil {
 		return WebhookEvent{}, err
 	}
@@ -81,27 +74,35 @@ func (provider *GitHub) ParseWebhookEvent(r *http.Request) (WebhookEvent, error)
 	switch event := event.(type) {
 	case *github.CreateEvent:
 		if event.GetRefType() != "tag" {
-			return WebhookEvent{}, errors.New("unsupported event type")
+			return WebhookEvent{}, ErrIgnoreEvent
 		}
-		fmt.Println(event.GetRef())
+		fmt.Println(event.GetRef()) // TODO: Remove
 		return WebhookEvent{
 			Tag:      strings.TrimPrefix(strings.TrimPrefix(event.GetRef(), "refs/tags/"), "v"), // TODO: Is ref tag or does it contain refs/tags/?
 			Url:      event.GetRepo().GetHTMLURL(),
 			CloneUrl: event.GetRepo().GetCloneURL(),
 		}, nil
 	default:
-		return WebhookEvent{}, errors.New("unsupported event type")
+		return WebhookEvent{}, ErrIgnoreEvent
 	}
 }
 
 func (provider *GitHub) NewClient(ctx context.Context, token *oauth2.Token, _ string) (ProviderClient, *oauth2.Token) {
 	client := github.NewClient(nil).WithAuthToken(token.AccessToken)
 	client.UserAgent = internal.UserAgent
-	return &GitHubClient{Client: client}, token
+	return &GitHubClient{
+		Client:        client,
+		providerKey:   provider.config.Key,
+		baseUrl:       provider.baseUrl,
+		webhookSecret: provider.webhookSecret,
+	}, token
 }
 
 type GitHubClient struct {
 	*github.Client
+	providerKey   string
+	baseUrl       string
+	webhookSecret string
 }
 
 var _ ProviderClient = &GitHubClient{}
@@ -119,27 +120,30 @@ func (client *GitHubClient) GetUserInfo(ctx context.Context) (db.UserInfo, error
 	return info, nil
 }
 
-func (client *GitHubClient) CreateRemoteRepo(ctx context.Context, repo CreateRepo) (string, string, error) {
+func (client *GitHubClient) CreateRemoteRepo(ctx context.Context, repo CreateRepo) (int64, string, string, string, error) {
 	r, _, err := client.Repositories.Create(ctx, repo.Namespace, &github.Repository{
 		Name:        &repo.Name,
 		Description: &repo.Description,
 		Visibility:  github.Ptr(string(repo.Visibility)),
 	})
 	if err != nil {
-		return "", "", err
+		if strings.Contains(err.Error(), "already exists") {
+			return 0, "", "", "", ErrRepoAlreadyExists
+		}
+		return 0, "", "", "", err
 	}
-	return r.GetHTMLURL(), r.GetCloneURL(), nil
+	return r.GetID(), r.GetOwner().GetLogin(), r.GetHTMLURL(), r.GetCloneURL(), nil
 }
 
-func (client *GitHubClient) CreateWebhook(ctx context.Context, repo CreateRepo) error {
-	_, _, err := client.Repositories.CreateHook(ctx, repo.Namespace, repo.Name, &github.Hook{ // TODO: Make sure repo name is correct here
+func (client *GitHubClient) CreateWebhook(ctx context.Context, webhook CreateWebhook) error {
+	_, _, err := client.Repositories.CreateHook(ctx, webhook.Owner, webhook.Name, &github.Hook{ // TODO: Make sure repo name is correct here
 		Active: github.Ptr(true),
 		Events: []string{"create"},
 		Config: &github.HookConfig{
 			ContentType: github.Ptr("json"),
-			InsecureSSL: github.Ptr("0"),
-			URL:         github.Ptr("https://example.com/webhook"), // TODO: Change this
-			Secret:      github.Ptr(""),                            // TODO: Change this
+			InsecureSSL: github.Ptr("0"), // TODO: Make this configurable
+			URL:         github.Ptr(buildWebhookUrl(client.baseUrl, client.providerKey)),
+			Secret:      github.Ptr(client.webhookSecret),
 		},
 	})
 	return err

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -23,18 +24,22 @@ func NewWebhook(db *db.DB, providers provider.Providers) *Webhook {
 // TODO: Implement webhook handler for all providers
 func (h *Webhook) Handle(w http.ResponseWriter, r *http.Request) {
 	providerKey := r.PathValue("provider")
-	provider, ok := h.providers[providerKey]
+	prov, ok := h.providers[providerKey]
 	if !ok {
 		http.Error(w, "unsupported provider", http.StatusBadRequest)
 		return
 	}
 
-	event, err := provider.ParseWebhookEvent(r)
+	event, err := prov.ParseWebhookEvent(r)
 	if err != nil {
+		if errors.Is(err, provider.ErrIgnoreEvent) {
+			return
+		}
 		http.Error(w, "failed to parse webhook event", http.StatusBadRequest)
 		return
 	}
-	fmt.Println("Webhook event:", event)
+
+	fmt.Println("Webhook event:", event) // TODO: Remove
 
 	// TODO: Handle logic: pull repo -> parse mkrepo.yaml -> update db (long term cache repo)
 }

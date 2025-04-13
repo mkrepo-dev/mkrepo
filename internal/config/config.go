@@ -12,6 +12,7 @@ import (
 
 type Config struct {
 	BaseUrl   string     `yaml:"baseUrl"`
+	Secret    string     `yaml:"-"`
 	Providers []Provider `yaml:"providers"`
 }
 
