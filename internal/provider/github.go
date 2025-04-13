@@ -121,9 +121,14 @@ func (client *GitHubClient) GetUserInfo(ctx context.Context) (db.UserInfo, error
 }
 
 func (client *GitHubClient) CreateRemoteRepo(ctx context.Context, repo CreateRepo) (int64, string, string, string, error) {
+	var private bool
+	if repo.Visibility == RepoVisibilityPrivate {
+		private = true
+	}
 	r, _, err := client.Repositories.Create(ctx, repo.Namespace, &github.Repository{
 		Name:        &repo.Name,
 		Description: &repo.Description,
+		Private:     &private,
 		Visibility:  github.Ptr(string(repo.Visibility)),
 	})
 	if err != nil {
