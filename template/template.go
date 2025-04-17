@@ -9,7 +9,7 @@ import (
 	"text/template"
 )
 
-//go:embed template lang README.md.tmpl
+//go:embed template README.md.tmpl
 var RepoFS embed.FS
 
 var (

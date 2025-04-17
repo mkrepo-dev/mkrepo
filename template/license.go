@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"regexp"
 	"strings"
-	stdtemplate "text/template"
+	texttemplate "text/template"
 )
 
 //go:embed license
@@ -25,7 +25,7 @@ type License struct {
 	Filename string
 	With     []string
 	Vars     []string
-	Template *stdtemplate.Template
+	Template *texttemplate.Template
 }
 
 var (
@@ -33,6 +33,7 @@ var (
 	reFindVars   = regexp.MustCompile(`{{\.(\w+)}}`)
 )
 
+// TODO: Take multiple filesystems so user can merge directory with buildin licenses
 func PrepareLicenses(licenseFS fs.FS) (Licenses, error) {
 	licenses := make(Licenses)
 	err := fs.WalkDir(licenseFS, ".", func(path string, d fs.DirEntry, err error) error {
@@ -78,7 +79,7 @@ func PrepareLicenses(licenseFS fs.FS) (Licenses, error) {
 			}
 		}
 
-		license.Template, err = stdtemplate.ParseFS(licenseFS, path)
+		license.Template, err = texttemplate.ParseFS(licenseFS, path)
 		if err != nil {
 			return err
 		}

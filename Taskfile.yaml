@@ -111,20 +111,22 @@ tasks:
       - task: vet
       - task: lint
       - task: build
+      - task: docker:build
       - task: test
       - task: vulncheck
 
   docker:build:
     desc: Build Docker image
+    silent: true
     cmds:
       - |
         if [ {{.EXACT_VERSION}} = 0 ]; then
-          echo "Builder image for version {{.VERSION}}"
+          echo "Building image for version {{.VERSION}}"
           docker build --build-arg VERSION={{.VERSION}} --build-arg REVISION={{.REVISION}} \
             --build-arg DATETIME={{.DATETIME}} --build-arg IMAGE_REF={{.TAG_VERSION_NUMBER}} \
             -t {{.TAG_LATEST}} -t {{.TAG_VERSION_NUMBER}} .
         else
-          echo "Builder image for dev version {{.VERSION}}"
+          echo "Building image for dev version {{.VERSION}}"
           docker build --build-arg VERSION={{.VERSION}} --build-arg REVISION={{.REVISION}} \
             --build-arg DATETIME={{.DATETIME}} --build-arg IMAGE_REF={{.TAG_DEV}} \
             -t {{.TAG_DEV}} .
@@ -132,6 +134,7 @@ tasks:
 
   docker:push:
     desc: Push Docker image
+    silent: true
     cmds:
       - |
         if [ {{.EXACT_VERSION}} = 0 ]; then
