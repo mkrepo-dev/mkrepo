@@ -9,7 +9,6 @@ import (
 	"net/url"
 
 	"github.com/mkrepo-dev/mkrepo/internal/config"
-	"github.com/mkrepo-dev/mkrepo/internal/db"
 	"github.com/mkrepo-dev/mkrepo/internal/log"
 	"golang.org/x/oauth2"
 )
@@ -27,17 +26,11 @@ const (
 	// TODO: Add internal repos
 )
 
-type CreateRepo struct {
-	Namespace   string
-	Name        string
-	Description string
-	Visibility  RepoVisibility
-}
-
-type CreateWebhook struct {
-	ID    int64
-	Owner string
-	Name  string
+type User struct {
+	Username    string
+	Email       string
+	DisplayName string
+	AvatarUrl   string
 }
 
 type RepoOwner struct {
@@ -45,6 +38,21 @@ type RepoOwner struct {
 	Path        string
 	DisplayName string
 	AvatarUrl   string
+}
+
+type CreateRepo struct {
+	Namespace   string
+	Name        string
+	Description string
+	Visibility  RepoVisibility
+}
+
+type RemoteRepo struct {
+	Id        int64
+	Namespace string
+	Name      string
+	HtmlUrl   string
+	CloneUrl  string
 }
 
 type WebhookEvent struct {
@@ -62,17 +70,15 @@ type Provider interface {
 }
 
 type ProviderClient interface {
-	// Create new repo and return user accessible url and http clone url
-	CreateRemoteRepo(ctx context.Context, repo CreateRepo) (int64, string, string, string, error)
-
-	// Create webhook for the repo
-	CreateWebhook(ctx context.Context, webhook CreateWebhook) error
-
-	// Get possible repo owners
-	GetRepoOwners(ctx context.Context) ([]RepoOwner, error)
-
 	// Get user info
-	GetUserInfo(ctx context.Context) (db.UserInfo, error)
+	GetUser(ctx context.Context) (User, error)
+	// Get possible repo owners
+	GetPosibleRepoOwners(ctx context.Context) ([]RepoOwner, error)
+
+	// Create new repo and return user accessible url and http clone url
+	CreateRemoteRepo(ctx context.Context, repo CreateRepo) (RemoteRepo, error)
+	// Create webhook for the repo
+	CreateWebhook(ctx context.Context, repo RemoteRepo) error
 }
 
 type Providers map[string]Provider
@@ -82,9 +88,9 @@ func NewProvidersFromConfig(cfg config.Config) Providers {
 	for _, providerConfig := range cfg.Providers {
 		switch providerConfig.Type {
 		case config.GitHubProvider:
-			providers[providerConfig.Key] = NewGitHubFromConfig(providerConfig, cfg.BaseUrl, cfg.Secret)
+			providers[providerConfig.Key] = NewGitHubFromConfig(cfg, providerConfig)
 		case config.GitLabProvider:
-			providers[providerConfig.Key] = NewGitLabFromConfig(providerConfig, cfg.BaseUrl, cfg.Secret)
+			providers[providerConfig.Key] = NewGitLabFromConfig(cfg, providerConfig)
 		}
 	}
 	return providers

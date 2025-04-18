@@ -15,19 +15,22 @@
           <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
               <li class="nav-item">
-                <a class="nav-link" href="/docs">docs</a>
+                <a class="nav-link" href="/templates">Templates</a>
               </li>
               <li class="nav-item">
-                <a class="nav-link" href="https://github.com/mkrepo-dev/mkrepo">source</a>
+                <a class="nav-link" href="/docs">Docs</a>
+              </li>
+              <li class="nav-item">
+                <a class="nav-link" href="https://github.com/mkrepo-dev/mkrepo">Source</a>
               </li>
               <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                  accounts
+                  Accounts
                 </a>
                 <ul class="dropdown-menu">
                   {{range .Accounts}}
                   <li>
-                    <img src="{{.AvatarURL}}" class="rounded-circle me-2" width="25" height="25">
+                    <img src="{{.AvatarUrl}}" class="rounded-circle me-2" width="25" height="25">
                     {{.Provider}} - {{.Username}}
                     <form action="/auth/logout" method="get">
                       <input type="hidden" name="provider" value="{{.Provider}}:{{.Username}}">

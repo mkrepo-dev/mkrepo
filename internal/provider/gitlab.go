@@ -14,60 +14,64 @@ import (
 
 	"github.com/mkrepo-dev/mkrepo/internal"
 	"github.com/mkrepo-dev/mkrepo/internal/config"
-	"github.com/mkrepo-dev/mkrepo/internal/db"
 	"github.com/mkrepo-dev/mkrepo/internal/log"
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
 type GitLab struct {
-	config        config.Provider
-	baseUrl       string
-	webhookSecret string
+	config   config.Config
+	provider config.Provider
 }
 
 var _ Provider = &GitLab{}
 
-func NewGitLabFromConfig(cfg config.Provider, baseUrl string, secret string) *GitLab {
+type GitLabClient struct {
+	*gitlab.Client
+	gl *GitLab
+}
+
+var _ ProviderClient = &GitLabClient{}
+
+func NewGitLabFromConfig(cfg config.Config, provider config.Provider) *GitLab {
 	gl := &GitLab{
-		config:        cfg,
-		baseUrl:       baseUrl,
-		webhookSecret: secret,
+		config:   cfg,
+		provider: provider,
 	}
 
-	if gl.config.Name == "" {
-		gl.config.Name = "GitLab"
+	if gl.provider.Name == "" {
+		gl.provider.Name = "GitLab"
 	}
-	if gl.config.Url == "" {
-		gl.config.Url = "https://gitlab.com"
+	if gl.provider.Url == "" {
+		gl.provider.Url = "https://gitlab.com"
 	}
-	if gl.config.ApiUrl == "" {
-		gl.config.ApiUrl = "https://gitlab.com/api/v4"
+	if gl.provider.ApiUrl == "" {
+		gl.provider.ApiUrl = "https://gitlab.com/api/v4"
 	}
 	return gl
 }
 
-func (provider *GitLab) Name() string {
-	return provider.config.Name
+func (gl *GitLab) Name() string {
+	return gl.provider.Name
 }
 
-func (provider *GitLab) Url() string {
-	return provider.config.Url
+func (gl *GitLab) Url() string {
+	return gl.provider.Url
 }
 
-func (provider *GitLab) OAuth2Config(redirectUri string) *oauth2.Config {
+func (gl *GitLab) OAuth2Config(redirectUri string) *oauth2.Config {
 	cfg := &oauth2.Config{
-		ClientID:     provider.config.ClientID,
-		ClientSecret: provider.config.ClientSecret,
+		ClientID:     gl.provider.ClientID,
+		ClientSecret: gl.provider.ClientSecret,
 		Scopes:       []string{"api"},
 		Endpoint:     endpoints.GitLab,
-		RedirectURL:  buildAuthCallbackUrl(provider.baseUrl, provider.config.Key),
+		RedirectURL:  buildAuthCallbackUrl(gl.config.BaseUrl, gl.provider.Key),
 	}
 	return oauth2WithRedirectUri(cfg, redirectUri)
 }
 
-func (provider *GitLab) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
+func (gl *GitLab) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
 	token := r.Header.Get("X-Gitlab-Token")
-	if token != provider.webhookSecret {
+	if token != gl.config.Secret {
 		return WebhookEvent{}, errors.New("invalid request")
 	}
 	payload, err := io.ReadAll(r.Body)
@@ -90,78 +94,42 @@ func (provider *GitLab) ParseWebhookEvent(r *http.Request) (WebhookEvent, error)
 	}
 }
 
-func (provider *GitLab) NewClient(ctx context.Context, token *oauth2.Token, redirectUri string) (ProviderClient, *oauth2.Token) {
-	ts := provider.OAuth2Config(redirectUri).TokenSource(ctx, token)
+func (gl *GitLab) NewClient(ctx context.Context, token *oauth2.Token, redirectUri string) (ProviderClient, *oauth2.Token) {
+	ts := gl.OAuth2Config(redirectUri).TokenSource(ctx, token)
 	tkn, err := ts.Token()
 	if err != nil {
 		slog.Error("Failed to get token", log.Err(err))
 	}
 	client, _ := gitlab.NewOAuthClient(tkn.AccessToken)
 	client.UserAgent = internal.UserAgent
-	return &GitLabClient{
-		Client:        client,
-		providerKey:   provider.config.Key,
-		baseUrl:       provider.baseUrl,
-		webhookSecret: provider.webhookSecret,
-	}, tkn
+	return &GitLabClient{Client: client, gl: gl}, tkn
 }
 
-type GitLabClient struct {
-	*gitlab.Client
-	providerKey   string
-	baseUrl       string
-	webhookSecret string
-}
-
-var _ ProviderClient = &GitLabClient{}
-
-func (client *GitLabClient) GetUserInfo(ctx context.Context) (db.UserInfo, error) {
-	var info db.UserInfo
-	user, _, err := client.Users.CurrentUser()
-	if err != nil {
-		return info, err
-	}
-	info.Username = user.Username
-	info.Email = user.Email
-	info.DisplayName = user.Name
-	info.AvatarURL = user.AvatarURL
-	return info, nil
-}
-
-func (client *GitLabClient) CreateRemoteRepo(ctx context.Context, repo CreateRepo) (int64, string, string, string, error) {
-	opt := &gitlab.CreateProjectOptions{
-		Name:        &repo.Name,
-		Description: &repo.Description,
-		Visibility:  gitlab.Ptr(gitlab.VisibilityValue(repo.Visibility)),
-	}
-	if repo.Namespace != "" {
-		namespace, err := strconv.Atoi(repo.Namespace)
-		if err != nil {
-			return 0, "", "", "", err
-		}
-		opt.NamespaceID = &namespace
-	}
-	r, _, err := client.Projects.CreateProject(opt)
-	if err != nil {
-		// TODO: Report if repo already exists
-		return 0, "", "", "", err
-	}
-	return int64(r.ID), r.Owner.Username, r.WebURL, r.HTTPURLToRepo, nil
-}
-
-func (client *GitLabClient) CreateWebhook(ctx context.Context, webhook CreateWebhook) error {
-	_, _, err := client.Projects.AddProjectHook(webhook.ID, &gitlab.AddProjectHookOptions{
+func (gl *GitLab) webhookConfig() *gitlab.AddProjectHookOptions {
+	return &gitlab.AddProjectHookOptions{
 		Name:                  gitlab.Ptr("mkrepo"),
 		Description:           gitlab.Ptr("mkrepo webhook"),
-		URL:                   gitlab.Ptr(buildWebhookUrl(client.baseUrl, client.providerKey)),
+		URL:                   gitlab.Ptr(buildWebhookUrl(gl.config.BaseUrl, gl.provider.Key)),
 		TagPushEvents:         gitlab.Ptr(true),
-		Token:                 gitlab.Ptr(client.webhookSecret),
-		EnableSSLVerification: gitlab.Ptr(true), // TODO: Make this configurable
-	})
-	return err
+		Token:                 gitlab.Ptr(gl.config.Secret),
+		EnableSSLVerification: gitlab.Ptr(!gl.config.WebhookInsecure),
+	}
 }
 
-func (client *GitLabClient) GetRepoOwners(ctx context.Context) ([]RepoOwner, error) {
+func (client *GitLabClient) GetUser(ctx context.Context) (User, error) {
+	var user User
+	res, _, err := client.Users.CurrentUser()
+	if err != nil {
+		return user, err
+	}
+	user.Username = res.Username
+	user.Email = res.Email
+	user.DisplayName = res.Name
+	user.AvatarUrl = res.AvatarURL
+	return user, nil
+}
+
+func (client *GitLabClient) GetPosibleRepoOwners(ctx context.Context) ([]RepoOwner, error) {
 	var owners []RepoOwner
 	user, _, err := client.Users.CurrentUser()
 	if err != nil {
@@ -190,4 +158,36 @@ func (client *GitLabClient) GetRepoOwners(ctx context.Context) ([]RepoOwner, err
 	}
 
 	return owners, nil
+}
+
+func (client *GitLabClient) CreateRemoteRepo(ctx context.Context, repo CreateRepo) (RemoteRepo, error) {
+	opt := &gitlab.CreateProjectOptions{
+		Name:        &repo.Name,
+		Description: &repo.Description,
+		Visibility:  gitlab.Ptr(gitlab.VisibilityValue(repo.Visibility)),
+	}
+	if repo.Namespace != "" {
+		namespace, err := strconv.Atoi(repo.Namespace)
+		if err != nil {
+			return RemoteRepo{}, err
+		}
+		opt.NamespaceID = &namespace
+	}
+	r, _, err := client.Projects.CreateProject(opt)
+	if err != nil {
+		// TODO: Report if repo already exists
+		return RemoteRepo{}, err
+	}
+	return RemoteRepo{
+		Id:        int64(r.ID),
+		Namespace: r.Namespace.Path, // TODO: Use this? it is probably not used
+		Name:      r.Name,
+		HtmlUrl:   r.WebURL,
+		CloneUrl:  r.HTTPURLToRepo,
+	}, nil
+}
+
+func (client *GitLabClient) CreateWebhook(ctx context.Context, repo RemoteRepo) error {
+	_, _, err := client.Projects.AddProjectHook(repo.Id, client.gl.webhookConfig())
+	return err
 }

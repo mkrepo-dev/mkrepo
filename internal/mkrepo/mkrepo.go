@@ -45,6 +45,8 @@ type CreateRepo struct {
 
 	// Rest
 	IsTemplate bool
+
+	Values any
 }
 
 func (r *CreateRepo) NeedInitialization() bool {
@@ -69,7 +71,7 @@ func (rm *RepoMaker) CreateNewRepo(ctx context.Context, repo CreateRepo, prov pr
 	if err != nil {
 		return "", err
 	}
-	id, owner, url, cloneUrl, err := client.CreateRemoteRepo(ctx, provider.CreateRepo{
+	remoteRepo, err := client.CreateRemoteRepo(ctx, provider.CreateRepo{
 		Namespace:   repo.Namespace,
 		Name:        repo.Name,
 		Description: repo.Description,
@@ -80,30 +82,26 @@ func (rm *RepoMaker) CreateNewRepo(ctx context.Context, repo CreateRepo, prov pr
 	}
 
 	if !repo.NeedInitialization() {
-		return url, nil
+		return remoteRepo.HtmlUrl, nil
 	}
 
 	// TODO: Wait with context
 	// TODO: Wait until repo is created on remote
-	err = rm.initializeRepo(ctx, repo, prov, cloneUrl)
+	err = rm.initializeRepo(ctx, repo, prov, remoteRepo.CloneUrl)
 	if err != nil {
 		// TODO: Delete remote repo that cannot be initialized?
-		return url, err
+		return remoteRepo.HtmlUrl, err
 	}
 
 	// TODO: For template repo register webhook
 	if repo.IsTemplate {
-		err = client.CreateWebhook(ctx, provider.CreateWebhook{
-			ID:    id,
-			Owner: owner,
-			Name:  repo.Name,
-		})
+		err = client.CreateWebhook(ctx, remoteRepo)
 		if err != nil {
-			return url, err
+			return remoteRepo.HtmlUrl, err
 		}
 	}
 
-	return url, nil
+	return remoteRepo.HtmlUrl, nil
 }
 
 func (rm *RepoMaker) initializeRepo(ctx context.Context, repo CreateRepo, provider provider.Provider, cloneUrl string) error {
@@ -206,14 +204,14 @@ func (rm *RepoMaker) addFiles(repo CreateRepo, dir string) error {
 
 func addTemplateFiles(repo CreateRepo, dir string) error {
 	context := template.TemplateContext{
-		Name: repo.Name,
-		Lang: "go", // TODO: Take from repo later
+		FullName: repo.Name,
+		Values:   repo.Values,
 	}
-	sub, err := fs.Sub(template.RepoFS, "template")
+	sub, err := fs.Sub(template.RepoFS, filepath.Join("template", "go", "0.1.0"))
 	if err != nil {
 		return err
 	}
-	return template.ExecuteTemplateRepo(sub, dir, context, true)
+	return template.ExecuteTemplateDir(dir, sub, context)
 }
 
 func addReadme(repo CreateRepo, dir string) error {

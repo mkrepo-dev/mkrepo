@@ -88,7 +88,7 @@ func (h *Auth) OAuth2Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client, token := provider.NewClient(r.Context(), token, cfg.RedirectURL)
-	info, err := client.GetUserInfo(r.Context())
+	info, err := client.GetUser(r.Context())
 	if err != nil {
 		internalServerError(w, "Failed to get user info", err)
 		return

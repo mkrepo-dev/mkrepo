@@ -51,7 +51,7 @@ func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	owners, err := client.GetRepoOwners(r.Context())
+	owners, err := client.GetPosibleRepoOwners(r.Context())
 	if err != nil {
 		internalServerError(w, "Failed to get possible repo owners", err)
 		return

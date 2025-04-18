@@ -15,6 +15,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/mkrepo-dev/mkrepo/internal/log"
+	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/migration"
 )
 
@@ -162,7 +163,7 @@ type UserInfo struct {
 	AvatarURL   string
 }
 
-func (db *DB) CreateOrOverwriteAccount(ctx context.Context, session string, provider string, token *oauth2.Token, redirectUri string, userInfo UserInfo) error {
+func (db *DB) CreateOrOverwriteAccount(ctx context.Context, session string, provider string, token *oauth2.Token, redirectUri string, userInfo provider.User) error {
 	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
@@ -181,7 +182,7 @@ func (db *DB) CreateOrOverwriteAccount(ctx context.Context, session string, prov
 		`INSERT INTO "account" ("session", "provider", "access_token", "refresh_token", "expires_at", "redirect_uri", "email", "username", "display_name", "avatar_url")
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);`,
 		session, provider, token.AccessToken, token.RefreshToken, token.Expiry, redirectUri,
-		userInfo.Email, userInfo.Username, userInfo.DisplayName, userInfo.AvatarURL,
+		userInfo.Email, userInfo.Username, userInfo.DisplayName, userInfo.AvatarUrl,
 	)
 	if err != nil {
 		return err

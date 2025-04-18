@@ -11,9 +11,11 @@ import (
 )
 
 type Config struct {
-	BaseUrl   string     `yaml:"baseUrl"`
-	Secret    string     `yaml:"-"`
-	Providers []Provider `yaml:"providers"`
+	Secret string `yaml:"-"`
+
+	BaseUrl         string     `yaml:"baseUrl"`
+	WebhookInsecure bool       `yaml:"webhookInsecure"`
+	Providers       []Provider `yaml:"providers"`
 }
 
 type Provider struct {

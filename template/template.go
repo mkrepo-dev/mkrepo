@@ -9,29 +9,23 @@ import (
 	"text/template"
 )
 
-//go:embed template README.md.tmpl
+//go:embed template base
 var RepoFS embed.FS
 
-var (
-	Readme = template.Must(template.ParseFS(RepoFS, "README.md.tmpl"))
-)
+var Readme = template.Must(template.ParseFS(RepoFS, "base/README.md.tmpl"))
 
 type ReadmeContext struct {
 	Name string
 }
 
 type TemplateContext struct {
-	Name string
-	Lang string
+	FullName string
+	Name     string
+	Values   any
 }
 
-type GoContext struct {
-	Module    string
-	GoVersion string
-}
-
-func ExecuteTemplateRepo(srcFS fs.FS, dstDir string, context any, trimSuffix bool) error {
-	err := fs.WalkDir(srcFS, ".", func(path string, d fs.DirEntry, err error) error {
+func ExecuteTemplateDir(dstDir string, templateFS fs.FS, context TemplateContext) error {
+	err := fs.WalkDir(templateFS, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -42,7 +36,7 @@ func ExecuteTemplateRepo(srcFS fs.FS, dstDir string, context any, trimSuffix boo
 			return nil
 		}
 
-		t, err := template.ParseFS(srcFS, path)
+		t, err := template.ParseFS(templateFS, path)
 		if err != nil {
 			return err
 		}

@@ -1,0 +1,12 @@
+name: Go
+lang: go
+schema:
+  openAPIV3Schema:
+    type: object
+    properties:
+      goVersion:
+        type: string
+        default: '1.24'
+        description: Go version
+    required:
+      - goVersion
