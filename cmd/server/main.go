@@ -67,8 +67,7 @@ func main() {
 	mux.Handle("GET /new", http.HandlerFunc(repo.Form))
 	mux.Handle("POST /new", http.HandlerFunc(repo.Create))
 
-	webhook := handler.NewWebhook(db, providers)
-	mux.Handle("POST /webhook/{provider}", http.HandlerFunc(webhook.Handle))
+	mux.Handle("POST /webhook/{provider}", handler.Webhook(db, providers))
 
 	wrapped := middleware.NewAuthenticate(db)(mux)
 

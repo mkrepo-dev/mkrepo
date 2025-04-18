@@ -48,7 +48,7 @@ func New(ctx context.Context, datasource string) (*DB, error) {
 		return nil, err
 	}
 
-	err = db.Clenup(ctx)
+	err = db.Cleanup(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (db *DB) GarbageCollector(ctx context.Context, interval time.Duration) {
 		select {
 		case <-ticker:
 			cleanCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-			err := db.Clenup(cleanCtx)
+			err := db.Cleanup(cleanCtx)
 			if err != nil {
 				slog.Error("Failed to cleanup DB", log.Err(err))
 			}
@@ -73,7 +73,7 @@ func (db *DB) GarbageCollector(ctx context.Context, interval time.Duration) {
 	}
 }
 
-func (db *DB) Clenup(ctx context.Context) error {
+func (db *DB) Cleanup(ctx context.Context) error {
 	_, err := db.Exec(ctx, `DELETE FROM "oauth2_state" WHERE "expires_at" < 'now'::timestamp;`)
 	return err
 }

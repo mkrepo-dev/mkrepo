@@ -8,9 +8,10 @@ import (
 	"net/http"
 	"net/url"
 
+	"golang.org/x/oauth2"
+
 	"github.com/mkrepo-dev/mkrepo/internal/config"
 	"github.com/mkrepo-dev/mkrepo/internal/log"
-	"golang.org/x/oauth2"
 )
 
 var (

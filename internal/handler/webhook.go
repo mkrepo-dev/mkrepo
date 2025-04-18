@@ -9,37 +9,25 @@ import (
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 )
 
-type Webhook struct {
-	db        *db.DB
-	providers provider.Providers
-}
-
-func NewWebhook(db *db.DB, providers provider.Providers) *Webhook {
-	return &Webhook{
-		db:        db,
-		providers: providers,
-	}
-}
-
-// TODO: Implement webhook handler for all providers
-func (h *Webhook) Handle(w http.ResponseWriter, r *http.Request) {
-	providerKey := r.PathValue("provider")
-	prov, ok := h.providers[providerKey]
-	if !ok {
-		http.Error(w, "unsupported provider", http.StatusBadRequest)
-		return
-	}
-
-	event, err := prov.ParseWebhookEvent(r)
-	if err != nil {
-		if errors.Is(err, provider.ErrIgnoreEvent) {
+func Webhook(db *db.DB, providers provider.Providers) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		providerKey := r.PathValue("provider")
+		prov, ok := providers[providerKey] // TODO: Validate providerKey in middreware and dont use value-ok pattern
+		if !ok {
+			http.Error(w, "unsupported provider", http.StatusBadRequest)
 			return
 		}
-		http.Error(w, "failed to parse webhook event", http.StatusBadRequest)
-		return
-	}
 
-	fmt.Println("Webhook event:", event) // TODO: Remove
+		event, err := prov.ParseWebhookEvent(r)
+		if err != nil {
+			if errors.Is(err, provider.ErrIgnoreEvent) {
+				return
+			}
+			http.Error(w, "failed to parse webhook event", http.StatusBadRequest)
+			return
+		}
 
-	// TODO: Handle logic: pull repo -> parse mkrepo.yaml -> update db (long term cache repo)
+		fmt.Println("Webhook event:", event) // TODO: Remove
+		// TODO: Handle logic: pull repo -> parse mkrepo.yaml -> update db (long term cache repo)
+	})
 }

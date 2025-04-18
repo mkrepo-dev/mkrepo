@@ -9,13 +9,13 @@ import (
 	"strconv"
 	"strings"
 
+	gitlab "gitlab.com/gitlab-org/api/client-go"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/endpoints"
 
 	"github.com/mkrepo-dev/mkrepo/internal"
 	"github.com/mkrepo-dev/mkrepo/internal/config"
 	"github.com/mkrepo-dev/mkrepo/internal/log"
-	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
 type GitLab struct {

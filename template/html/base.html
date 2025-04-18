@@ -30,7 +30,7 @@
                 <ul class="dropdown-menu">
                   {{range .Accounts}}
                   <li>
-                    <img src="{{.AvatarUrl}}" class="rounded-circle me-2" width="25" height="25">
+                    <img src="{{.AvatarURL}}" class="rounded-circle me-2" width="25" height="25">
                     {{.Provider}} - {{.Username}}
                     <form action="/auth/logout" method="get">
                       <input type="hidden" name="provider" value="{{.Provider}}:{{.Username}}">
