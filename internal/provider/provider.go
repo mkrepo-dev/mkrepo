@@ -66,11 +66,22 @@ type Provider interface {
 	Name() string
 	Url() string
 	OAuth2Config(redirectUri string) *oauth2.Config
+
+	// Parse webhook from provider and return event. Only relevant event is tag creation.
 	ParseWebhookEvent(r *http.Request) (WebhookEvent, error)
-	NewClient(ctx context.Context, token *oauth2.Token, redirectUri string) (ProviderClient, *oauth2.Token)
+
+	// Create provider client based on oauth2 token. Refreshes token if needed. Created
+	// client have same token during its lifetime and one client should be short lived
+	// and request scoped. If token is refreshed during client creation it is up to caller
+	// to update token in persistent storage. Token refreshed or not is accessible from
+	// returned client using [ProviderClient.Token] method.
+	NewClient(ctx context.Context, token *oauth2.Token, redirectUri string) Client
 }
 
-type ProviderClient interface {
+type Client interface {
+	// Return oauth2 token
+	Token() *oauth2.Token
+
 	// Get user info
 	GetUser(ctx context.Context) (User, error)
 	// Get possible repo owners

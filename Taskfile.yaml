@@ -56,6 +56,11 @@ tasks:
     cmds:
       - go tool golangci-lint run
 
+  generate:
+    desc: Run go generate
+    cmds:
+      - go generate ./...
+
   vulncheck:
     desc: Run vulnerability check
     deps: [build]
@@ -110,6 +115,7 @@ tasks:
       - task: fmt
       - task: vet
       - task: lint
+      - task: generate
       - task: build
       - task: docker:build
       - task: test

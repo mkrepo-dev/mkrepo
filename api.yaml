@@ -1,0 +1,111 @@
+openapi: "3.0.0"
+info:
+  title: mkrepo
+  description: mkrepo is tool for bootstraping git repo on diffrent VCS providers.
+  version: 0.1.0
+components:
+  schemas:
+    CreateRepo:
+      type: object
+      description: Create a new repository.
+      required:
+        - name
+        - namespace
+      properties:
+        name:
+          type: string
+          description: The name of the repository.
+        namespace:
+          type: string
+          description: The namespace of the repository.
+        description:
+          type: string
+          description: A short description of the repository.
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+          description: The visibility of the repository.
+          default: private
+        template:
+          $ref: "#/components/schemas/CreateRepoTemplate"
+        initialize:
+          $ref: "#/components/schemas/CreateRepoInitialize"
+        sha256:
+          type: boolean
+          description: Use SHA256 for the repository.
+          default: false
+    CreateRepoTemplate:
+      type: object
+      description: The template to use for the repository.
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: The name of the template.
+        version:
+          type: string
+          description: The version of the template.
+        values:
+          type: object
+          description: The values to use for the template.
+    CreateRepoInitialize:
+      type: object
+      description: The initialization options for the repository.
+      required:
+        - author
+      properties:
+        readme:
+          type: boolean
+          description: Create a README file.
+          default: true
+        gitignore:
+          type: string
+          description: Create a .gitignore file.
+        dockerfile:
+          type: string
+          description: Create a Dockerfile.
+        dockerignore:
+          type: boolean
+          description: Create a .dockerignore file.
+        license:
+          $ref: "#/components/schemas/CreateRepoInitializeLicense"
+        author:
+          $ref: "#/components/schemas/CreateRepoInitializeAuthor"
+        tag:
+          type: string
+          description: The tag to use for the repository.
+    CreateRepoInitializeLicense:
+      type: object
+      description: The license options for the repository.
+      required:
+        - key
+      properties:
+        key:
+          type: string
+          description: The key of the license.
+        year:
+          type: integer
+          description: The year of the license.
+          default: 2025
+        fullName:
+          type: string
+          description: The full name of the license holder.
+        project:
+          type: string
+          description: The name of the project.
+    CreateRepoInitializeAuthor:
+      type: object
+      description: The author of initialize commit.
+      required:
+        - name
+        - email
+      properties:
+        name:
+          type: string
+          description: The name of the author.
+        email:
+          type: string
+          description: The email of the author.

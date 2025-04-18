@@ -11,8 +11,6 @@ import (
 	"github.com/mkrepo-dev/mkrepo/template"
 )
 
-var stateLifetime = 15 * time.Minute
-
 type Auth struct {
 	db        *db.DB
 	providers provider.Providers
@@ -36,7 +34,7 @@ func (h *Auth) Login(w http.ResponseWriter, r *http.Request) {
 	config := provider.OAuth2Config(r.FormValue("redirect_uri"))
 
 	state := rand.Text()
-	err := h.db.CreateOAuth2State(r.Context(), state, time.Now().Add(stateLifetime))
+	err := h.db.CreateOAuth2State(r.Context(), state, time.Now().Add(15*time.Minute))
 	if err != nil {
 		internalServerError(w, "Failed to create state", err)
 		return
@@ -87,13 +85,13 @@ func (h *Auth) OAuth2Callback(w http.ResponseWriter, r *http.Request) {
 		session = rand.Text() // TODO: Is 128 bit of randomness enough?
 	}
 
-	client, token := provider.NewClient(r.Context(), token, cfg.RedirectURL)
+	client := provider.NewClient(r.Context(), token, cfg.RedirectURL)
 	info, err := client.GetUser(r.Context())
 	if err != nil {
 		internalServerError(w, "Failed to get user info", err)
 		return
 	}
-	err = h.db.CreateOrOverwriteAccount(r.Context(), session, providerKey, token, cfg.RedirectURL, info)
+	err = h.db.CreateOrOverwriteAccount(r.Context(), session, providerKey, client.Token(), cfg.RedirectURL, info)
 	if err != nil {
 		internalServerError(w, "Failed to create account", err)
 		return

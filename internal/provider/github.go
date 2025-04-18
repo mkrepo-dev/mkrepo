@@ -22,10 +22,11 @@ var _ Provider = &GitHub{}
 
 type GitHubClient struct {
 	*github.Client
-	gh *GitHub
+	gh    *GitHub
+	token *oauth2.Token
 }
 
-var _ ProviderClient = &GitHubClient{}
+var _ Client = &GitHubClient{}
 
 func NewGitHubFromConfig(cfg config.Config, provider config.Provider) *GitHub {
 	gh := &GitHub{
@@ -88,10 +89,10 @@ func (gh *GitHub) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
 	}
 }
 
-func (gh *GitHub) NewClient(ctx context.Context, token *oauth2.Token, _ string) (ProviderClient, *oauth2.Token) {
+func (gh *GitHub) NewClient(ctx context.Context, token *oauth2.Token, _ string) Client {
 	client := github.NewClient(nil).WithAuthToken(token.AccessToken)
 	client.UserAgent = internal.UserAgent
-	return &GitHubClient{Client: client, gh: gh}, token
+	return &GitHubClient{Client: client, token: token, gh: gh}
 }
 
 func (gh *GitHub) webhookConfig() *github.Hook {
@@ -109,6 +110,10 @@ func (gh *GitHub) webhookConfig() *github.Hook {
 			Secret:      &gh.config.Secret,
 		},
 	}
+}
+
+func (client *GitHubClient) Token() *oauth2.Token {
+	return client.token
 }
 
 func (client *GitHubClient) GetUser(ctx context.Context) (User, error) {
@@ -186,6 +191,7 @@ func (client *GitHubClient) CreateRemoteRepo(ctx context.Context, repo CreateRep
 		}
 		return RemoteRepo{}, err
 	}
+	// TODO: Wait for repo creation with exponential backoff
 	return RemoteRepo{
 		Id:        r.GetID(),
 		Namespace: r.GetOwner().GetLogin(),

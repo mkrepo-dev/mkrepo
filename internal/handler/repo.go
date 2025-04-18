@@ -19,6 +19,7 @@ type Repo struct {
 	licenses  template.Licenses
 }
 
+// TODO: Rewrite handlers as standalone functions
 func NewRepo(db *db.DB, repomaker *mkrepo.RepoMaker, providers provider.Providers, licenses template.Licenses) *Repo {
 	return &Repo{db: db, repomaker: repomaker, providers: providers, licenses: licenses}
 }
@@ -43,8 +44,8 @@ func (h *Repo) Form(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client, token := provider.NewClient(r.Context(), account.Token, account.RedirectUri)
-	account.Token = token
+	client := provider.NewClient(r.Context(), account.Token, account.RedirectUri)
+	account.Token = client.Token()
 	err := h.db.UpdateAccountToken(r.Context(), middleware.Session(r.Context()), account.Provider, account.Username, account.Token)
 	if err != nil {
 		internalServerError(w, "Failed to update account token", err)
@@ -113,7 +114,7 @@ func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
 		},
 		Tag:        tag,
 		Sha256:     r.Form.Has("sha256"),
-		IsTemplate: r.Form.Has("template"),
+		IsTemplate: false, // TODO: Remove later
 	}
 
 	provider, ok := h.providers[providerKey]
@@ -122,9 +123,15 @@ func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Spawn goroutine to create new repo
+	client := provider.NewClient(r.Context(), repository.Account.Token, repository.Account.RedirectUri)
+	repository.Account.Token = client.Token()
+	err = h.db.UpdateAccountToken(r.Context(), repository.Account.Session, repository.Account.Provider, repository.Account.Username, repository.Account.Token)
+	if err != nil {
+		internalServerError(w, "Failed to update token in db", err)
+		return
+	}
 
-	url, err := h.repomaker.CreateNewRepo(r.Context(), repository, provider)
+	url, err := h.repomaker.CreateNewRepo(r.Context(), client, repository)
 	if err != nil {
 		internalServerError(w, "Failed to create repository", err)
 		return

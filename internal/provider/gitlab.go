@@ -27,10 +27,11 @@ var _ Provider = &GitLab{}
 
 type GitLabClient struct {
 	*gitlab.Client
-	gl *GitLab
+	gl    *GitLab
+	token *oauth2.Token
 }
 
-var _ ProviderClient = &GitLabClient{}
+var _ Client = &GitLabClient{}
 
 func NewGitLabFromConfig(cfg config.Config, provider config.Provider) *GitLab {
 	gl := &GitLab{
@@ -94,7 +95,7 @@ func (gl *GitLab) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
 	}
 }
 
-func (gl *GitLab) NewClient(ctx context.Context, token *oauth2.Token, redirectUri string) (ProviderClient, *oauth2.Token) {
+func (gl *GitLab) NewClient(ctx context.Context, token *oauth2.Token, redirectUri string) Client {
 	ts := gl.OAuth2Config(redirectUri).TokenSource(ctx, token)
 	tkn, err := ts.Token()
 	if err != nil {
@@ -102,7 +103,7 @@ func (gl *GitLab) NewClient(ctx context.Context, token *oauth2.Token, redirectUr
 	}
 	client, _ := gitlab.NewOAuthClient(tkn.AccessToken)
 	client.UserAgent = internal.UserAgent
-	return &GitLabClient{Client: client, gl: gl}, tkn
+	return &GitLabClient{Client: client, token: tkn, gl: gl}
 }
 
 func (gl *GitLab) webhookConfig() *gitlab.AddProjectHookOptions {
@@ -114,6 +115,10 @@ func (gl *GitLab) webhookConfig() *gitlab.AddProjectHookOptions {
 		Token:                 gitlab.Ptr(gl.config.Secret),
 		EnableSSLVerification: gitlab.Ptr(!gl.config.WebhookInsecure),
 	}
+}
+
+func (client *GitLabClient) Token() *oauth2.Token {
+	return client.token
 }
 
 func (client *GitLabClient) GetUser(ctx context.Context) (User, error) {

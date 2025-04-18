@@ -22,6 +22,9 @@ import (
 )
 
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	log.SetupLogger()
 	version := internal.ReadVersion()
 	slog.Info("Started mkrepo server",
@@ -44,7 +47,6 @@ func main() {
 		log.Fatal("Cannot prepare licenses", err)
 	}
 
-	ctx := context.Background()
 	db, err := db.New(ctx, "postgres://mkrepo:mkrepo@localhost:5432/mkrepo?sslmode=disable") // TODO: Use this from env or config
 	if err != nil {
 		log.Fatal("Cannot open database", err)
@@ -84,9 +86,6 @@ func main() {
 		slog.Info("Starting listening", slog.String("addr", server.Addr))
 		errCh <- server.ListenAndServe() // TODO: Use TLS
 	}()
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
 	select {
 	case err := <-errCh:

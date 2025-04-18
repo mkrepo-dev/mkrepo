@@ -38,6 +38,9 @@ jobs:
       - name: Lint Go code
         run: task lint
 
+      - name: Go generate
+        run: task generate
+
       - name: Vulnerability check
         run: task vulncheck
 

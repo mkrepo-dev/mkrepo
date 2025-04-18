@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	texttemplate "text/template"
@@ -64,13 +65,8 @@ func New(db *db.DB, providers provider.Providers, licenses template.Licenses) *R
 }
 
 // Create remote repo and initialize it if needed. Returns url to the repo.
-func (rm *RepoMaker) CreateNewRepo(ctx context.Context, repo CreateRepo, prov provider.Provider) (string, error) {
-	client, token := prov.NewClient(ctx, repo.Account.Token, repo.Account.RedirectUri)
-	repo.Account.Token = token
-	err := rm.db.UpdateAccountToken(ctx, repo.Account.Session, repo.Account.Provider, repo.Account.Username, repo.Account.Token)
-	if err != nil {
-		return "", err
-	}
+func (rm *RepoMaker) CreateNewRepo(ctx context.Context, client provider.Client, repo CreateRepo) (string, error) {
+	// TODO: Use types.CreateRepo instead of CreateRepo
 	remoteRepo, err := client.CreateRemoteRepo(ctx, provider.CreateRepo{
 		Namespace:   repo.Namespace,
 		Name:        repo.Name,
@@ -82,29 +78,33 @@ func (rm *RepoMaker) CreateNewRepo(ctx context.Context, repo CreateRepo, prov pr
 	}
 
 	if !repo.NeedInitialization() {
+		slog.Info("Repo created without initialization", "url", remoteRepo.HtmlUrl)
 		return remoteRepo.HtmlUrl, nil
 	}
 
 	// TODO: Wait with context
 	// TODO: Wait until repo is created on remote
-	err = rm.initializeRepo(ctx, repo, prov, remoteRepo.CloneUrl)
+	err = rm.initializeRepo(ctx, repo, client, remoteRepo.CloneUrl)
 	if err != nil {
 		// TODO: Delete remote repo that cannot be initialized?
 		return remoteRepo.HtmlUrl, err
 	}
+	slog.Info("Repo created and initialized", "url", remoteRepo.HtmlUrl)
 
-	// TODO: For template repo register webhook
+	// TODO: Recognize template based on buildin template name "template"
 	if repo.IsTemplate {
 		err = client.CreateWebhook(ctx, remoteRepo)
 		if err != nil {
 			return remoteRepo.HtmlUrl, err
 		}
+		slog.Info("Template repo created", "url", remoteRepo.HtmlUrl)
 	}
 
 	return remoteRepo.HtmlUrl, nil
 }
 
-func (rm *RepoMaker) initializeRepo(ctx context.Context, repo CreateRepo, provider provider.Provider, cloneUrl string) error {
+// TODO: Create files first than init git and push
+func (rm *RepoMaker) initializeRepo(ctx context.Context, repo CreateRepo, client provider.Client, cloneUrl string) error {
 	dir, err := os.MkdirTemp("", "mkrepo-")
 	if err != nil {
 		return err
@@ -164,20 +164,10 @@ func (rm *RepoMaker) initializeRepo(ctx context.Context, repo CreateRepo, provid
 	if err != nil {
 		return err
 	}
-	ts := provider.OAuth2Config(repo.Account.RedirectUri).TokenSource(ctx, repo.Account.Token)
-	token, err := ts.Token()
-	if err != nil {
-		return err
-	}
-	repo.Account.Token = token
-	err = rm.db.UpdateAccountToken(ctx, repo.Account.Session, repo.Account.Provider, repo.Account.Username, repo.Account.Token)
-	if err != nil {
-		return err
-	}
 
 	return r.PushContext(ctx, &git.PushOptions{
 		FollowTags: true,
-		Auth:       &githttp.BasicAuth{Username: "mkrepo", Password: repo.Account.Token.AccessToken},
+		Auth:       &githttp.BasicAuth{Username: "mkrepo", Password: client.Token().AccessToken},
 	})
 }
 
