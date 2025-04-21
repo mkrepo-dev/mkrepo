@@ -181,7 +181,7 @@ func (client *GitHubClient) CreateRemoteRepo(ctx context.Context, repo CreateRep
 	}
 	r, _, err := client.Repositories.Create(ctx, repo.Namespace, &github.Repository{
 		Name:        &repo.Name,
-		Description: &repo.Description,
+		Description: repo.Description,
 		Private:     &private,
 		Visibility:  github.Ptr(string(repo.Visibility)),
 	})

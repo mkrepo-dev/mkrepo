@@ -71,8 +71,8 @@ type CreateRepoInitializeAuthor struct {
 
 // CreateRepoInitializeLicense The license options for the repository.
 type CreateRepoInitializeLicense struct {
-	// FullName The full name of the license holder.
-	FullName *string `json:"fullName,omitempty"`
+	// Fullname The full name of the license holder.
+	Fullname *string `json:"fullname,omitempty"`
 
 	// Key The key of the license.
 	Key string `json:"key"`

@@ -44,7 +44,7 @@ type RepoOwner struct {
 type CreateRepo struct {
 	Namespace   string
 	Name        string
-	Description string
+	Description *string
 	Visibility  RepoVisibility
 }
 

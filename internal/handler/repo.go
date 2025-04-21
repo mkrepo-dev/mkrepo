@@ -2,13 +2,13 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/mkrepo-dev/mkrepo/internal/db"
 	"github.com/mkrepo-dev/mkrepo/internal/middleware"
 	"github.com/mkrepo-dev/mkrepo/internal/mkrepo"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
+	"github.com/mkrepo-dev/mkrepo/internal/types"
 	"github.com/mkrepo-dev/mkrepo/template"
 )
 
@@ -76,62 +76,27 @@ func (h *Repo) Create(w http.ResponseWriter, r *http.Request) {
 	// TODO: Handler if account is nil
 	// TODO: Do better validation of input values
 
-	err := r.ParseForm()
+	repo, err := types.CreateRepoFromForm(r)
 	if err != nil {
-		http.Error(w, "failed to parse form", http.StatusBadRequest)
+		http.Error(w, "invalid form", http.StatusBadRequest)
 		return
 	}
 
-	var tag string
-	if r.Form.Has("tag") {
-		tag = "v0.0.0"
-	}
-	var license string
-	if r.Form.Has("license") {
-		license = r.FormValue("license")
-	}
-	licenseYear, err := strconv.Atoi(r.FormValue("license-year"))
-	if err != nil {
-		http.Error(w, "invalid license year", http.StatusBadRequest)
-		return
-	}
-
-	repository := mkrepo.CreateRepo{
-		Account:      *account,
-		Namespace:    r.FormValue("owner"),
-		Name:         r.FormValue("name"),
-		Description:  r.FormValue("description"),
-		Visibility:   provider.RepoVisibility(r.FormValue("visibility")),
-		Readme:       r.Form.Has("readme"),
-		Gitignore:    r.FormValue("gitignore"),
-		Dockerfile:   r.FormValue("dockerfile"),
-		Dockerignore: r.Form.Has("dockerignore"),
-		LicenseKey:   license,
-		LicenseContext: template.LicenseContext{
-			Year:     licenseYear,
-			Fullname: r.FormValue("license-fullname"),
-			Project:  r.FormValue("license-project"),
-		},
-		Tag:        tag,
-		Sha256:     r.Form.Has("sha256"),
-		IsTemplate: false, // TODO: Remove later
-	}
-
+	// TODO: Do provider validation in middleware
 	provider, ok := h.providers[providerKey]
 	if !ok {
 		http.Error(w, "unsupported provider", http.StatusBadRequest)
 		return
 	}
-
-	client := provider.NewClient(r.Context(), repository.Account.Token, repository.Account.RedirectUri)
-	repository.Account.Token = client.Token()
-	err = h.db.UpdateAccountToken(r.Context(), repository.Account.Session, repository.Account.Provider, repository.Account.Username, repository.Account.Token)
+	client := provider.NewClient(r.Context(), account.Token, account.RedirectUri)
+	account.Token = client.Token()
+	err = h.db.UpdateAccountToken(r.Context(), account.Session, account.Provider, account.Username, account.Token)
 	if err != nil {
 		internalServerError(w, "Failed to update token in db", err)
 		return
 	}
 
-	url, err := h.repomaker.CreateNewRepo(r.Context(), client, repository)
+	url, err := h.repomaker.CreateNewRepo(r.Context(), client, repo)
 	if err != nil {
 		internalServerError(w, "Failed to create repository", err)
 		return

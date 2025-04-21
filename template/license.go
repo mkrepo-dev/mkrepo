@@ -13,9 +13,9 @@ import (
 var LicenseFS embed.FS
 
 type LicenseContext struct {
-	Year     int
-	Fullname string
-	Project  string
+	Year     *int
+	Fullname *string
+	Project  *string
 }
 
 type Licenses map[string]*License

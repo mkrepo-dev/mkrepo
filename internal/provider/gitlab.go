@@ -168,7 +168,7 @@ func (client *GitLabClient) GetPosibleRepoOwners(ctx context.Context) ([]RepoOwn
 func (client *GitLabClient) CreateRemoteRepo(ctx context.Context, repo CreateRepo) (RemoteRepo, error) {
 	opt := &gitlab.CreateProjectOptions{
 		Name:        &repo.Name,
-		Description: &repo.Description,
+		Description: repo.Description,
 		Visibility:  gitlab.Ptr(gitlab.VisibilityValue(repo.Visibility)),
 	}
 	if repo.Namespace != "" {

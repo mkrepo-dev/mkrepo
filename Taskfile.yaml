@@ -41,6 +41,11 @@ tasks:
     cmds:
       - task -l --sort none
 
+  generate:
+    desc: Run go generate
+    cmds:
+      - go generate ./...
+
   fmt:
     desc: Run go fmt
     cmds:
@@ -55,11 +60,6 @@ tasks:
     desc: Run lint
     cmds:
       - go tool golangci-lint run
-
-  generate:
-    desc: Run go generate
-    cmds:
-      - go generate ./...
 
   vulncheck:
     desc: Run vulnerability check
@@ -112,10 +112,10 @@ tasks:
   pre-commit:
     desc: Run pre-commit checks
     cmds:
+      - task: generate
       - task: fmt
       - task: vet
       - task: lint
-      - task: generate
       - task: build
       - task: docker:build
       - task: test

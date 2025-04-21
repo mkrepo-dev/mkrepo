@@ -90,7 +90,7 @@ components:
           type: integer
           description: The year of the license.
           default: 2025
-        fullName:
+        fullname:
           type: string
           description: The full name of the license holder.
         project:
