@@ -18,7 +18,7 @@ type LicenseContext struct {
 	Project  *string
 }
 
-type Licenses map[string]*License
+type Licenses map[string]License
 
 type License struct {
 	Title    string
@@ -84,7 +84,7 @@ func PrepareLicenses(licenseFS fs.FS) (Licenses, error) {
 			return err
 		}
 
-		licenses[key] = &license
+		licenses[key] = license
 		return nil
 	})
 	if err != nil {
