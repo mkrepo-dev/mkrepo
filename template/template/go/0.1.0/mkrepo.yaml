@@ -1,4 +1,4 @@
-name: Go
+description: Go module template
 lang: go
 schema:
   type: object

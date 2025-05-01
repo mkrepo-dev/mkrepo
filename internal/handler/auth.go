@@ -5,18 +5,18 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/mkrepo-dev/mkrepo/internal/db"
+	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/middleware"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/template"
 )
 
 type Auth struct {
-	db        *db.DB
+	db        *database.DB
 	providers provider.Providers
 }
 
-func NewAuth(db *db.DB, providers provider.Providers) *Auth {
+func NewAuth(db *database.DB, providers provider.Providers) *Auth {
 	return &Auth{db: db, providers: providers}
 }
 

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"text/template"
 
-	"github.com/mkrepo-dev/mkrepo/internal/db"
+	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/log"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 )
@@ -21,7 +21,7 @@ var (
 )
 
 type BaseContext struct {
-	Accounts []db.Account
+	Accounts []database.Account
 }
 
 type IndexContext struct {

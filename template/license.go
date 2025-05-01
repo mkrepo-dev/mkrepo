@@ -4,6 +4,7 @@ import (
 	"embed"
 	"io"
 	"io/fs"
+	"log/slog"
 	"regexp"
 	"strings"
 	texttemplate "text/template"
@@ -34,9 +35,9 @@ var (
 )
 
 // TODO: Take multiple filesystems so user can merge directory with buildin licenses
-func PrepareLicenses(licenseFS fs.FS) (Licenses, error) {
+func PrepareLicenses(licensesFS fs.FS) (Licenses, error) {
 	licenses := make(Licenses)
-	err := fs.WalkDir(licenseFS, ".", func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(licensesFS, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -47,7 +48,7 @@ func PrepareLicenses(licenseFS fs.FS) (Licenses, error) {
 		license := License{Filename: "LICENSE"}
 		key := strings.TrimSuffix(d.Name(), ".txt.tmpl")
 
-		f, err := licenseFS.Open(path)
+		f, err := licensesFS.Open(path)
 		if err != nil {
 			return err
 		}
@@ -79,12 +80,13 @@ func PrepareLicenses(licenseFS fs.FS) (Licenses, error) {
 			}
 		}
 
-		license.Template, err = texttemplate.ParseFS(licenseFS, path)
+		license.Template, err = texttemplate.ParseFS(licensesFS, path)
 		if err != nil {
 			return err
 		}
 
 		licenses[key] = license
+		slog.Debug("License prepared", "name", license.Title)
 		return nil
 	})
 	if err != nil {

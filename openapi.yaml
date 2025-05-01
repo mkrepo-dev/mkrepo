@@ -109,3 +109,40 @@ components:
         email:
           type: string
           description: The email of the author.
+    GetTemplateVersion:
+      type: object
+      description: Template with version.
+      required:
+        - name
+        - fullName
+        - buildIn
+        - stars
+        - version
+      properties:
+        name:
+          type: string
+          description: The name of the template.
+          example: "Go"
+        fullName:
+          type: string
+          description: The full name of the template.
+          example: "github.com/owner/go"
+        url:
+          type: string
+          description: The URL of the template.
+        buildIn:
+          type: boolean
+          description: Whether the template is built-in.
+          default: false
+        stars:
+          type: integer
+          description: The number of stars for the template.
+        version:
+          type: string
+          description: The version of the template.
+        description:
+          type: string
+          description: A short description of the template.
+        language:
+          type: string
+          description: The language this template is for.

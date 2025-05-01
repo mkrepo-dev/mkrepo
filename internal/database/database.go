@@ -1,4 +1,4 @@
-package db
+package database
 
 import (
 	"context"
@@ -10,14 +10,27 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/oauth2"
 
 	"github.com/mkrepo-dev/mkrepo/internal/log"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
+	"github.com/mkrepo-dev/mkrepo/internal/types"
 	"github.com/mkrepo-dev/mkrepo/migration"
 )
+
+func GetAccount(accounts []Account, provider string, username string) *Account {
+	for _, account := range accounts {
+		if account.Provider == provider && (account.Username == username || username == "") {
+			return &account
+		}
+	}
+	return nil
+}
+
+var ErrAlreadyExists = errors.New("already exists")
 
 type DB struct {
 	*pgxpool.Pool
@@ -113,15 +126,6 @@ type Account struct {
 	AvatarURL   string
 }
 
-func GetAccount(accounts []Account, provider string, username string) *Account {
-	for _, account := range accounts {
-		if account.Provider == provider && (account.Username == username || username == "") {
-			return &account
-		}
-	}
-	return nil
-}
-
 func (db *DB) GetSessionAccounts(ctx context.Context, session string) ([]Account, error) {
 	// TODO: Token should not be returned by this function
 	// Token can be rotated when used ad token source. In case of gitlab tokens old token stops working
@@ -139,6 +143,8 @@ func (db *DB) GetSessionAccounts(ctx context.Context, session string) ([]Account
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
+
 	var accounts []Account
 	for rows.Next() {
 		account := Account{Token: &oauth2.Token{}}
@@ -168,7 +174,7 @@ func (db *DB) CreateOrOverwriteAccount(ctx context.Context, session string, prov
 	if err != nil {
 		return err
 	}
-	defer rollback(tx)
+	defer rollback(ctx, tx)
 
 	_, err = tx.Exec(ctx,
 		`DELETE FROM "account"
@@ -210,34 +216,66 @@ func (db *DB) DeleteAccount(ctx context.Context, session string, provider string
 	return err
 }
 
-func (db *DB) CreateTemplate(ctx context.Context, name string, description string, url string, version string) error {
+func (db *DB) CreateTemplate(ctx context.Context, name string, fullName string, url *string, version string, description *string, language *string, buildIn bool) error {
 	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
 	}
-	defer rollback(tx)
-
-	var id int64
-	err = tx.QueryRow(ctx,
-		`INSERT INTO "template" ("name", "url")
-		 VALUES ($1, $2)
-		 RETURNING "id";`,
-		name, url,
-	).Scan(&id)
-	if err != nil {
-		return err
-	}
+	defer rollback(ctx, tx)
 
 	_, err = tx.Exec(ctx,
-		`INSERT INTO "template_name" ("description", "version", "template_id")
-		 VALUES ($1, $2, $3);`,
-		description, version, id,
+		`INSERT INTO "template" ("name", "full_name", "url", "build_in")
+		 VALUES ($1, $2, $3, $4)
+		 ON CONFLICT ("full_name") DO NOTHING;`,
+		name, fullName, url, buildIn,
 	)
 	if err != nil {
 		return err
 	}
 
+	_, err = tx.Exec(ctx,
+		`INSERT INTO "template_version" ("description", "language", "version", "template_id")
+		 VALUES ($1, $2, $3, (SELECT "id" FROM "template" WHERE "full_name" = $4));`,
+		description, language, version, fullName,
+	)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
+			return ErrAlreadyExists
+		}
+		return err
+	}
+
 	return tx.Commit(ctx)
+}
+
+func (db *DB) SearchTemplates(ctx context.Context, query string) ([]types.GetTemplateVersion, error) {
+	rows, err := db.Query(ctx,
+		`SELECT t."name", t."full_name", t."url", t."build_in", t."stars", tv."version", tv."description", tv."language"
+		 FROM "template" t JOIN "template_version" tv ON t."id" = tv."template_id"
+		 WHERE tv."version" = (
+		   SELECT "version" FROM "template_version" WHERE "template_id" = t."id" ORDER BY "version" DESC LIMIT 1
+		) AND t."name" ~ $1
+		 LIMIT 10;`, // TODO: Do fulltext search on name and description
+		query,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []types.GetTemplateVersion
+	for rows.Next() {
+		var template types.GetTemplateVersion
+		err = rows.Scan(&template.Name, &template.FullName, &template.Url, &template.BuildIn,
+			&template.Stars, &template.Version, &template.Description, &template.Language)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, template)
+	}
+
+	return results, nil
 }
 
 func (db *DB) UpdateTemplateStars(ctx context.Context, url string, stars int) error {
@@ -250,17 +288,8 @@ func (db *DB) UpdateTemplateStars(ctx context.Context, url string, stars int) er
 	return err
 }
 
-func (db *DB) CreateTemplateVersion(ctx context.Context, url string, description string, language string, version string) error {
-	_, err := db.Exec(ctx,
-		`INSERT INTO "template_name" ("description", "language", "version", "template_id")
-		 VALUES ($1, $2, $3, (SELECT "id" FROM "template" WHERE "url" = $4 LIMIT 1));`,
-		description, language, version, url,
-	)
-	return err
-}
-
-func rollback(tx pgx.Tx) {
-	err := tx.Rollback(context.Background())
+func rollback(ctx context.Context, tx pgx.Tx) {
+	err := tx.Rollback(ctx)
 	if err != nil && !errors.Is(err, pgx.ErrTxClosed) {
 		slog.Error("Failed to rollback transaction", log.Err(err))
 	}

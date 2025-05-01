@@ -4,7 +4,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/mkrepo-dev/mkrepo/internal/db"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/handler"
 	"github.com/mkrepo-dev/mkrepo/internal/middleware"
 	"github.com/mkrepo-dev/mkrepo/internal/mkrepo"
@@ -13,11 +15,12 @@ import (
 	"github.com/mkrepo-dev/mkrepo/template"
 )
 
-func NewServer(db *db.DB, repomaker *mkrepo.RepoMaker, providers provider.Providers, licenses template.Licenses) *http.Server {
+func NewServer(db *database.DB, repomaker *mkrepo.RepoMaker, providers provider.Providers, licenses template.Licenses) *http.Server {
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /", handler.Index(providers))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(static.FS))))
+	mux.Handle("GET /metrics", promhttp.Handler())
 
 	auth := handler.NewAuth(db, providers)
 	mux.HandleFunc("GET /auth/login", auth.Login)
@@ -26,6 +29,8 @@ func NewServer(db *db.DB, repomaker *mkrepo.RepoMaker, providers provider.Provid
 
 	mux.Handle("GET /new", handler.MkrepoForm(db, providers, licenses))
 	mux.Handle("POST /new", handler.MkrepoCreate(db, repomaker, providers, licenses))
+
+	mux.Handle("GET /templates", handler.Templates(db))
 
 	mux.Handle("POST /webhook/{provider}", handler.Webhook(db, providers))
 

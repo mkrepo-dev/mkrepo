@@ -95,3 +95,30 @@ type CreateRepoTemplate struct {
 	// Version The version of the template.
 	Version *string `json:"version,omitempty"`
 }
+
+// GetTemplateVersion Template with version.
+type GetTemplateVersion struct {
+	// BuildIn Whether the template is built-in.
+	BuildIn bool `json:"buildIn"`
+
+	// Description A short description of the template.
+	Description *string `json:"description,omitempty"`
+
+	// FullName The full name of the template.
+	FullName string `json:"fullName"`
+
+	// Language The language this template is for.
+	Language *string `json:"language,omitempty"`
+
+	// Name The name of the template.
+	Name string `json:"name"`
+
+	// Stars The number of stars for the template.
+	Stars int `json:"stars"`
+
+	// Url The URL of the template.
+	Url *string `json:"url,omitempty"`
+
+	// Version The version of the template.
+	Version string `json:"version"`
+}

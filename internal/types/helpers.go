@@ -5,10 +5,6 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
-	"strings"
-
-	"github.com/mkrepo-dev/mkrepo/internal/db"
-	"github.com/mkrepo-dev/mkrepo/internal/middleware"
 )
 
 func ptr[T any](v T) *T {
@@ -49,9 +45,9 @@ func CreateRepoFromForm(r *http.Request) (*CreateRepo, error) {
 	}
 
 	// TODO: Handle nil and move from db find better place
-	providerUsername := strings.Split(r.FormValue("provider"), ":")
-	provider, username := providerUsername[0], providerUsername[1]
-	account := db.GetAccount(middleware.Accounts(r.Context()), provider, username)
+	//providerUsername := strings.Split(r.FormValue("provider"), ":")
+	//provider, username := providerUsername[0], providerUsername[1]
+	//account := database.GetAccount(middleware.Accounts(r.Context()), provider, username)
 	var tag *string
 	if r.Form.Has("tag") {
 		tag = ptr("v0.0.0")
@@ -112,8 +108,8 @@ func CreateRepoFromForm(r *http.Request) (*CreateRepo, error) {
 		Sha256:      sha256,
 		Initialize: &CreateRepoInitialize{
 			Author: CreateRepoInitializeAuthor{
-				Name:  account.DisplayName,
-				Email: account.Email,
+				//Name:  account.DisplayName,
+				//Email: account.Email,
 			},
 			Tag:          tag,
 			Readme:       readme,

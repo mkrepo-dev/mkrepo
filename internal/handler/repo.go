@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	database "github.com/mkrepo-dev/mkrepo/internal/db"
+	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/middleware"
 	"github.com/mkrepo-dev/mkrepo/internal/mkrepo"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"

@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/mkrepo-dev/mkrepo/internal/db"
+	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 )
 
-func Webhook(db *db.DB, providers provider.Providers) http.Handler {
+func Webhook(db *database.DB, providers provider.Providers) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		providerKey := r.PathValue("provider")
 		prov, ok := providers[providerKey] // TODO: Validate providerKey in middreware and dont use value-ok pattern

@@ -76,6 +76,8 @@ tasks:
       - 'template/**/*'
       - 'go.mod'
       - 'go.sum'
+    generates:
+      - bin/server
     cmds:
       - go build -gcflags "all=-N -l"
         -ldflags "-X {{.MODULE}}/internal.version={{.VERSION}} -X {{.MODULE}}/internal.revision={{.REVISION}} -X {{.MODULE}}/internal.buildDatetime={{.DATETIME}}"

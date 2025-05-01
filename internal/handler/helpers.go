@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -41,4 +42,13 @@ func loginRedirect(w http.ResponseWriter, r *http.Request, providerKey string, r
 	}
 
 	http.Redirect(w, r, redirect.String(), http.StatusFound)
+}
+
+func encode[T any](w http.ResponseWriter, v T) {
+	w.Header().Set("Content-Type", "application/json")
+	err := json.NewEncoder(w).Encode(v)
+	if err != nil {
+		internalServerError(w, "Failed to encode response", err)
+		slog.Error("Failed to encode response", log.Err(err))
+	}
 }

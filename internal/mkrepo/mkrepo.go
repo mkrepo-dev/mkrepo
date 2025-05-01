@@ -23,17 +23,15 @@ import (
 )
 
 type RepoMaker struct {
-	providers provider.Providers
-	licenses  template.Licenses
+	licenses template.Licenses
 }
 
-func New(providers provider.Providers, licenses template.Licenses) *RepoMaker {
-	return &RepoMaker{providers: providers, licenses: licenses}
+func New(licenses template.Licenses) *RepoMaker {
+	return &RepoMaker{licenses: licenses}
 }
 
 // Create remote repo and initialize it if needed. Returns url to the repo.
 func (rm *RepoMaker) CreateNewRepo(ctx context.Context, client provider.Client, repo *types.CreateRepo) (string, error) {
-	// TODO: Use types.CreateRepo instead of CreateRepo
 	remoteRepo, err := client.CreateRemoteRepo(ctx, provider.CreateRepo{
 		Namespace:   repo.Namespace,
 		Name:        repo.Name,
@@ -50,8 +48,7 @@ func (rm *RepoMaker) CreateNewRepo(ctx context.Context, client provider.Client, 
 	}
 
 	// TODO: Wait with context
-	// TODO: Wait until repo is created on remote
-	err = rm.InitializeRepo(ctx, client, repo, remoteRepo.CloneUrl)
+	err = rm.InitializeRepo(ctx, client, repo, remoteRepo)
 	if err != nil {
 		return remoteRepo.HtmlUrl, err
 	}
@@ -68,15 +65,22 @@ func (rm *RepoMaker) CreateNewRepo(ctx context.Context, client provider.Client, 
 	return remoteRepo.HtmlUrl, nil
 }
 
-// TODO: Create files first than init git and push
-// TODO: Use remote repo instead of cloneUrl
-func (rm *RepoMaker) InitializeRepo(ctx context.Context, client provider.Client, repo *types.CreateRepo, cloneUrl string) error {
+func (rm *RepoMaker) InitializeRepo(ctx context.Context, client provider.Client, repo *types.CreateRepo, remoteRepo provider.RemoteRepo) error {
 	dir, err := os.MkdirTemp("", "mkrepo-")
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(dir)
 
+	err = rm.addFiles(repo, dir)
+	if err != nil {
+		return err
+	}
+
+	return gitInitAndPush(ctx, client, repo, remoteRepo.CloneUrl, dir)
+}
+
+func gitInitAndPush(ctx context.Context, client provider.Client, repo *types.CreateRepo, cloneUrl string, dir string) error {
 	initOpt := &git.PlainInitOptions{
 		InitOptions: git.InitOptions{
 			DefaultBranch: plumbing.Main,
@@ -90,12 +94,6 @@ func (rm *RepoMaker) InitializeRepo(ctx context.Context, client provider.Client,
 		return err
 	}
 	wt, err := r.Worktree()
-	if err != nil {
-		return err
-	}
-
-	// TODO: Use repo instead of CreateRepo
-	err = rm.addFiles(repo, dir)
 	if err != nil {
 		return err
 	}

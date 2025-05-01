@@ -23,14 +23,16 @@ CREATE TABLE IF NOT EXISTS "account" (
 CREATE TABLE IF NOT EXISTS "template" (
 	"id" bigserial PRIMARY KEY,
 	"name" text NOT NULL,
-	"url" text NOT NULL UNIQUE,
+	"full_name" text NOT NULL UNIQUE,
+	"url" text UNIQUE,
+	"build_in" boolean NOT NULL DEFAULT false,
 	"stars" int NOT NULL DEFAULT 0 CHECK ("stars" >= 0)
 );
 
 CREATE TABLE IF NOT EXISTS "template_version" (
 	"id" bigserial PRIMARY KEY,
-	"description" text NOT NULL DEFAULT '',
-	"language" text NOT NULL DEFAULT '',
+	"description" text,
+	"language" text,
 	"version" text NOT NULL,
 	"template_id" bigint NOT NULL REFERENCES "template" ("id") ON DELETE CASCADE,
 	UNIQUE ("template_id", "version")

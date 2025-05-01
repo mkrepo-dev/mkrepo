@@ -13,7 +13,7 @@ services:
   pgadmin:
     image: dpage/pgadmin4
     environment:
-      PGADMIN_DEFAULT_EMAIL: mkrepo@mkrepo.io
+      PGADMIN_DEFAULT_EMAIL: mkrepo@mkrepo.dev
       PGADMIN_DEFAULT_PASSWORD: mkrepo
     ports:
       - "5050:80"

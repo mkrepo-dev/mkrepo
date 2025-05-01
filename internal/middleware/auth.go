@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/mkrepo-dev/mkrepo/internal/db"
+	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/log"
 )
 
@@ -26,16 +26,16 @@ type accountsContextKey string
 
 const accountsKey accountsContextKey = "accounts"
 
-func Accounts(ctx context.Context) []db.Account {
-	accounts, _ := ctx.Value(accountsKey).([]db.Account)
+func Accounts(ctx context.Context) []database.Account {
+	accounts, _ := ctx.Value(accountsKey).([]database.Account)
 	return accounts
 }
 
-func SetAccounts(ctx context.Context, accounts []db.Account) context.Context {
+func SetAccounts(ctx context.Context, accounts []database.Account) context.Context {
 	return context.WithValue(ctx, accountsKey, accounts)
 }
 
-func NewAuthenticate(db *db.DB) func(http.Handler) http.Handler {
+func NewAuthenticate(db *database.DB) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var session string
