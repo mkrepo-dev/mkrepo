@@ -35,12 +35,6 @@
         <input type="text" class="form-control" id="description" name="description">
       </div>
     </div>
-    <div class="row g-2">
-      <div class="col">
-        <label for="template" class="form-label mb-0"><small><b>Template</b></small></label>
-        <input type="text" class="form-control" id="template" name="template">
-      </div>
-    </div>
     <hr class="my-3">
 
     <h3>Visibility</h3>
@@ -53,7 +47,34 @@
     <hr class="my-3">
 
     <h3>Initialize repository</h3>
-    <div class="row g-2">
+    <div class="row g-2" id="choose-template-btn">
+      <div class="col">
+        <button class="btn btn-outline-secondary btn-no-hover" style="color: black" type="button" data-bs-toggle="modal" data-bs-target="#templateModal">Choose template</button>
+      </div>
+    </div>
+    <div class="row g-2" style="display: none" id="selected-template-btn">
+      <div class="col">
+        <button class="btn btn-outline-secondary btn-no-hover" style="color: black" type="button"></button>
+      </div>
+    </div>
+    <input type="hidden" class="form-control" id="template" name="template">
+
+    <div class="modal fade" id="templateModal" tabindex="-1" aria-labelledby="templateModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h1 class="modal-title fs-5" id="templateModalLabel">Templates</h1>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <input type="text" class="form-control mb-2" id="template-search" placeholder="Search template">
+            <div class="list-group" id="template-results"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-2 my-1">
       <div class="col form-check">
         <input type="checkbox" class="form-check-input" id="readme" name="readme" value="" checked>
         <label for="readme" class="form-check-label">Add <code>README.md</code></label>

@@ -26,9 +26,6 @@ type CreateRepo struct {
 	// Sha256 Use SHA256 for the repository.
 	Sha256 *bool `json:"sha256,omitempty"`
 
-	// Template The template to use for the repository.
-	Template *CreateRepoTemplate `json:"template,omitempty"`
-
 	// Visibility The visibility of the repository.
 	Visibility *CreateRepoVisibility `json:"visibility,omitempty"`
 }
@@ -58,6 +55,9 @@ type CreateRepoInitialize struct {
 
 	// Tag The tag to use for the repository.
 	Tag *string `json:"tag,omitempty"`
+
+	// Template The template to use for the repository.
+	Template *CreateRepoTemplate `json:"template,omitempty"`
 }
 
 // CreateRepoInitializeAuthor The author of initialize commit.
@@ -86,8 +86,8 @@ type CreateRepoInitializeLicense struct {
 
 // CreateRepoTemplate The template to use for the repository.
 type CreateRepoTemplate struct {
-	// Name The name of the template.
-	Name string `json:"name"`
+	// FullName The full name of the template.
+	FullName string `json:"fullName"`
 
 	// Values The values to use for the template.
 	Values *map[string]interface{} `json:"values,omitempty"`

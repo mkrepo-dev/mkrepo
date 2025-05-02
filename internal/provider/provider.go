@@ -103,6 +103,8 @@ func NewProvidersFromConfig(cfg config.Config) Providers {
 			providers[providerConfig.Key] = NewGitHubFromConfig(cfg, providerConfig)
 		case config.GitLabProvider:
 			providers[providerConfig.Key] = NewGitLabFromConfig(cfg, providerConfig)
+		default:
+			slog.Warn("Unknown provider type", slog.String("type", string(providerConfig.Type)))
 		}
 	}
 	return providers

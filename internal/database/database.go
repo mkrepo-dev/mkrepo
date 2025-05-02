@@ -223,6 +223,7 @@ func (db *DB) CreateTemplate(ctx context.Context, name string, fullName string, 
 	}
 	defer rollback(ctx, tx)
 
+	// TODO: First get then insert to not generate new id from serial type
 	_, err = tx.Exec(ctx,
 		`INSERT INTO "template" ("name", "full_name", "url", "build_in")
 		 VALUES ($1, $2, $3, $4)
@@ -255,8 +256,9 @@ func (db *DB) SearchTemplates(ctx context.Context, query string) ([]types.GetTem
 		 FROM "template" t JOIN "template_version" tv ON t."id" = tv."template_id"
 		 WHERE tv."version" = (
 		   SELECT "version" FROM "template_version" WHERE "template_id" = t."id" ORDER BY "version" DESC LIMIT 1
-		) AND t."name" ~ $1
-		 LIMIT 10;`, // TODO: Do fulltext search on name and description
+		 ) AND t."name" ~ $1
+		 ORDER BY t."stars" DESC
+		 LIMIT 10;`, // TODO: Do fulltext search on name, fullname and description. And optional filter by language.
 		query,
 	)
 	if err != nil {
@@ -276,6 +278,36 @@ func (db *DB) SearchTemplates(ctx context.Context, query string) ([]types.GetTem
 	}
 
 	return results, nil
+}
+
+// Returns template with specified version or the latest version if version is nil
+func (db *DB) GetTemplate(ctx context.Context, fullName string, version *string) (types.GetTemplateVersion, error) {
+	var template types.GetTemplateVersion
+	var row pgx.Row
+	if version != nil {
+		row = db.QueryRow(ctx,
+			`SELECT t."name", t."full_name", t."url", t."build_in", t."stars", tv."version", tv."description", tv."language"
+			 FROM "template" t JOIN "template_version" tv ON t."id" = tv."template_id"
+			 WHERE t."full_name" = $1
+			 ORDER BY tv."version" DESC
+			 LIMIT 1;`,
+			fullName, version,
+		)
+	} else {
+		row = db.QueryRow(ctx,
+			`SELECT t."name", t."full_name", t."url", t."build_in", t."stars", tv."version", tv."description", tv."language"
+			 FROM "template" t JOIN "template_version" tv ON t."id" = tv."template_id"
+			 WHERE t."full_name" = $1 AND tv."version" = $2;`,
+			fullName, version,
+		)
+
+	}
+	err := row.Scan(&template.Name, &template.FullName, &template.Url, &template.BuildIn,
+		&template.Stars, &template.Version, &template.Description, &template.Language)
+	if err != nil {
+		return types.GetTemplateVersion{}, err
+	}
+	return template, nil
 }
 
 func (db *DB) UpdateTemplateStars(ctx context.Context, url string, stars int) error {

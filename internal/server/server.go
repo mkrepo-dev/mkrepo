@@ -20,12 +20,11 @@ func NewServer(db *database.DB, repomaker *mkrepo.RepoMaker, providers provider.
 
 	mux.Handle("GET /", handler.Index(providers))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(static.FS))))
-	mux.Handle("GET /metrics", promhttp.Handler())
+	mux.Handle("GET /metrics", promhttp.Handler()) // TODO: Add auth
 
-	auth := handler.NewAuth(db, providers)
-	mux.HandleFunc("GET /auth/login", auth.Login)
-	mux.HandleFunc("GET /auth/logout", auth.Logout)
-	mux.HandleFunc("GET /auth/oauth2/callback/{provider}", auth.OAuth2Callback)
+	mux.HandleFunc("GET /auth/login", handler.Login(db, providers))
+	mux.HandleFunc("GET /auth/logout", handler.Logout(db))
+	mux.HandleFunc("GET /auth/oauth2/callback/{provider}", handler.OAuth2Callback(db, providers))
 
 	mux.Handle("GET /new", handler.MkrepoForm(db, providers, licenses))
 	mux.Handle("POST /new", handler.MkrepoCreate(db, repomaker, providers, licenses))

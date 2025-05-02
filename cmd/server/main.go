@@ -69,7 +69,7 @@ func main() {
 	}
 	slog.Info("Templates prepared")
 
-	repomaker := mkrepo.New(licenses)
+	repomaker := mkrepo.New(db, licenses)
 
 	srv := server.NewServer(db, repomaker, providers, licenses)
 

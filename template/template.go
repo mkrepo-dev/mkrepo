@@ -66,6 +66,7 @@ type MkrepoFile struct {
 }
 
 // TODO: Take multiple filesystems so user can merge directory with buildin templates
+// TODO: Retun fs with templates as root dirs without template subdir and make embed fs private
 func PrepareTemplates(db *database.DB, templatesFS fs.FS) error {
 	entries, err := fs.ReadDir(templatesFS, ".")
 	if err != nil {

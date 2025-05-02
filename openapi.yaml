@@ -28,8 +28,6 @@ components:
             - private
           description: The visibility of the repository.
           default: private
-        template:
-          $ref: "#/components/schemas/CreateRepoTemplate"
         initialize:
           $ref: "#/components/schemas/CreateRepoInitialize"
         sha256:
@@ -40,11 +38,12 @@ components:
       type: object
       description: The template to use for the repository.
       required:
-        - name
+        - fullName
       properties:
-        name:
+        fullName:
           type: string
-          description: The name of the template.
+          description: The full name of the template.
+          example: "github.com/owner/go"
         version:
           type: string
           description: The version of the template.
@@ -70,6 +69,8 @@ components:
         dockerignore:
           type: boolean
           description: Create a .dockerignore file.
+        template:
+          $ref: "#/components/schemas/CreateRepoTemplate"
         license:
           $ref: "#/components/schemas/CreateRepoInitializeLicense"
         author:

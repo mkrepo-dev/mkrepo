@@ -2,11 +2,13 @@ package mkrepo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	texttemplate "text/template"
 	"time"
 
@@ -17,17 +19,19 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 
+	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/internal/types"
 	"github.com/mkrepo-dev/mkrepo/template"
 )
 
 type RepoMaker struct {
+	db       *database.DB
 	licenses template.Licenses
 }
 
-func New(licenses template.Licenses) *RepoMaker {
-	return &RepoMaker{licenses: licenses}
+func New(db *database.DB, licenses template.Licenses) *RepoMaker {
+	return &RepoMaker{db: db, licenses: licenses}
 }
 
 // Create remote repo and initialize it if needed. Returns url to the repo.
@@ -72,7 +76,7 @@ func (rm *RepoMaker) InitializeRepo(ctx context.Context, client provider.Client,
 	}
 	defer os.RemoveAll(dir)
 
-	err = rm.addFiles(repo, dir)
+	err = rm.addFiles(ctx, repo, remoteRepo, dir)
 	if err != nil {
 		return err
 	}
@@ -140,9 +144,9 @@ func gitInitAndPush(ctx context.Context, client provider.Client, repo *types.Cre
 	})
 }
 
-func (rm *RepoMaker) addFiles(repo *types.CreateRepo, dir string) error {
-	if types.CreateRepoUsesTemplate(repo) {
-		err := executeTemplateRepo(repo, dir)
+func (rm *RepoMaker) addFiles(ctx context.Context, repo *types.CreateRepo, remoteRepo provider.RemoteRepo, dir string) error {
+	if repo.Initialize.Template != nil {
+		err := rm.executeTemplateRepo(ctx, repo, remoteRepo, dir)
 		if err != nil {
 			return err
 		}
@@ -168,14 +172,26 @@ func (rm *RepoMaker) addFiles(repo *types.CreateRepo, dir string) error {
 	return nil
 }
 
-func executeTemplateRepo(repo *types.CreateRepo, dir string) error {
-	context := template.TemplateContext{
-		FullName: repo.Name,
-		Values:   repo.Template.Values,
-	}
-	sub, err := fs.Sub(template.RepoFS, filepath.Join("template", "go", "0.1.0"))
+func (rm *RepoMaker) executeTemplateRepo(ctx context.Context, repo *types.CreateRepo, remoteRepo provider.RemoteRepo, dir string) error {
+	templateInfo, err := rm.db.GetTemplate(ctx, repo.Initialize.Template.FullName, repo.Initialize.Template.Version)
 	if err != nil {
 		return err
+	}
+	templateFS := template.RepoFS // TODO: Get from param or struct
+	if !templateInfo.BuildIn {
+		// TODO: try to find localy or download and cache from git
+		return errors.New("external template not implemented")
+	}
+	sub, err := fs.Sub(templateFS, filepath.Join(templateInfo.FullName, templateInfo.Version))
+	if err != nil {
+		return err
+	}
+
+	context := template.TemplateContext{
+		Name:     repo.Name,
+		FullName: strings.TrimPrefix(strings.TrimPrefix(repo.Name, "https://"), "http://"),
+		Url:      remoteRepo.HtmlUrl,
+		Values:   repo.Initialize.Template.Values,
 	}
 	return template.ExecuteTemplateDir(dir, sub, context)
 }
