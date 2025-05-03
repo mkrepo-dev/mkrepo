@@ -10,41 +10,43 @@
     {{block "style" .}}{{end}}
   </head>
   <body style="background-color: #f8f9fa;">
-    <div class="container">
-      <nav class="navbar navbar-expand-lg">
-        <div class="container-fluid">
-          <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto">
-              <li class="nav-item">
-                <a class="nav-link" href="/templates">Templates</a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link" href="/docs">Docs</a>
-              </li>
-              <li class="nav-item">
-                <a class="nav-link" href="https://github.com/mkrepo-dev/mkrepo">Source</a>
-              </li>
-              <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                  Accounts
-                </a>
-                <ul class="dropdown-menu">
-                  {{range .Accounts}}
-                  <li>
-                    <img src="{{.AvatarURL}}" class="rounded-circle me-2" width="25" height="25">
-                    {{.Provider}} - {{.Username}}
-                    <form action="/auth/logout" method="get">
-                      <input type="hidden" name="provider" value="{{.Provider}}:{{.Username}}">
-                      <button type="submit" class="btn btn-outline-danger">Logout</button>
-                    </form>
-                  </li>
-                  {{end}}
-                </ul>
-              </li>
-            </ul>
+    <div class="vh-100 d-flex flex-column">
+      <div class="container">
+        <nav class="navbar navbar-expand-md">
+          <div class="container-fluid">
+            <div class="collapse navbar-collapse" id="navbarNav">
+              <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                  <a class="nav-link" href="/templates">Templates</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="/docs">Docs</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="https://github.com/mkrepo-dev/mkrepo">Source</a>
+                </li>
+                <li class="nav-item dropdown">
+                  <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    Accounts
+                  </a>
+                  <ul class="dropdown-menu">
+                    {{range .Accounts}}
+                    <li>
+                      <img src="{{.AvatarURL}}" class="rounded-circle me-2" width="25" height="25">
+                      {{.Provider}} - {{.Username}}
+                      <form action="/auth/logout" method="get">
+                        <input type="hidden" name="provider" value="{{.Provider}}:{{.Username}}">
+                        <button type="submit" class="btn btn-outline-danger">Logout</button>
+                      </form>
+                    </li>
+                    {{end}}
+                  </ul>
+                </li>
+              </ul>
+            </div>
           </div>
-        </div>
-      </nav>
+        </nav>
+      </div>
       {{block "content" .}}{{end}}
     </div>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>

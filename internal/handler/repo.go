@@ -125,12 +125,11 @@ func CreateRepoFromForm(r *http.Request) (*types.CreateRepo, error) {
 		description = &descriptionStr
 	}
 	var visibility *types.CreateRepoVisibility
-	var formVisibility types.CreateRepoVisibility = types.CreateRepoVisibility(r.FormValue("visibility"))
-	if slices.Contains([]types.CreateRepoVisibility{types.Private, types.Public}, formVisibility) {
-		visibility = &formVisibility
-	} else {
+	formVisibility := types.CreateRepoVisibility(r.FormValue("visibility"))
+	if !slices.Contains([]types.CreateRepoVisibility{types.Private, types.Public}, formVisibility) {
 		return nil, errors.New("invalid visibility")
 	}
+	visibility = &formVisibility
 
 	var sha256 *bool
 	if r.Form.Has("sha256") {

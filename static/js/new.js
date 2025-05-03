@@ -57,6 +57,9 @@ function updateInitTag() {
 }
 
 $("#template-search").on("input", debounce(handleTemplateSearch, 300));
+$("#choose-template-btn").on("click", () => {
+  templateSearch("");
+})
 
 function debounce(func, delay) {
   let timer;
@@ -71,15 +74,19 @@ function handleTemplateSearch(event) {
   if (query.trim() === "" || query.length == 1) {
     return;
   }
+  templateSearch(query);
+}
+
+function templateSearch(query) {
   $.ajax({
     url: "/templates",
     type: "GET",
     data: { q: query },
     success: function(data) {
+      $('#template-results').empty();
       data.forEach(function(item, index) {
-        $('#template-results').empty();
         $('#template-results').append(`
-          <div class="list-group-item list-group-item-action template" data-bs-dismiss="modal" id="template-${index}">
+          <div class="list-group-item list-group-item-action template" style="cursor: pointer" data-bs-dismiss="modal" id="template-${index}">
             <div class="d-flex w-100 justify-content-between">
               <h5 class="mb-1">${item.name}</h5>
               <div>
@@ -109,7 +116,7 @@ function applyTemplate(template) {
   const templateBtnWrapper = $("#selected-template-btn");
   templateBtnWrapper.show();
   const templateBtn = templateBtnWrapper.find("button");
-  templateBtn.html(`<b>Template:</b> ${template.fullName} <i class="bi bi-x-lg ms-2" style="font-size: 1rem; color: red;"></i>`);
+  templateBtn.html(`<b>Template:</b> ${template.name} <i class="bi bi-x-lg ms-2" style="font-size: 1rem; color: red;"></i>`);
   templateBtn.on("click", function() {
     clearTemplate();
   });

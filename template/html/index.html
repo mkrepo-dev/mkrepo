@@ -1,22 +1,14 @@
 {{define "title"}}mkrepo{{end}}
 
 {{define "content"}}
-<div class="d-flex justify-content-center align-items-center vh-100">
-  <div class="container text-center border rounded p-4 shadow" style="max-width: 700px; background: white;">
+<div class="flex-grow-1 d-flex justify-content-center align-items-center">
+  <div class="container text-center border rounded p-4 shadow" style="max-width: 500px; background: white;">
     <h1 class="display-1"><code>mkrepo</code></h2>
     <form action="/new" method="get">
       <div class="row g-2">
         <div class="input-group mb-3">
-          <select id="provider" name="provider" class="form-select" style="width: 30%">
-            {{range .Accounts}}
-            <option value="{{.Provider}}:{{.Username}}">{{(index $.Providers .Provider).Name}} as {{.Username}}</option>
-            {{end}}
-            {{range $key, $provider := .UnauthenticatedProviders}}
-            <option value="{{$key}}">{{$provider.Name}}</option>
-            {{end}}
-          </select>
-          <input type="text" id="name" name="name" class="col-6 form-control" style="width: 55%" required data-1p-ignore>
-          <button type="submit" class="col-2 btn btn-success" style="width: 15%">Next</button>
+          <input type="text" id="name" name="name" class="col-9 form-control" placeholder="New repo name" required data-1p-ignore>
+          <button type="submit" class="col-3 btn btn-success">Next</button>
         </div>
       </div>
     </form>

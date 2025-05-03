@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS "template" (
 	"full_name" text NOT NULL UNIQUE,
 	"url" text UNIQUE,
 	"build_in" boolean NOT NULL DEFAULT false,
+	"used" int NOT NULL DEFAULT 0 CHECK ("used" >= 0),
 	"stars" int NOT NULL DEFAULT 0 CHECK ("stars" >= 0)
 );
 
