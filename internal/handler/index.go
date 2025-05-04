@@ -1,28 +1,25 @@
 package handler
 
 import (
-	"maps"
+	"html/template"
 	"net/http"
 
-	"github.com/mkrepo-dev/mkrepo/internal/middleware"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
-	"github.com/mkrepo-dev/mkrepo/template"
+	"github.com/mkrepo-dev/mkrepo/template/html"
 )
 
 func Index(providers provider.Providers) http.Handler {
+	type indexContext struct {
+		baseContext
+	}
+	tmpl := template.Must(template.ParseFS(html.FS, "base.html", "index.html"))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
 		}
-		unauthenticatedProviders := maps.Clone(providers)
-		for _, account := range middleware.Accounts(r.Context()) {
-			delete(unauthenticatedProviders, account.Provider)
-		}
-		template.Render(w, template.Index, template.IndexContext{
-			BaseContext:              getBaseContext(r),
-			Providers:                providers,
-			UnauthenticatedProviders: unauthenticatedProviders,
+		render(w, tmpl, indexContext{
+			baseContext: getBaseContext(r),
 		})
 	})
 }

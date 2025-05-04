@@ -25,9 +25,9 @@ $("#license").on("change", updateLicenseVars);
 
 function updateLicenseVars() {
   var vars = $("#license option:selected").attr("vars").split(",");
-  vars = vars.map(function(v) { return v.toLowerCase(); });
+  vars = vars.map((v) => { return v.toLowerCase(); });
   var inputs = [$('#license-year'), $('#license-fullname'), $('#license-project')];
-  inputs.forEach(function(input, i) {
+  inputs.forEach((input, i) => {
     var name = input.attr('id').replace('license-', '');
     if (vars.includes(name)) {
       input.parent().show();
@@ -56,6 +56,11 @@ function updateInitTag() {
   }
 }
 
+// Reset modal input when modal is opened
+$("#choose-template-btn").on("click", () => {
+  $("#template-search").val("");
+});
+
 $("#template-search").on("input", debounce(handleTemplateSearch, 300));
 $("#choose-template-btn").on("click", () => {
   templateSearch("");
@@ -63,7 +68,7 @@ $("#choose-template-btn").on("click", () => {
 
 function debounce(func, delay) {
   let timer;
-  return function (...args) {
+  return (...args) => {
     clearTimeout(timer);
     timer = setTimeout(() => func.apply(this, args), delay);
   };
@@ -82,9 +87,9 @@ function templateSearch(query) {
     url: "/templates",
     type: "GET",
     data: { q: query },
-    success: function(data) {
+    success: (data) => {
       $('#template-results').empty();
-      data.forEach(function(item, index) {
+      data.forEach((item, index) => {
         $('#template-results').append(`
           <div class="list-group-item list-group-item-action template" style="cursor: pointer" data-bs-dismiss="modal" id="template-${index}">
             <div class="d-flex w-100 justify-content-between">
@@ -100,11 +105,11 @@ function templateSearch(query) {
           </div>
         `);
       });
-      $(".template").on("click", function() {
+      $(".template").on("click", () => {
         applyTemplate(data[$(this).attr("id").split("-")[1]]);
       });
     },
-    error: function(xhr, status, error) {
+    error: (xhr, status, error) => {
       $('#template-results').html('<p>Error loading data</p>');
     }
   })
@@ -117,7 +122,7 @@ function applyTemplate(template) {
   templateBtnWrapper.show();
   const templateBtn = templateBtnWrapper.find("button");
   templateBtn.html(`<b>Template:</b> ${template.name} <i class="bi bi-x-lg ms-2" style="font-size: 1rem; color: red;"></i>`);
-  templateBtn.on("click", function() {
+  templateBtn.on("click", () => {
     clearTemplate();
   });
 }

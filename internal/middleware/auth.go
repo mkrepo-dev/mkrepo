@@ -2,59 +2,65 @@ package middleware
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 
 	"github.com/mkrepo-dev/mkrepo/internal/database"
-	"github.com/mkrepo-dev/mkrepo/internal/log"
 )
 
-type tokenContextKey string
+type accountContextKey string
 
-const tokenKey tokenContextKey = "token"
+const accountKey accountContextKey = "account"
 
-func SetSession(ctx context.Context, token string) context.Context {
-	return context.WithValue(ctx, tokenKey, token)
+func Account(ctx context.Context) *database.Account {
+	account, ok := ctx.Value(accountKey).(database.Account)
+	if !ok {
+		return nil
+	}
+	return &account
 }
 
-func Session(ctx context.Context) string {
-	session, _ := ctx.Value(tokenKey).(string)
-	return session
+func SetAccount(ctx context.Context, account database.Account) context.Context {
+	return context.WithValue(ctx, accountKey, account)
 }
 
-type accountsContextKey string
-
-const accountsKey accountsContextKey = "accounts"
-
-func Accounts(ctx context.Context) []database.Account {
-	accounts, _ := ctx.Value(accountsKey).([]database.Account)
-	return accounts
-}
-
-func SetAccounts(ctx context.Context, accounts []database.Account) context.Context {
-	return context.WithValue(ctx, accountsKey, accounts)
-}
-
-func NewAuthenticate(db *database.DB) func(http.Handler) http.Handler {
+func Authenticate(db *database.DB) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			var session string
 			ctx := r.Context()
 			token, err := r.Cookie("session")
-			if err != nil {
-				ctx = SetAccounts(ctx, nil)
-			} else {
-				session = token.Value
-				accounts, err := db.GetSessionAccounts(ctx, session)
+			if err == nil {
+				account, err := db.GetAccountBySession(ctx, token.Value)
 				if err != nil {
-					slog.Error("Failed to get accounts", log.Err(err))
-					w.WriteHeader(http.StatusInternalServerError)
-					return
+					token.MaxAge = -1
+					http.SetCookie(w, token)
+				} else {
+					ctx = SetAccount(ctx, account)
 				}
-				ctx = SetAccounts(ctx, accounts)
 			}
-			ctx = SetSession(ctx, session)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func MustAuthenticate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		account := Account(r.Context())
+		if account == nil {
+			if r.Method == http.MethodGet {
+				cookie := &http.Cookie{
+					Name:     "redirecturi",
+					Value:    r.URL.String(),
+					Path:     "/",
+					MaxAge:   5 * 60,
+					HttpOnly: true,
+					Secure:   true,
+					SameSite: http.SameSiteLaxMode,
+				}
+				http.SetCookie(w, cookie)
+			}
+			http.Redirect(w, r, "/auth/login", http.StatusFound)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }

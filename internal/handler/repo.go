@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	htmltemplate "html/template"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -15,32 +16,34 @@ import (
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/internal/types"
 	"github.com/mkrepo-dev/mkrepo/template"
+	"github.com/mkrepo-dev/mkrepo/template/html"
 )
 
 func MkrepoForm(db *database.DB, providers provider.Providers, licenses template.Licenses) http.Handler {
+	type newRepoFormContext struct {
+		baseContext
+		Name        string
+		Provider    provider.Provider
+		Owners      []provider.RepoOwner
+		Licenses    template.Licenses
+		CurrentYear int
+	}
+	tmpl := htmltemplate.Must(htmltemplate.ParseFS(html.FS, "base.html", "new.html"))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		providerKey, username := splitProviderUser(r)
-		accounts := middleware.Accounts(r.Context())
-		account := database.GetAccount(accounts, providerKey, username) // TODO: Move into middleware
+		account := middleware.Account(r.Context())
 
-		if account == nil {
-			if len(accounts) == 0 || providerKey != "" {
-				loginRedirect(w, r, providerKey, r.URL.String())
-				return
-			}
-			account = &accounts[0]
-			providerKey = account.Provider
-		}
+		// TODO: Handle this redirect in middleware
+		//if account == nil {
+		//	if len(accounts) == 0 || providerKey != "" {
+		//		loginRedirect(w, r, providerKey, r.URL.String())
+		//		return
+		//	}
+		//}
 
-		provider, ok := providers[providerKey]
-		if !ok {
-			http.Error(w, "unsupported provider", http.StatusBadRequest)
-			return
-		}
-
+		provider := providers[account.Provider]
 		client := provider.NewClient(r.Context(), account.Token, account.RedirectUri)
 		account.Token = client.Token()
-		err := db.UpdateAccountToken(r.Context(), middleware.Session(r.Context()), account.Provider, account.Username, account.Token)
+		err := db.UpdateAccountToken(r.Context(), account.Provider, account.Username, account.Token) // TODO: Session is not needed here remove from db
 		if err != nil {
 			internalServerError(w, "Failed to update account token", err)
 			return
@@ -52,24 +55,22 @@ func MkrepoForm(db *database.DB, providers provider.Providers, licenses template
 			return
 		}
 
-		context := template.NewRepoFormContext{
-			BaseContext:      getBaseContext(r),
-			Providers:        providers,
-			Owners:           owners,
-			Name:             r.FormValue("name"),
-			SelectedProvider: providerKey,
-			Licenses:         licenses,
-			CurrentYear:      time.Now().Year(),
+		context := newRepoFormContext{
+			baseContext: getBaseContext(r),
+			Provider:    provider,
+			Owners:      owners,
+			Name:        r.FormValue("name"),
+			Licenses:    licenses,
+			CurrentYear: time.Now().Year(),
 		}
-		template.Render(w, template.NewRepo, context)
+		render(w, tmpl, context)
 	})
 }
 
 func MkrepoCreate(db *database.DB, repomaker *mkrepo.RepoMaker, providers provider.Providers, licenses template.Licenses) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		providerKey, username := splitProviderUser(r)
-		account := database.GetAccount(middleware.Accounts(r.Context()), providerKey, username)
-		// TODO: Handler if account is nil
+		account := middleware.Account(r.Context())
+		// TODO: Handler if account is nil, but in middleware
 		// TODO: Do better validation of input values
 
 		repo, err := CreateRepoFromForm(r)
@@ -80,14 +81,14 @@ func MkrepoCreate(db *database.DB, repomaker *mkrepo.RepoMaker, providers provid
 		}
 
 		// TODO: Do provider validation in middleware
-		provider, ok := providers[providerKey]
+		provider, ok := providers[r.FormValue("provider")]
 		if !ok {
 			http.Error(w, "unsupported provider", http.StatusBadRequest)
 			return
 		}
 		client := provider.NewClient(r.Context(), account.Token, account.RedirectUri)
 		account.Token = client.Token()
-		err = db.UpdateAccountToken(r.Context(), account.Session, account.Provider, account.Username, account.Token)
+		err = db.UpdateAccountToken(r.Context(), account.Provider, account.Username, account.Token)
 		if err != nil {
 			internalServerError(w, "Failed to update token in db", err)
 			return
@@ -137,9 +138,7 @@ func CreateRepoFromForm(r *http.Request) (*types.CreateRepo, error) {
 	}
 
 	// TODO: Handle nil and move from db find better place
-	providerUsername := strings.Split(r.FormValue("provider"), ":")
-	provider, username := providerUsername[0], providerUsername[1]
-	account := database.GetAccount(middleware.Accounts(r.Context()), provider, username)
+	account := middleware.Account(r.Context())
 	var tag *string
 	if r.Form.Has("tag") {
 		tag = ptr("v0.0.0")

@@ -7,22 +7,27 @@ CREATE TABLE IF NOT EXISTS "oauth2_state" (
 
 CREATE TABLE IF NOT EXISTS "account" (
 	"id" bigserial PRIMARY KEY,
-	"session" text NOT NULL,
 	"provider" text NOT NULL,
 	"access_token" text NOT NULL,
-	"refresh_token" text NOT NULL DEFAULT '',
-	"expires_at" timestamp NOT NULL DEFAULT '0001-01-01 00:00:00+00'::timestamp,
+	"refresh_token" text,
+	"expires_at" timestamp,
 	"redirect_uri" text NOT NULL,
 	"email" text NOT NULL,
 	"username" text NOT NULL,
 	"display_name" text NOT NULL,
 	"avatar_url" text NOT NULL,
-	UNIQUE("session", "provider", "username")
+	UNIQUE("provider", "username")
+);
+
+CREATE TABLE IF NOT EXISTS "session" (
+	"session" text PRIMARY KEY,
+	"expires_at" timestamp NOT NULL,
+	"account_id" bigint NOT NULL REFERENCES "account" ("id") ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS "template" (
 	"id" bigserial PRIMARY KEY,
-	"name" text NOT NULL,
+	"name" text NOT NULL, -- TODO: Maybe move to tempalte_version and let users set this in mkrepo.yaml
 	"full_name" text NOT NULL UNIQUE,
 	"url" text UNIQUE,
 	"build_in" boolean NOT NULL DEFAULT false,

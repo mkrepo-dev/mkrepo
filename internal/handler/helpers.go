@@ -2,19 +2,30 @@ package handler
 
 import (
 	"encoding/json"
+	"html/template"
 	"log/slog"
 	"net/http"
-	"net/url"
-	"strings"
 
+	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/log"
 	"github.com/mkrepo-dev/mkrepo/internal/middleware"
-	"github.com/mkrepo-dev/mkrepo/template"
 )
 
-func getBaseContext(r *http.Request) template.BaseContext {
-	accounts := middleware.Accounts(r.Context())
-	return template.BaseContext{Accounts: accounts}
+type baseContext struct {
+	Account *database.Account
+}
+
+func getBaseContext(r *http.Request) baseContext {
+	account := middleware.Account(r.Context())
+	return baseContext{Account: account}
+}
+
+func render(w http.ResponseWriter, t *template.Template, context any) {
+	err := t.Execute(w, context)
+	if err != nil {
+		slog.Error("Failed to render template", log.Err(err))
+		w.WriteHeader(http.StatusInternalServerError)
+	}
 }
 
 func internalServerError(w http.ResponseWriter, msg string, err error) {
@@ -22,27 +33,18 @@ func internalServerError(w http.ResponseWriter, msg string, err error) {
 	http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 }
 
-func splitProviderUser(r *http.Request) (string, string) {
-	provider := r.FormValue("provider")
-	parts := strings.Split(provider, ":")
-	if len(parts) == 2 {
-		return parts[0], parts[1]
-	}
-
-	return parts[0], ""
-}
-
-func loginRedirect(w http.ResponseWriter, r *http.Request, providerKey string, redirectUri string) {
-	query := url.Values{}
-	query.Set("provider", providerKey)
-	query.Set("redirect_uri", redirectUri)
-	redirect := url.URL{
-		Path:     "/auth/login",
-		RawQuery: query.Encode(),
-	}
-
-	http.Redirect(w, r, redirect.String(), http.StatusFound)
-}
+// TODO: Unused?
+//func loginRedirect(w http.ResponseWriter, r *http.Request, providerKey string, redirectUri string) {
+//	query := url.Values{}
+//	query.Set("provider", providerKey)
+//	query.Set("redirect_uri", redirectUri)
+//	redirect := url.URL{
+//		Path:     "/auth/login",
+//		RawQuery: query.Encode(),
+//	}
+//
+//	http.Redirect(w, r, redirect.String(), http.StatusFound)
+//}
 
 func encode[T any](w http.ResponseWriter, v T) {
 	w.Header().Set("Content-Type", "application/json")

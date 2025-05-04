@@ -26,14 +26,14 @@ func NewServer(db *database.DB, repomaker *mkrepo.RepoMaker, providers provider.
 	mux.HandleFunc("GET /auth/logout", handler.Logout(db))
 	mux.HandleFunc("GET /auth/oauth2/callback/{provider}", handler.OAuth2Callback(db, providers))
 
-	mux.Handle("GET /new", handler.MkrepoForm(db, providers, licenses))
-	mux.Handle("POST /new", handler.MkrepoCreate(db, repomaker, providers, licenses))
+	mux.Handle("GET /new", middleware.MustAuthenticate(handler.MkrepoForm(db, providers, licenses)))
+	mux.Handle("POST /new", middleware.MustAuthenticate(handler.MkrepoCreate(db, repomaker, providers, licenses)))
 
-	mux.Handle("GET /templates", handler.Templates(db))
+	mux.Handle("GET /templates", handler.Templates(db)) // TODO: Remove this
 
 	mux.Handle("POST /webhook/{provider}", handler.Webhook(db, providers))
 
-	handler := middleware.NewAuthenticate(db)(mux)
+	handler := middleware.Authenticate(db)(mux)
 
 	server := &http.Server{
 		Addr:         ":8080",
