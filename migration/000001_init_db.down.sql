@@ -2,6 +2,7 @@ BEGIN;
 
 DROP TABLE IF EXISTS "oauth2_state";
 DROP TABLE IF EXISTS "account";
+DROP TABLE IF EXISTS "session";
 DROP TABLE IF EXISTS "template";
 DROP TABLE IF EXISTS "template_version";
 

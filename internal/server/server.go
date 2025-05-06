@@ -8,7 +8,7 @@ import (
 
 	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/handler"
-	"github.com/mkrepo-dev/mkrepo/internal/middleware"
+	"github.com/mkrepo-dev/mkrepo/internal/handler/middleware"
 	"github.com/mkrepo-dev/mkrepo/internal/mkrepo"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/static"

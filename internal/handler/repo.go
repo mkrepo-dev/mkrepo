@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/mkrepo-dev/mkrepo/internal/database"
-	"github.com/mkrepo-dev/mkrepo/internal/middleware"
+	"github.com/mkrepo-dev/mkrepo/internal/handler/middleware"
 	"github.com/mkrepo-dev/mkrepo/internal/mkrepo"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/internal/types"
@@ -31,19 +31,12 @@ func MkrepoForm(db *database.DB, providers provider.Providers, licenses template
 	tmpl := htmltemplate.Must(htmltemplate.ParseFS(html.FS, "base.html", "new.html"))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		account := middleware.Account(r.Context())
-
-		// TODO: Handle this redirect in middleware
-		//if account == nil {
-		//	if len(accounts) == 0 || providerKey != "" {
-		//		loginRedirect(w, r, providerKey, r.URL.String())
-		//		return
-		//	}
-		//}
-
 		provider := providers[account.Provider]
-		client := provider.NewClient(r.Context(), account.Token, account.RedirectUri)
+		client := provider.NewClient(r.Context(), account.Token)
+
+		// TODO: Assume that token is valid during whole request. Maybe assure this in middleware.
 		account.Token = client.Token()
-		err := db.UpdateAccountToken(r.Context(), account.Provider, account.Username, account.Token) // TODO: Session is not needed here remove from db
+		err := db.UpdateAccountToken(r.Context(), account.Provider, account.Username, account.Token)
 		if err != nil {
 			internalServerError(w, "Failed to update account token", err)
 			return
@@ -70,7 +63,6 @@ func MkrepoForm(db *database.DB, providers provider.Providers, licenses template
 func MkrepoCreate(db *database.DB, repomaker *mkrepo.RepoMaker, providers provider.Providers, licenses template.Licenses) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		account := middleware.Account(r.Context())
-		// TODO: Handler if account is nil, but in middleware
 		// TODO: Do better validation of input values
 
 		repo, err := CreateRepoFromForm(r)
@@ -80,13 +72,12 @@ func MkrepoCreate(db *database.DB, repomaker *mkrepo.RepoMaker, providers provid
 			return
 		}
 
-		// TODO: Do provider validation in middleware
-		provider, ok := providers[r.FormValue("provider")]
+		provider, ok := providers[account.Provider]
 		if !ok {
 			http.Error(w, "unsupported provider", http.StatusBadRequest)
 			return
 		}
-		client := provider.NewClient(r.Context(), account.Token, account.RedirectUri)
+		client := provider.NewClient(r.Context(), account.Token)
 		account.Token = client.Token()
 		err = db.UpdateAccountToken(r.Context(), account.Provider, account.Username, account.Token)
 		if err != nil {
@@ -102,10 +93,6 @@ func MkrepoCreate(db *database.DB, repomaker *mkrepo.RepoMaker, providers provid
 
 		http.Redirect(w, r, url, http.StatusFound)
 	})
-}
-
-func ptr[T any](v T) *T {
-	return &v
 }
 
 func CreateRepoFromForm(r *http.Request) (*types.CreateRepo, error) {
@@ -137,7 +124,6 @@ func CreateRepoFromForm(r *http.Request) (*types.CreateRepo, error) {
 		sha256 = ptr(true)
 	}
 
-	// TODO: Handle nil and move from db find better place
 	account := middleware.Account(r.Context())
 	var tag *string
 	if r.Form.Has("tag") {
@@ -226,4 +212,8 @@ func CreateRepoFromForm(r *http.Request) (*types.CreateRepo, error) {
 	}
 
 	return repo, nil
+}
+
+func ptr[T any](v T) *T {
+	return &v
 }

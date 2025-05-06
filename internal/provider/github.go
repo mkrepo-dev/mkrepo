@@ -53,15 +53,13 @@ func (gh *GitHub) Url() string {
 	return gh.provider.Url
 }
 
-func (gh *GitHub) OAuth2Config(redirectUri string) *oauth2.Config {
-	cfg := &oauth2.Config{
+func (gh *GitHub) OAuth2Config() *oauth2.Config {
+	return &oauth2.Config{
 		ClientID:     gh.provider.ClientID,
 		ClientSecret: gh.provider.ClientSecret,
 		Scopes:       []string{"repo", "read:org"},
-		RedirectURL:  buildAuthCallbackUrl(gh.config.BaseUrl, gh.provider.Key),
 		Endpoint:     endpoints.GitHub,
 	}
-	return oauth2WithRedirectUri(cfg, redirectUri)
 }
 
 func (gh *GitHub) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
@@ -89,7 +87,7 @@ func (gh *GitHub) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
 	}
 }
 
-func (gh *GitHub) NewClient(ctx context.Context, token *oauth2.Token, _ string) Client {
+func (gh *GitHub) NewClient(ctx context.Context, token *oauth2.Token) Client {
 	client := github.NewClient(nil).WithAuthToken(token.AccessToken)
 	client.UserAgent = internal.UserAgent
 	return &GitHubClient{Client: client, token: token, gh: gh}

@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -59,15 +60,14 @@ func (gl *GitLab) Url() string {
 	return gl.provider.Url
 }
 
-func (gl *GitLab) OAuth2Config(redirectUri string) *oauth2.Config {
-	cfg := &oauth2.Config{
+func (gl *GitLab) OAuth2Config() *oauth2.Config {
+	return &oauth2.Config{
 		ClientID:     gl.provider.ClientID,
 		ClientSecret: gl.provider.ClientSecret,
 		Scopes:       []string{"api"},
 		Endpoint:     endpoints.GitLab,
-		RedirectURL:  buildAuthCallbackUrl(gl.config.BaseUrl, gl.provider.Key),
+		RedirectURL:  fmt.Sprintf("%s/auth/oauth2/callback/gitlab", gl.config.BaseUrl),
 	}
-	return oauth2WithRedirectUri(cfg, redirectUri)
 }
 
 func (gl *GitLab) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
@@ -95,8 +95,8 @@ func (gl *GitLab) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
 	}
 }
 
-func (gl *GitLab) NewClient(ctx context.Context, token *oauth2.Token, redirectUri string) Client {
-	ts := gl.OAuth2Config(redirectUri).TokenSource(ctx, token)
+func (gl *GitLab) NewClient(ctx context.Context, token *oauth2.Token) Client {
+	ts := gl.OAuth2Config().TokenSource(ctx, token)
 	tkn, err := ts.Token()
 	if err != nil {
 		slog.Error("Failed to get token", log.Err(err))

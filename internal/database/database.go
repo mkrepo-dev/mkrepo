@@ -95,32 +95,33 @@ func (db *DB) CreateOAuth2State(ctx context.Context, state string, expires_at ti
 	return err
 }
 
-func (db *DB) GetAndDeleteOAuth2State(ctx context.Context, state string) (string, time.Time, error) {
-	var expiresAt time.Time
+func (db *DB) ValidateOAuth2State(ctx context.Context, state string) (bool, error) {
+	var valid bool
 	err := db.QueryRow(ctx,
-		`DELETE FROM "oauth2_state"
-		 WHERE "state" = $1
-		 RETURNING "expires_at";`,
+		`SELECT EXISTS (
+		   SELECT 1
+		   FROM "oauth2_state"
+		   WHERE "state" = $1 AND "expires_at" > 'now'::timestamp
+		 );`,
 		state,
-	).Scan(&expiresAt)
+	).Scan(&valid)
 	if err != nil {
-		return "", time.Time{}, err
+		return false, err
 	}
-	return state, expiresAt, nil
+	return valid, nil
 }
 
 type Account struct {
 	Id          int
 	Provider    string
 	Token       *oauth2.Token
-	RedirectUri string
 	Email       string
 	Username    string
 	DisplayName string
 	AvatarURL   string
 }
 
-func (db *DB) GetAccountBySession(ctx context.Context, session string) (Account, error) {
+func (db *DB) GetAccountByValidSession(ctx context.Context, session string) (Account, error) {
 	// TODO: Token should not be returned by this function
 	// Token can be rotated when used ad token source. In case of gitlab tokens old token stops working
 	// immediately after new token is generated. This mean that new token has to be store in db. Returning
@@ -130,13 +131,13 @@ func (db *DB) GetAccountBySession(ctx context.Context, session string) (Account,
 	account := Account{Token: &oauth2.Token{}}
 	err := db.QueryRow(ctx,
 		`SELECT a."id", a."provider", a."access_token", a."refresh_token",
-		 a."expires_at", a."redirect_uri", a."email", a."username", a."display_name", a."avatar_url"
+		 a."expires_at", a."email", a."username", a."display_name", a."avatar_url"
 		 FROM "account" a JOIN "session" s ON a."id" = s."account_id"
-		 WHERE "session" = $1;`,
+		 WHERE s."session" = $1 AND s."expires_at" > 'now'::timestamp;`,
 		session,
 	).Scan(
 		&account.Id, &account.Provider, &account.Token.AccessToken,
-		&account.Token.RefreshToken, &account.Token.Expiry, &account.RedirectUri, &account.Email,
+		&account.Token.RefreshToken, &account.Token.Expiry, &account.Email,
 		&account.Username, &account.DisplayName, &account.AvatarURL,
 	)
 	return account, err
@@ -150,7 +151,8 @@ type UserInfo struct {
 	AvatarURL   string
 }
 
-func (db *DB) CreateAccountSession(ctx context.Context, session string, sessionExpiresAt time.Time, provider string, token *oauth2.Token, redirectUri string, userInfo provider.User) error {
+// TODO: Update other users info in this function
+func (db *DB) CreateAccountSession(ctx context.Context, session string, sessionExpiresAt time.Time, provider string, token *oauth2.Token, userInfo provider.User) error {
 	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
@@ -170,10 +172,10 @@ func (db *DB) CreateAccountSession(ctx context.Context, session string, sessionE
 			return err
 		}
 		err = tx.QueryRow(ctx,
-			`INSERT INTO "account" ("provider", "access_token", "refresh_token", "expires_at", "redirect_uri", "email", "username", "display_name", "avatar_url")
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			`INSERT INTO "account" ("provider", "access_token", "refresh_token", "expires_at", "email", "username", "display_name", "avatar_url")
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			 RETURNING "id";`,
-			provider, token.AccessToken, token.RefreshToken, token.Expiry, redirectUri,
+			provider, token.AccessToken, token.RefreshToken, token.Expiry,
 			userInfo.Email, userInfo.Username, userInfo.DisplayName, userInfo.AvatarUrl,
 		).Scan(&id)
 		if err != nil {

@@ -11,7 +11,6 @@ CREATE TABLE IF NOT EXISTS "account" (
 	"access_token" text NOT NULL,
 	"refresh_token" text,
 	"expires_at" timestamp,
-	"redirect_uri" text NOT NULL,
 	"email" text NOT NULL,
 	"username" text NOT NULL,
 	"display_name" text NOT NULL,
