@@ -162,14 +162,6 @@ func (db *DB) GetAccountByValidSession(ctx context.Context, session string) (Acc
 	return account, err
 }
 
-// TODO: Find better place how to handle structs
-type UserInfo struct {
-	Username    string
-	Email       string
-	DisplayName string
-	AvatarURL   string
-}
-
 // TODO: Update other users info in this function
 func (db *DB) CreateAccountSession(ctx context.Context, session string, sessionExpiresAt time.Time, provider string, token *oauth2.Token, userInfo provider.User) error {
 	accessTokenEnc, err := db.encrypt(token.AccessToken)

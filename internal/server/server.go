@@ -21,7 +21,7 @@ func NewServer(cfg config.Config, db *database.DB, repomaker *mkrepo.RepoMaker, 
 
 	mux.Handle("GET /", handler.Index(providers))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(static.FS))))
-	mux.Handle("GET /metrics", middleware.MetricsAuth(cfg.MetricsToken)(promhttp.Handler())) // TODO: Add auth
+	mux.Handle("GET /metrics", middleware.MetricsAuth(cfg.MetricsToken)(promhttp.Handler()))
 
 	mux.HandleFunc("GET /auth/login", handler.Login(db, providers))
 	mux.HandleFunc("GET /auth/logout", handler.Logout(db))
