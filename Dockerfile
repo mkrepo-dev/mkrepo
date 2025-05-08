@@ -2,6 +2,9 @@ FROM golang:1.24 AS build
 
 WORKDIR /app
 
+RUN curl -L -o /usr/local/bin/atlas https://release.ariga.io/atlas/atlas-linux-amd64-latest &&\
+    chmod +x /usr/local/bin/atlas
+
 RUN go install github.com/go-task/task/v3/cmd/task@latest
 
 COPY go.mod go.sum ./
@@ -15,9 +18,9 @@ FROM gcr.io/distroless/static-debian12
 
 WORKDIR /app
 
-COPY --from=build /app/README.md .
-COPY --from=build /app/LICENSE .
+COPY --from=build /usr/local/bin/atlas /usr/local/bin/atlas
 COPY --from=build /app/bin/ .
+COPY --from=build /app/LICENSE .
 
 CMD ["./server"]
 

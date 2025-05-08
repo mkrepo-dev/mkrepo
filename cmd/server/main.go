@@ -25,7 +25,6 @@ import (
 
 func main() {
 	log.SetupLogger()
-
 	version := internal.ReadVersion()
 	slog.Info("Build info",
 		slog.String("version", version.Version), slog.String("goVersion", version.GoVersion),
@@ -50,7 +49,7 @@ func main() {
 	providers := provider.NewProvidersFromConfig(cfg)
 
 	ctx := context.Background()
-	db, err := database.New(ctx, "postgres://mkrepo:mkrepo@localhost:5432/mkrepo?sslmode=disable") // TODO: Use this from env or config
+	db, err := database.New(ctx, cfg.DatabaseUri, cfg.Secret)
 	if err != nil {
 		log.Fatal("Cannot open database", err)
 	}
@@ -71,7 +70,7 @@ func main() {
 
 	repomaker := mkrepo.New(db, licenses)
 
-	srv := server.NewServer(db, repomaker, providers, licenses)
+	srv := server.NewServer(cfg, db, repomaker, providers, licenses)
 
 	errCh := make(chan error)
 	go func() {

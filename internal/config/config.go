@@ -11,7 +11,9 @@ import (
 )
 
 type Config struct {
-	Secret string `yaml:"-"`
+	DatabaseUri  string `yaml:"-"`
+	Secret       string `yaml:"-"`
+	MetricsToken string `yaml:"-"`
 
 	BaseUrl         string     `yaml:"baseUrl"`
 	WebhookInsecure bool       `yaml:"webhookInsecure"`
@@ -63,6 +65,7 @@ func LoadConfig(filename string) (Config, error) {
 }
 
 func setDefaults(cfg Config) Config {
+	cfg.DatabaseUri = "postgres://mkrepo:mkrepo@localhost:5432/mkrepo?sslmode=disable&search_path=public"
 	for i, provider := range cfg.Providers {
 		cfg.Providers[i] = setDefaultsProvider(provider)
 	}
@@ -84,6 +87,22 @@ func setDefaultsProvider(provider Provider) Provider {
 }
 
 func fillFromEnv(cfg Config) Config {
+	databaseUri, ok := os.LookupEnv("DATABASE_URI")
+	if ok {
+		cfg.DatabaseUri = databaseUri
+	}
+
+	secret, ok := os.LookupEnv("SECRET_KEY")
+	if !ok {
+		slog.Warn("SECRET_KEY env not set")
+	}
+	cfg.Secret = secret
+
+	metricsToken, ok := os.LookupEnv("METRICS_TOKEN")
+	if ok {
+		cfg.MetricsToken = metricsToken
+	}
+
 	for i, provider := range cfg.Providers {
 		cfg.Providers[i].ClientID = readFromEnv(provider.ClientID)
 		cfg.Providers[i].ClientSecret = readFromEnv(provider.ClientSecret)

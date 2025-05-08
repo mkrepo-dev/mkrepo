@@ -6,6 +6,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/mkrepo-dev/mkrepo/internal/config"
 	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/handler"
 	"github.com/mkrepo-dev/mkrepo/internal/handler/middleware"
@@ -15,12 +16,12 @@ import (
 	"github.com/mkrepo-dev/mkrepo/template"
 )
 
-func NewServer(db *database.DB, repomaker *mkrepo.RepoMaker, providers provider.Providers, licenses template.Licenses) *http.Server {
+func NewServer(cfg config.Config, db *database.DB, repomaker *mkrepo.RepoMaker, providers provider.Providers, licenses template.Licenses) *http.Server {
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /", handler.Index(providers))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(static.FS))))
-	mux.Handle("GET /metrics", promhttp.Handler()) // TODO: Add auth
+	mux.Handle("GET /metrics", middleware.MetricsAuth(cfg.MetricsToken)(promhttp.Handler())) // TODO: Add auth
 
 	mux.HandleFunc("GET /auth/login", handler.Login(db, providers))
 	mux.HandleFunc("GET /auth/logout", handler.Logout(db))

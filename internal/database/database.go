@@ -2,14 +2,16 @@ package database
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
+	"io"
 	"log/slog"
-	"strings"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/pgx"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"ariga.io/atlas-go-sdk/atlasexec"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,39 +20,42 @@ import (
 	"github.com/mkrepo-dev/mkrepo/internal/log"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/internal/types"
-	"github.com/mkrepo-dev/mkrepo/migration"
+	"github.com/mkrepo-dev/mkrepo/sql/migrations"
 )
 
 var ErrAlreadyExists = errors.New("already exists")
 
 type DB struct {
 	*pgxpool.Pool
+	encryptionKey string
 }
 
-func New(ctx context.Context, datasource string) (*DB, error) {
-	pool, err := pgxpool.New(ctx, datasource)
+func New(ctx context.Context, connectionUri string, encryptionKey string) (*DB, error) {
+	pool, err := pgxpool.New(ctx, connectionUri)
 	if err != nil {
 		return nil, err
 	}
-	db := &DB{Pool: pool}
+	db := &DB{Pool: pool, encryptionKey: encryptionKey}
 
 	err = db.Ping(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	driver, err := iofs.New(migration.FS, ".")
+	workdir, err := atlasexec.NewWorkingDir(atlasexec.WithMigrations(migrations.FS))
 	if err != nil {
 		return nil, err
 	}
-	m, err := migrate.NewWithSourceInstance("iofs", driver, strings.ReplaceAll(datasource, "postgres://", "pgx://"))
+	defer workdir.Close()
+	client, err := atlasexec.NewClient(workdir.Path(), "atlas")
 	if err != nil {
 		return nil, err
 	}
-	err = m.Up()
-	if err != nil && !errors.Is(err, migrate.ErrNoChange) {
+	res, err := client.MigrateApply(ctx, &atlasexec.MigrateApplyParams{URL: connectionUri})
+	if err != nil {
 		return nil, err
 	}
+	slog.Info("Database migration", slog.Int("applied", len(res.Applied)))
 
 	err = db.Cleanup(ctx)
 	if err != nil {
@@ -128,6 +133,7 @@ func (db *DB) GetAccountByValidSession(ctx context.Context, session string) (Acc
 	// token here can cause problems in parallel requests. Create functino GetAndRefreshToken which in transaction
 	// locks account row, returns token and refreshes it and stores it if necesary. This way token can be safely used in parallel requests.
 	// This function should be called each time before use.
+	var accessTokenEnc, refreshTokenEnc string
 	account := Account{Token: &oauth2.Token{}}
 	err := db.QueryRow(ctx,
 		`SELECT a."id", a."provider", a."access_token", a."refresh_token",
@@ -136,10 +142,23 @@ func (db *DB) GetAccountByValidSession(ctx context.Context, session string) (Acc
 		 WHERE s."session" = $1 AND s."expires_at" > 'now'::timestamp;`,
 		session,
 	).Scan(
-		&account.Id, &account.Provider, &account.Token.AccessToken,
-		&account.Token.RefreshToken, &account.Token.Expiry, &account.Email,
+		&account.Id, &account.Provider, &accessTokenEnc,
+		&refreshTokenEnc, &account.Token.Expiry, &account.Email,
 		&account.Username, &account.DisplayName, &account.AvatarURL,
 	)
+	if err != nil {
+		return Account{}, err
+	}
+
+	account.Token.AccessToken, err = db.decrypt(accessTokenEnc)
+	if err != nil {
+		return Account{}, err
+	}
+	account.Token.RefreshToken, err = db.decrypt(refreshTokenEnc)
+	if err != nil {
+		return Account{}, err
+	}
+
 	return account, err
 }
 
@@ -153,6 +172,15 @@ type UserInfo struct {
 
 // TODO: Update other users info in this function
 func (db *DB) CreateAccountSession(ctx context.Context, session string, sessionExpiresAt time.Time, provider string, token *oauth2.Token, userInfo provider.User) error {
+	accessTokenEnc, err := db.encrypt(token.AccessToken)
+	if err != nil {
+		return err
+	}
+	refreshTokenEnc, err := db.encrypt(token.RefreshToken)
+	if err != nil {
+		return err
+	}
+
 	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
@@ -165,7 +193,7 @@ func (db *DB) CreateAccountSession(ctx context.Context, session string, sessionE
 		 SET "access_token" = $1, "refresh_token" = $2, "expires_at" = $3
 		 WHERE "provider" = $4 AND "username" = $5
 		 RETURNING "id";`,
-		token.AccessToken, token.RefreshToken, token.Expiry, provider, userInfo.Username,
+		accessTokenEnc, refreshTokenEnc, token.Expiry, provider, userInfo.Username,
 	).Scan(&id)
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
@@ -175,7 +203,7 @@ func (db *DB) CreateAccountSession(ctx context.Context, session string, sessionE
 			`INSERT INTO "account" ("provider", "access_token", "refresh_token", "expires_at", "email", "username", "display_name", "avatar_url")
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			 RETURNING "id";`,
-			provider, token.AccessToken, token.RefreshToken, token.Expiry,
+			provider, accessTokenEnc, refreshTokenEnc, token.Expiry,
 			userInfo.Email, userInfo.Username, userInfo.DisplayName, userInfo.AvatarUrl,
 		).Scan(&id)
 		if err != nil {
@@ -196,11 +224,19 @@ func (db *DB) CreateAccountSession(ctx context.Context, session string, sessionE
 }
 
 func (db *DB) UpdateAccountToken(ctx context.Context, provider string, username string, token *oauth2.Token) error {
-	_, err := db.Exec(ctx,
+	accessTokenEnc, err := db.encrypt(token.AccessToken)
+	if err != nil {
+		return err
+	}
+	refreshTokenEnc, err := db.encrypt(token.RefreshToken)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(ctx,
 		`UPDATE "account"
 		 SET "access_token" = $1, "refresh_token" = $2, "expires_at" = $3
 		 WHERE "provider" = $4 AND "username" = $5;`,
-		token.AccessToken, token.RefreshToken, token.Expiry, provider, username,
+		accessTokenEnc, refreshTokenEnc, token.Expiry, provider, username,
 	)
 	return err
 }
@@ -342,4 +378,57 @@ func rollback(ctx context.Context, tx pgx.Tx) {
 	if err != nil && !errors.Is(err, pgx.ErrTxClosed) {
 		slog.Error("Failed to rollback transaction", log.Err(err))
 	}
+}
+
+func (db *DB) encrypt(data string) (string, error) {
+	key, err := hex.DecodeString(db.encryptionKey)
+	if err != nil {
+		return "", err
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+	nonce := make([]byte, aesGCM.NonceSize())
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		return "", err
+	}
+
+	ciphertext := aesGCM.Seal(nonce, nonce, []byte(data), nil)
+	return hex.EncodeToString(ciphertext), nil
+}
+
+func (db *DB) decrypt(data string) (string, error) {
+	key, err := hex.DecodeString(db.encryptionKey)
+	if err != nil {
+		return "", err
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	bytes, err := hex.DecodeString(data)
+	if err != nil {
+		return "", err
+	}
+	if len(bytes) < aesGCM.NonceSize() {
+		return "", errors.New("ciphertext too short")
+	}
+	nonce, ciphertext := bytes[:aesGCM.NonceSize()], bytes[aesGCM.NonceSize():]
+	plaintext, err := aesGCM.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", err
+	}
+	return string(plaintext), nil
 }

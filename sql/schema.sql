@@ -1,5 +1,3 @@
-BEGIN;
-
 CREATE TABLE IF NOT EXISTS "oauth2_state" (
     "state" text PRIMARY KEY,
     "expires_at" timestamp NOT NULL
@@ -42,5 +40,3 @@ CREATE TABLE IF NOT EXISTS "template_version" (
 	"template_id" bigint NOT NULL REFERENCES "template" ("id") ON DELETE CASCADE,
 	UNIQUE ("template_id", "version")
 );
-
-COMMIT;
