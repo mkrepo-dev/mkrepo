@@ -1,17 +1,21 @@
-package template
+package mkrepo
 
 import (
-	"embed"
 	"io"
 	"io/fs"
 	"log/slog"
 	"regexp"
 	"strings"
-	texttemplate "text/template"
+	"text/template"
 )
 
-//go:embed license
-var LicenseFS embed.FS
+type License struct {
+	Title    string
+	Filename string
+	With     []string
+	Vars     []string
+	Template *template.Template
+}
 
 type LicenseContext struct {
 	Year     *int
@@ -20,14 +24,6 @@ type LicenseContext struct {
 }
 
 type Licenses map[string]License
-
-type License struct {
-	Title    string
-	Filename string
-	With     []string
-	Vars     []string
-	Template *texttemplate.Template
-}
 
 var (
 	reFindHeader = regexp.MustCompile(`{{-\s*/\*\s*(.+?):\s*(.+?)\s*\*/\s*-}}`)
@@ -80,7 +76,7 @@ func PrepareLicenses(licensesFS fs.FS) (Licenses, error) {
 			}
 		}
 
-		license.Template, err = texttemplate.ParseFS(licensesFS, path)
+		license.Template, err = template.ParseFS(licensesFS, path)
 		if err != nil {
 			return err
 		}
@@ -92,6 +88,8 @@ func PrepareLicenses(licensesFS fs.FS) (Licenses, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	slog.Info("Licenses prepared", slog.Int("count", len(licenses)))
 
 	return licenses, nil
 }

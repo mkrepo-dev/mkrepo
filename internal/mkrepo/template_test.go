@@ -1,4 +1,4 @@
-package template_test
+package mkrepo_test
 
 import (
 	"bytes"
@@ -6,20 +6,20 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mkrepo-dev/mkrepo/template"
+	"github.com/mkrepo-dev/mkrepo/internal/mkrepo"
 )
 
 func TestExecuteTemplateDir(t *testing.T) {
 	dstDir := t.TempDir()
 	testTemplateFS := os.DirFS("template/go/0.1.0")
-	context := template.TemplateContext{
+	context := mkrepo.TemplateContext{
 		FullName: "github.com/mkrepo-dev/mkrepo",
 		Values: map[string]string{
 			"goVersion": "1.24",
 		},
 	}
 
-	err := template.ExecuteTemplateDir(dstDir, testTemplateFS, context)
+	err := mkrepo.ExecuteTemplateDir(dstDir, testTemplateFS, context)
 	if err != nil {
 		t.Fatalf("template execution: %v", err)
 	}

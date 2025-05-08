@@ -1,8 +1,7 @@
-package template
+package mkrepo
 
 import (
 	"context"
-	"embed"
 	"errors"
 	"io/fs"
 	"log/slog"
@@ -12,14 +11,12 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"gopkg.in/yaml.v3"
+
+	"github.com/mkrepo-dev/mkrepo/internal/database"
 )
 
-//go:embed base
-var RepoFS embed.FS
-
-var Readme = template.Must(template.ParseFS(RepoFS, "base/README.md.tmpl"))
+var Readme = template.Must(template.New("readme").Parse("# {{.Name}}\n"))
 
 type ReadmeContext struct {
 	Name string
@@ -72,6 +69,7 @@ func PrepareTemplates(db *database.DB, templatesFS fs.FS) error {
 	if err != nil {
 		return err
 	}
+	count := 0
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -85,7 +83,9 @@ func PrepareTemplates(db *database.DB, templatesFS fs.FS) error {
 		if err != nil {
 			return err
 		}
+		count++
 	}
+	slog.Info("Templates prepared", slog.Int("count", count))
 	return nil
 }
 

@@ -13,10 +13,9 @@ import (
 	"github.com/mkrepo-dev/mkrepo/internal/mkrepo"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/static"
-	"github.com/mkrepo-dev/mkrepo/template"
 )
 
-func NewServer(cfg config.Config, db *database.DB, repomaker *mkrepo.RepoMaker, providers provider.Providers, licenses template.Licenses) *http.Server {
+func NewServer(cfg config.Config, db *database.DB, repomaker *mkrepo.RepoMaker, providers provider.Providers, licenses mkrepo.Licenses) *http.Server {
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /", handler.Index(providers))

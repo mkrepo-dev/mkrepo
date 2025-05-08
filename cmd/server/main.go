@@ -19,7 +19,7 @@ import (
 	"github.com/mkrepo-dev/mkrepo/internal/mkrepo"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/internal/server"
-	"github.com/mkrepo-dev/mkrepo/template"
+	"github.com/mkrepo-dev/mkrepo/template/license"
 	templatefs "github.com/mkrepo-dev/mkrepo/template/template"
 )
 
@@ -56,17 +56,15 @@ func main() {
 	defer db.Close()
 	go db.GarbageCollector(ctx, 12*time.Hour)
 
-	licenses, err := template.PrepareLicenses(template.LicenseFS)
+	licenses, err := mkrepo.PrepareLicenses(license.FS)
 	if err != nil {
 		log.Fatal("Cannot prepare licenses", err)
 	}
-	slog.Info("Licenses prepared", slog.Int("count", len(licenses)))
 
-	err = template.PrepareTemplates(db, templatefs.FS)
+	err = mkrepo.PrepareTemplates(db, templatefs.FS)
 	if err != nil {
 		log.Fatal("Cannot prepare templates", err)
 	}
-	slog.Info("Templates prepared")
 
 	repomaker := mkrepo.New(db, licenses)
 

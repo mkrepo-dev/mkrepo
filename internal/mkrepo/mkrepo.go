@@ -22,15 +22,15 @@ import (
 	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/internal/types"
-	"github.com/mkrepo-dev/mkrepo/template"
+	"github.com/mkrepo-dev/mkrepo/template/template"
 )
 
 type RepoMaker struct {
 	db       *database.DB
-	licenses template.Licenses
+	licenses Licenses
 }
 
-func New(db *database.DB, licenses template.Licenses) *RepoMaker {
+func New(db *database.DB, licenses Licenses) *RepoMaker {
 	return &RepoMaker{db: db, licenses: licenses}
 }
 
@@ -177,7 +177,7 @@ func (rm *RepoMaker) executeTemplateRepo(ctx context.Context, repo *types.Create
 	if err != nil {
 		return err
 	}
-	templateFS := template.RepoFS // TODO: Get from param or struct
+	templateFS := template.FS // TODO: Get from param or struct
 	if !templateInfo.BuildIn {
 		// TODO: try to find localy or download and cache from git
 		return errors.New("external template not implemented")
@@ -187,17 +187,17 @@ func (rm *RepoMaker) executeTemplateRepo(ctx context.Context, repo *types.Create
 		return err
 	}
 
-	context := template.TemplateContext{
+	context := TemplateContext{
 		Name:     repo.Name,
 		FullName: strings.TrimPrefix(strings.TrimPrefix(repo.Name, "https://"), "http://"),
 		Url:      remoteRepo.HtmlUrl,
 		Values:   repo.Initialize.Template.Values,
 	}
-	return template.ExecuteTemplateDir(dir, sub, context)
+	return ExecuteTemplateDir(dir, sub, context)
 }
 
 func addReadme(title string, dir string) error {
-	return createFile(filepath.Join(dir, "README.md"), template.Readme, template.ReadmeContext{Name: title})
+	return createFile(filepath.Join(dir, "README.md"), Readme, ReadmeContext{Name: title})
 }
 
 func (rm *RepoMaker) addLicense(createLicense types.CreateRepoInitializeLicense, dir string) error {
@@ -205,7 +205,7 @@ func (rm *RepoMaker) addLicense(createLicense types.CreateRepoInitializeLicense,
 	if !ok {
 		return fmt.Errorf("license %s not found", createLicense.Key)
 	}
-	err := createFile(filepath.Join(dir, license.Filename), license.Template, template.LicenseContext{
+	err := createFile(filepath.Join(dir, license.Filename), license.Template, LicenseContext{
 		Year:     createLicense.Year,
 		Fullname: createLicense.Fullname,
 		Project:  createLicense.Project,
