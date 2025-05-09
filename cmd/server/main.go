@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -43,7 +44,8 @@ func main() {
 
 	cfg, err := config.LoadConfig(*configFile)
 	if err != nil {
-		log.Fatal("Cannot load config", err)
+		slog.Error("Cannot load config", log.Err(err))
+		os.Exit(1)
 	}
 
 	providers := provider.NewProvidersFromConfig(cfg)
@@ -51,19 +53,22 @@ func main() {
 	ctx := context.Background()
 	db, err := database.New(ctx, cfg.DatabaseUri, cfg.Secret)
 	if err != nil {
-		log.Fatal("Cannot open database", err)
+		slog.Error("Cannot open database", log.Err(err))
+		os.Exit(1)
 	}
 	defer db.Close()
 	go db.GarbageCollector(ctx, 12*time.Hour)
 
 	licenses, err := mkrepo.PrepareLicenses(license.FS)
 	if err != nil {
-		log.Fatal("Cannot prepare licenses", err)
+		slog.Error("Cannot prepare licenses", log.Err(err))
+		os.Exit(1)
 	}
 
 	err = mkrepo.PrepareTemplates(db, templatefs.FS)
 	if err != nil {
-		log.Fatal("Cannot prepare templates", err)
+		slog.Error("Cannot prepare templates", log.Err(err))
+		os.Exit(1)
 	}
 
 	repomaker := mkrepo.New(db, licenses)
@@ -82,7 +87,8 @@ func main() {
 	select {
 	case err := <-errCh:
 		if err != nil && err != http.ErrServerClosed {
-			log.Fatal("Cannot run server", err)
+			slog.Error("Cannot run server", log.Err(err))
+			os.Exit(1)
 		}
 	case <-ctx.Done():
 		timeout := 15 * time.Second
@@ -91,7 +97,8 @@ func main() {
 		defer cancel()
 		err := srv.Shutdown(ctx)
 		if err != nil {
-			log.Fatal("Cannot gracefully shutdown server", err)
+			slog.Error("Cannot gracefully shutdown server", log.Err(err))
+			os.Exit(1)
 		}
 	}
 }
