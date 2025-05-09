@@ -33,25 +33,29 @@ var (
 // TODO: Take multiple filesystems so user can merge directory with buildin licenses
 func PrepareLicenses(licensesFS fs.FS) (Licenses, error) {
 	licenses := make(Licenses)
-	err := fs.WalkDir(licensesFS, ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return nil
+	entries, err := fs.ReadDir(licensesFS, ".")
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
 		}
 
 		license := License{Filename: "LICENSE"}
-		key := strings.TrimSuffix(d.Name(), ".txt.tmpl")
+		key := strings.TrimSuffix(entry.Name(), ".txt.tmpl")
 
-		f, err := licensesFS.Open(path)
+		f, err := licensesFS.Open(entry.Name())
 		if err != nil {
-			return err
+			slog.Error("Error opening license file", "file", entry.Name(), "error", err)
+			continue
 		}
 		defer f.Close()
 		content, err := io.ReadAll(f)
 		if err != nil {
-			return err
+			slog.Error("Error reading license file", "file", entry.Name(), "error", err)
+			continue
 		}
 
 		for line := range strings.Lines(string(content)) {
@@ -76,17 +80,14 @@ func PrepareLicenses(licensesFS fs.FS) (Licenses, error) {
 			}
 		}
 
-		license.Template, err = template.ParseFS(licensesFS, path)
+		license.Template, err = template.ParseFS(licensesFS, entry.Name())
 		if err != nil {
-			return err
+			slog.Error("Error parsing license template", "file", entry.Name(), "error", err)
+			continue
 		}
 
 		licenses[key] = license
 		slog.Debug("License prepared", "name", license.Title)
-		return nil
-	})
-	if err != nil {
-		return nil, err
 	}
 
 	slog.Info("Licenses prepared", slog.Int("count", len(licenses)))
