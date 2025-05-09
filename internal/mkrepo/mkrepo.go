@@ -81,10 +81,10 @@ func (rm *RepoMaker) InitializeRepo(ctx context.Context, client provider.Client,
 		return err
 	}
 
-	return gitInitAndPush(ctx, client, repo, remoteRepo.CloneUrl, dir)
+	return gitInitAndPush(ctx, repo, dir, remoteRepo.CloneUrl, client.Token().AccessToken)
 }
 
-func gitInitAndPush(ctx context.Context, client provider.Client, repo *types.CreateRepo, cloneUrl string, dir string) error {
+func gitInitAndPush(ctx context.Context, repo *types.CreateRepo, dir string, remote string, token string) error {
 	initOpt := &git.PlainInitOptions{
 		InitOptions: git.InitOptions{
 			DefaultBranch: plumbing.Main,
@@ -132,7 +132,7 @@ func gitInitAndPush(ctx context.Context, client provider.Client, repo *types.Cre
 
 	_, err = r.CreateRemote(&config.RemoteConfig{
 		Name: "origin",
-		URLs: []string{cloneUrl},
+		URLs: []string{remote},
 	})
 	if err != nil {
 		return err
@@ -140,7 +140,10 @@ func gitInitAndPush(ctx context.Context, client provider.Client, repo *types.Cre
 
 	return r.PushContext(ctx, &git.PushOptions{
 		FollowTags: true,
-		Auth:       &githttp.BasicAuth{Username: "mkrepo", Password: client.Token().AccessToken},
+		Auth: &githttp.BasicAuth{
+			Username: "mkrepo",
+			Password: token,
+		},
 	})
 }
 
