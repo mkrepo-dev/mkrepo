@@ -76,21 +76,6 @@
     </div>
     <div class="row g-2 my-1">
       <div class="col-4">
-        <label for="dockerfile" class="form-label mb-0"><small><b>Add <code>Dockerfile</code></b></small></label>
-        <select id="dockerfile" class="form-select form-select-sm" name="dockerfile">
-          <option value="">None</option>
-          <option value="go">Go</option>
-          <option value="node">Node</option>
-          <option value="python">Python</option>
-        </select>
-      </div>
-      <div class="col form-check" style="margin-top: 2.25rem;">
-        <input type="checkbox" class="form-check-input" id="dockerignore" name="dockerignore" value="checked" disabled>
-        <label for="dockerignore" class="form-check-label">Add <code>.dockerignore</code></label>
-      </div>
-    </div>
-    <div class="row g-2 my-1">
-      <div class="col-4">
         <label for="license" class="form-label mb-0"><small><b>Add <code>License</code></b></small></label>
         <select id="license" class="form-select form-select-sm" name="license">
           <option value="" vars="">None</option>
@@ -117,9 +102,30 @@
       </div>
     </div>
     <div class="row g-2 my-1">
+      <div class="col-4">
+        <label for="dockerfile" class="form-label mb-0"><small><b>Add <code>Dockerfile</code></b></small></label>
+        <select id="dockerfile" class="form-select form-select-sm" name="dockerfile">
+          <option value="">None</option>
+          <option value="go">Go</option>
+          <option value="node">Node</option>
+          <option value="python">Python</option>
+        </select>
+      </div>
+      <div class="col form-check" style="margin-top: 2.25rem;">
+        <input type="checkbox" class="form-check-input" id="dockerignore" name="dockerignore" value="" disabled>
+        <label for="dockerignore" class="form-check-label">Add <code>.dockerignore</code></label>
+      </div>
+    </div>
+    <div class="row g-2 my-1">
       <div class="col form-check">
         <input type="checkbox" class="form-check-input" id="tag" name="tag" value="v0.0.0">
         <label for="tag" class="form-check-label">Create init tag <code>v0.0.0</code></label>
+      </div>
+    </div>
+    <div class="row g-2 my-1">
+      <div class="col form-check">
+        <input type="checkbox" class="form-check-input" id="sha256" name="sha256" value="">
+        <label for="sha256" class="form-check-label">Use SHA-256 for git object format</label>
       </div>
     </div>
     <hr class="my-3">

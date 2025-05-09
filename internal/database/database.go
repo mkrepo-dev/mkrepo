@@ -9,9 +9,12 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"time"
 
-	"ariga.io/atlas-go-sdk/atlasexec"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/pgx"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -42,20 +45,31 @@ func New(ctx context.Context, connectionUri string, encryptionKey string) (*DB, 
 		return nil, err
 	}
 
-	workdir, err := atlasexec.NewWorkingDir(atlasexec.WithMigrations(migrations.FS))
+	//workdir, err := atlasexec.NewWorkingDir(atlasexec.WithMigrations(migrations.FS))
+	//if err != nil {
+	//	return nil, err
+	//}
+	//defer workdir.Close()
+	//client, err := atlasexec.NewClient(workdir.Path(), "atlas")
+	//if err != nil {
+	//	return nil, err
+	//}
+	//res, err := client.MigrateApply(ctx, &atlasexec.MigrateApplyParams{URL: connectionUri})
+	//if err != nil {
+	//	return nil, err
+	//}
+	driver, err := iofs.New(migrations.FS, ".")
 	if err != nil {
 		return nil, err
 	}
-	defer workdir.Close()
-	client, err := atlasexec.NewClient(workdir.Path(), "atlas")
+	m, err := migrate.NewWithSourceInstance("iofs", driver, strings.ReplaceAll(connectionUri, "postgres://", "pgx://"))
 	if err != nil {
 		return nil, err
 	}
-	res, err := client.MigrateApply(ctx, &atlasexec.MigrateApplyParams{URL: connectionUri})
-	if err != nil {
+	err = m.Up()
+	if err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return nil, err
 	}
-	slog.Info("Database migration", slog.Int("applied", len(res.Applied)))
 
 	err = db.Cleanup(ctx)
 	if err != nil {

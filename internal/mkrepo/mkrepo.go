@@ -2,7 +2,6 @@ package mkrepo
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -10,14 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	texttemplate "text/template"
-	"time"
-
-	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/config"
-	"github.com/go-git/go-git/v5/plumbing"
-	fmtconfig "github.com/go-git/go-git/v5/plumbing/format/config"
-	"github.com/go-git/go-git/v5/plumbing/object"
-	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 
 	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
@@ -81,70 +72,7 @@ func (rm *RepoMaker) InitializeRepo(ctx context.Context, client provider.Client,
 		return err
 	}
 
-	return gitInitAndPush(ctx, repo, dir, remoteRepo.CloneUrl, client.Token().AccessToken)
-}
-
-func gitInitAndPush(ctx context.Context, repo *types.CreateRepo, dir string, remote string, token string) error {
-	initOpt := &git.PlainInitOptions{
-		InitOptions: git.InitOptions{
-			DefaultBranch: plumbing.Main,
-		},
-	}
-	if repo.Sha256 != nil && *repo.Sha256 {
-		initOpt.ObjectFormat = fmtconfig.SHA256
-	}
-	r, err := git.PlainInitWithOptions(dir, initOpt)
-	if err != nil {
-		return err
-	}
-	wt, err := r.Worktree()
-	if err != nil {
-		return err
-	}
-
-	err = wt.AddWithOptions(&git.AddOptions{All: true})
-	if err != nil {
-		return err
-	}
-	signature := &object.Signature{
-		Name:  repo.Initialize.Author.Name,
-		Email: repo.Initialize.Author.Email,
-		When:  time.Now(),
-	}
-	commit, err := wt.Commit("Initial commit", &git.CommitOptions{Author: signature})
-	if err != nil {
-		return err
-	}
-	_, err = r.CommitObject(commit)
-	if err != nil {
-		return err
-	}
-
-	if repo.Initialize.Tag != nil {
-		_, err = r.CreateTag(*repo.Initialize.Tag, commit, &git.CreateTagOptions{
-			Message: "Release " + *repo.Initialize.Tag,
-			Tagger:  signature,
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	_, err = r.CreateRemote(&config.RemoteConfig{
-		Name: "origin",
-		URLs: []string{remote},
-	})
-	if err != nil {
-		return err
-	}
-
-	return r.PushContext(ctx, &git.PushOptions{
-		FollowTags: true,
-		Auth: &githttp.BasicAuth{
-			Username: "mkrepo",
-			Password: token,
-		},
-	})
+	return pushRepo(ctx, repo, dir, remoteRepo.CloneUrl, client.Token().AccessToken)
 }
 
 func (rm *RepoMaker) addFiles(ctx context.Context, repo *types.CreateRepo, remoteRepo provider.RemoteRepo, dir string) error {
@@ -180,10 +108,14 @@ func (rm *RepoMaker) executeTemplateRepo(ctx context.Context, repo *types.Create
 	if err != nil {
 		return err
 	}
-	templateFS := template.FS // TODO: Get from param or struct
+	var templateFS fs.FS = template.FS // TODO: Get from param or struct
 	if !templateInfo.BuildIn {
-		// TODO: try to find localy or download and cache from git
-		return errors.New("external template not implemented")
+		// TODO: Try cache
+		templateDir, err := cloneRepo(ctx, *templateInfo.Url, templateInfo.Version)
+		if err != nil {
+			return err
+		}
+		templateFS = os.DirFS(templateDir)
 	}
 	sub, err := fs.Sub(templateFS, filepath.Join(templateInfo.FullName, templateInfo.Version))
 	if err != nil {
@@ -192,7 +124,7 @@ func (rm *RepoMaker) executeTemplateRepo(ctx context.Context, repo *types.Create
 
 	context := TemplateContext{
 		Name:     repo.Name,
-		FullName: strings.TrimPrefix(strings.TrimPrefix(repo.Name, "https://"), "http://"),
+		FullName: strings.TrimPrefix(strings.TrimPrefix(repo.Name, "https://"), "http://"), // TODO: Fix fullname here
 		Url:      remoteRepo.HtmlUrl,
 		Values:   repo.Initialize.Template.Values,
 	}

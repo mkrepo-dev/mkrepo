@@ -2,5 +2,5 @@ package migrations
 
 import "embed"
 
-//go:embed atlas.sum *.sql
+//go:embed *.sql
 var FS embed.FS

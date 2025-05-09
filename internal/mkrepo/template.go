@@ -22,6 +22,7 @@ type ReadmeContext struct {
 	Name string
 }
 
+// TODO: Add more context
 type TemplateContext struct {
 	FullName string
 	Name     string
