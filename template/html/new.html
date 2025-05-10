@@ -68,9 +68,9 @@
         <label for="gitignore" class="form-label mb-0"><small><b>Add <code>.gitignore</code></b></small></label>
         <select id="gitignore" class="form-select form-select-sm" name="gitignore">
           <option value="">None</option>
-          <option value="go">Go</option>
-          <option value="node">Node</option>
-          <option value="python">Python</option>
+          {{range .Gitignores}}
+          <option value="{{.}}">{{.}}</option>
+          {{end}}
         </select>
       </div>
     </div>

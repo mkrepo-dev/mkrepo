@@ -16,10 +16,11 @@ import (
 	"github.com/mkrepo-dev/mkrepo/internal/database"
 )
 
-var Readme = template.Must(template.New("readme").Parse("# {{.Name}}\n"))
+var Readme = template.Must(template.New("").Parse("# {{.Name}}{{if .Description}}\n\n{{.Description}}{{end}}\n"))
 
 type ReadmeContext struct {
-	Name string
+	Name        string
+	Description *string
 }
 
 // TODO: Add more context

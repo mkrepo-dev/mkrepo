@@ -1,0 +1,19 @@
+FROM golang:1.24 AS build
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY ./ ./
+RUN task build
+
+
+FROM debian:bookworm
+
+WORKDIR /app
+
+COPY --from=build /app/bin/ .
+COPY --from=build /app/LICENSE .
+
+CMD ["./server"]

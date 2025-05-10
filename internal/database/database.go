@@ -45,19 +45,6 @@ func New(ctx context.Context, connectionUri string, encryptionKey string) (*DB, 
 		return nil, err
 	}
 
-	//workdir, err := atlasexec.NewWorkingDir(atlasexec.WithMigrations(migrations.FS))
-	//if err != nil {
-	//	return nil, err
-	//}
-	//defer workdir.Close()
-	//client, err := atlasexec.NewClient(workdir.Path(), "atlas")
-	//if err != nil {
-	//	return nil, err
-	//}
-	//res, err := client.MigrateApply(ctx, &atlasexec.MigrateApplyParams{URL: connectionUri})
-	//if err != nil {
-	//	return nil, err
-	//}
 	driver, err := iofs.New(migrations.FS, ".")
 	if err != nil {
 		return nil, err

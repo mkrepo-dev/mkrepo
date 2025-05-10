@@ -15,7 +15,14 @@ import (
 	"github.com/mkrepo-dev/mkrepo/static"
 )
 
-func NewServer(cfg config.Config, db *database.DB, repomaker *mkrepo.RepoMaker, providers provider.Providers, licenses mkrepo.Licenses) *http.Server {
+func NewServer(
+	cfg config.Config,
+	db *database.DB,
+	repomaker *mkrepo.RepoMaker,
+	providers provider.Providers,
+	gitignores []string,
+	licenses mkrepo.Licenses,
+) *http.Server {
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /", handler.Index(providers))
@@ -26,7 +33,7 @@ func NewServer(cfg config.Config, db *database.DB, repomaker *mkrepo.RepoMaker, 
 	mux.HandleFunc("GET /auth/logout", handler.Logout(db))
 	mux.HandleFunc("GET /auth/oauth2/callback/{provider}", handler.OAuth2Callback(db, providers))
 
-	mux.Handle("GET /new", middleware.MustAuthenticate(handler.MkrepoForm(db, providers, licenses)))
+	mux.Handle("GET /new", middleware.MustAuthenticate(handler.MkrepoForm(db, providers, gitignores, licenses)))
 	mux.Handle("POST /new", middleware.MustAuthenticate(handler.MkrepoCreate(db, repomaker, providers, licenses)))
 
 	mux.Handle("GET /templates", handler.Templates(db)) // TODO: Remove this

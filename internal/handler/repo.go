@@ -2,7 +2,7 @@ package handler
 
 import (
 	"errors"
-	htmltemplate "html/template"
+	"html/template"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -18,16 +18,17 @@ import (
 	"github.com/mkrepo-dev/mkrepo/template/html"
 )
 
-func MkrepoForm(db *database.DB, providers provider.Providers, licenses mkrepo.Licenses) http.Handler {
+func MkrepoForm(db *database.DB, providers provider.Providers, gitignores []string, licenses mkrepo.Licenses) http.Handler {
 	type newRepoFormContext struct {
 		baseContext
 		Name        string
 		Provider    provider.Provider
 		Owners      []provider.RepoOwner
+		Gitignores  []string
 		Licenses    mkrepo.Licenses
 		CurrentYear int
 	}
-	tmpl := htmltemplate.Must(htmltemplate.ParseFS(html.FS, "base.html", "new.html"))
+	tmpl := template.Must(template.ParseFS(html.FS, "base.html", "new.html"))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		account := middleware.Account(r.Context())
 		provider := providers[account.Provider]
@@ -52,6 +53,7 @@ func MkrepoForm(db *database.DB, providers provider.Providers, licenses mkrepo.L
 			Provider:    provider,
 			Owners:      owners,
 			Name:        r.FormValue("name"),
+			Gitignores:  gitignores,
 			Licenses:    licenses,
 			CurrentYear: time.Now().Year(),
 		}

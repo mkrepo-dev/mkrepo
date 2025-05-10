@@ -20,8 +20,9 @@ import (
 	"github.com/mkrepo-dev/mkrepo/internal/mkrepo"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/internal/server"
+	"github.com/mkrepo-dev/mkrepo/template/gitignore"
 	"github.com/mkrepo-dev/mkrepo/template/license"
-	templatefs "github.com/mkrepo-dev/mkrepo/template/template"
+	"github.com/mkrepo-dev/mkrepo/template/template"
 )
 
 func main() {
@@ -59,21 +60,27 @@ func main() {
 	defer db.Close()
 	go db.GarbageCollector(ctx, 12*time.Hour)
 
+	gitignores, err := mkrepo.PrepareGitignores(gitignore.FS)
+	if err != nil {
+		slog.Error("Cannot prepare gitignores", log.Err(err))
+		os.Exit(1)
+	}
+
 	licenses, err := mkrepo.PrepareLicenses(license.FS)
 	if err != nil {
 		slog.Error("Cannot prepare licenses", log.Err(err))
 		os.Exit(1)
 	}
 
-	err = mkrepo.PrepareTemplates(db, templatefs.FS)
+	err = mkrepo.PrepareTemplates(db, template.FS)
 	if err != nil {
 		slog.Error("Cannot prepare templates", log.Err(err))
 		os.Exit(1)
 	}
 
-	repomaker := mkrepo.New(db, licenses)
+	repomaker := mkrepo.New(db, gitignore.FS, licenses)
 
-	srv := server.NewServer(cfg, db, repomaker, providers, licenses)
+	srv := server.NewServer(cfg, db, repomaker, providers, gitignores, licenses)
 
 	errCh := make(chan error)
 	go func() {

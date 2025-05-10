@@ -18,9 +18,9 @@ type License struct {
 }
 
 type LicenseContext struct {
-	Year     *int
-	Fullname *string
-	Project  *string
+	Year    *int
+	Owner   *string
+	Project *string
 }
 
 type Licenses map[string]License
@@ -44,7 +44,7 @@ func PrepareLicenses(licensesFS fs.FS) (Licenses, error) {
 		}
 
 		license := License{Filename: "LICENSE"}
-		key := strings.TrimSuffix(entry.Name(), ".txt.tmpl")
+		key := strings.TrimSuffix(entry.Name(), ".tmpl")
 
 		f, err := licensesFS.Open(entry.Name())
 		if err != nil {
