@@ -166,6 +166,7 @@ func (client *GitLabClient) GetPosibleRepoOwners(ctx context.Context) ([]RepoOwn
 }
 
 func (client *GitLabClient) CreateRemoteRepo(ctx context.Context, repo CreateRepo) (RemoteRepo, error) {
+	// TODO: Add support for sha256 once gitlab client supports it
 	opt := &gitlab.CreateProjectOptions{
 		Name:        &repo.Name,
 		Description: repo.Description,
@@ -180,7 +181,6 @@ func (client *GitLabClient) CreateRemoteRepo(ctx context.Context, repo CreateRep
 	}
 	r, _, err := client.Projects.CreateProject(opt)
 	if err != nil {
-		// TODO: Report if repo already exists
 		return RemoteRepo{}, err
 	}
 	return RemoteRepo{

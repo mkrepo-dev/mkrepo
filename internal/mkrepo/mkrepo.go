@@ -14,17 +14,17 @@ import (
 	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/internal/types"
-	"github.com/mkrepo-dev/mkrepo/template/template"
 )
 
 type RepoMaker struct {
-	db         *database.DB
-	licenses   Licenses
-	gitignores fs.FS
+	db               *database.DB
+	licenses         Licenses
+	gitignores       fs.FS
+	buildInTemplates fs.FS
 }
 
-func New(db *database.DB, gitignores fs.FS, licenses Licenses) *RepoMaker {
-	return &RepoMaker{db: db, gitignores: gitignores, licenses: licenses}
+func New(db *database.DB, gitignores fs.FS, licenses Licenses, buildInTemplates fs.FS) *RepoMaker {
+	return &RepoMaker{db: db, gitignores: gitignores, licenses: licenses, buildInTemplates: buildInTemplates}
 }
 
 // Create remote repo and initialize it if needed. Returns url to the repo.
@@ -34,6 +34,7 @@ func (rm *RepoMaker) CreateNewRepo(ctx context.Context, client provider.Client, 
 		Name:        repo.Name,
 		Description: repo.Description,
 		Visibility:  provider.RepoVisibility(*repo.Visibility),
+		Sha256:      repo.Sha256,
 	})
 	if err != nil {
 		return "", err
@@ -93,23 +94,21 @@ func (rm *RepoMaker) addFiles(ctx context.Context, repo *types.CreateRepo, remot
 		}
 	}
 
-	// TODO: Init gitignore, Dockerfile and .dockerignore
-
 	if repo.Initialize.Gitignore != nil {
-		dst := filepath.Join(dir, ".gitignore")
-		src := *repo.Initialize.Gitignore + ".gitignore"
-		err := addFile(dst, rm.gitignores, src)
+		err := addGitignore(dir, rm.gitignores, *repo.Initialize.Gitignore)
 		if err != nil {
 			return err
 		}
 	}
 
 	if repo.Initialize.License != nil {
-		err := rm.addLicense(*repo.Initialize.License, dir)
+		err := addLicense(dir, rm.licenses, *repo.Initialize.License)
 		if err != nil {
 			return err
 		}
 	}
+
+	// TODO: Init Dockerfile and .dockerignore
 
 	return nil
 }
@@ -119,7 +118,7 @@ func (rm *RepoMaker) executeTemplateRepo(ctx context.Context, repo *types.Create
 	if err != nil {
 		return err
 	}
-	var templateFS fs.FS = template.FS // TODO: Get from param or struct
+	var templateFS fs.FS
 	if !templateInfo.BuildIn {
 		// TODO: Try cache
 		templateDir, err := cloneRepo(ctx, *templateInfo.Url, templateInfo.Version)
@@ -127,23 +126,70 @@ func (rm *RepoMaker) executeTemplateRepo(ctx context.Context, repo *types.Create
 			return err
 		}
 		templateFS = os.DirFS(templateDir)
-	}
-	sub, err := fs.Sub(templateFS, filepath.Join(templateInfo.FullName, templateInfo.Version))
-	if err != nil {
-		return err
+	} else {
+		templateFS, err = fs.Sub(rm.buildInTemplates, filepath.Join(templateInfo.FullName, templateInfo.Version))
+		if err != nil {
+			return err
+		}
 	}
 
 	context := TemplateContext{
-		Name:     repo.Name,
-		FullName: strings.TrimPrefix(strings.TrimPrefix(repo.Name, "https://"), "http://"), // TODO: Fix fullname here
-		Url:      remoteRepo.HtmlUrl,
-		Values:   repo.Initialize.Template.Values,
+		Name:        repo.Name,
+		Description: repo.Description,
+		FullName:    strings.TrimPrefix(strings.TrimPrefix(remoteRepo.HtmlUrl, "https://"), "http://"),
+		Url:         remoteRepo.HtmlUrl,
+		Values:      repo.Initialize.Template.Values,
 	}
-	return ExecuteTemplateDir(dir, sub, context)
+	return ExecuteTemplateDir(dir, templateFS, context)
 }
 
+type readmeContext struct {
+	Name        string
+	Description *string
+}
+
+var readme = texttemplate.Must(texttemplate.New("").Parse("# {{.Name}}{{if .Description}}\n\n{{.Description}}{{end}}\n"))
+
 func addReadme(dir string, title string, desc *string) error {
-	return createFile(filepath.Join(dir, "README.md"), Readme, ReadmeContext{Name: title, Description: desc})
+	return createFile(filepath.Join(dir, "README.md"), readme, readmeContext{Name: title, Description: desc})
+}
+
+func addGitignore(dir string, gitignoreFS fs.FS, gitignoreName string) error {
+	dst := filepath.Join(dir, ".gitignore")
+	src := gitignoreName + ".gitignore"
+	return addFile(dst, gitignoreFS, src)
+}
+
+func addLicense(dir string, licenses Licenses, createLicense types.CreateRepoInitializeLicense) error {
+	license, ok := licenses[createLicense.Key]
+	if !ok {
+		return fmt.Errorf("license %s not found", createLicense.Key)
+	}
+	err := createFile(filepath.Join(dir, license.Filename), license.Template, LicenseContext{
+		Year:    createLicense.Year,
+		Owner:   createLicense.Fullname,
+		Project: createLicense.Project,
+	})
+	if err != nil {
+		return err
+	}
+	for _, licenseKey := range license.With {
+		createLicense.Key = licenseKey
+		err := addLicense(dir, licenses, createLicense)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func createFile(filepath string, tmpl *texttemplate.Template, context any) error {
+	f, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return tmpl.Execute(f, context)
 }
 
 func addFile(dstFile string, srcFS fs.FS, srcFile string) error {
@@ -165,36 +211,4 @@ func addFile(dstFile string, srcFS fs.FS, srcFile string) error {
 
 	_, err = io.Copy(dst, f)
 	return err
-}
-
-func (rm *RepoMaker) addLicense(createLicense types.CreateRepoInitializeLicense, dir string) error {
-	license, ok := rm.licenses[createLicense.Key]
-	if !ok {
-		return fmt.Errorf("license %s not found", createLicense.Key)
-	}
-	err := createFile(filepath.Join(dir, license.Filename), license.Template, LicenseContext{
-		Year:    createLicense.Year,
-		Owner:   createLicense.Fullname,
-		Project: createLicense.Project,
-	})
-	if err != nil {
-		return err
-	}
-	for _, licenseKey := range license.With {
-		createLicense.Key = licenseKey
-		err := rm.addLicense(createLicense, dir)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func createFile(filepath string, tmpl *texttemplate.Template, context any) error {
-	f, err := os.Create(filepath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	return tmpl.Execute(f, context)
 }

@@ -16,19 +16,13 @@ import (
 	"github.com/mkrepo-dev/mkrepo/internal/database"
 )
 
-var Readme = template.Must(template.New("").Parse("# {{.Name}}{{if .Description}}\n\n{{.Description}}{{end}}\n"))
-
-type ReadmeContext struct {
-	Name        string
-	Description *string
-}
-
 // TODO: Add more context
 type TemplateContext struct {
-	FullName string
-	Name     string
-	Url      string
-	Values   any
+	Name        string
+	Description *string
+	FullName    string
+	Url         string
+	Values      any
 }
 
 func ExecuteTemplateDir(dstDir string, templateFS fs.FS, context TemplateContext) error {

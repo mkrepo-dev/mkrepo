@@ -20,6 +20,7 @@ import (
 	"github.com/mkrepo-dev/mkrepo/internal/mkrepo"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/internal/server"
+	"github.com/mkrepo-dev/mkrepo/template/docker"
 	"github.com/mkrepo-dev/mkrepo/template/gitignore"
 	"github.com/mkrepo-dev/mkrepo/template/license"
 	"github.com/mkrepo-dev/mkrepo/template/template"
@@ -72,13 +73,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	_, _ = mkrepo.PrepareDockerfiles(docker.FS)
+
 	err = mkrepo.PrepareTemplates(db, template.FS)
 	if err != nil {
 		slog.Error("Cannot prepare templates", log.Err(err))
 		os.Exit(1)
 	}
 
-	repomaker := mkrepo.New(db, gitignore.FS, licenses)
+	repomaker := mkrepo.New(db, gitignore.FS, licenses, template.FS)
 
 	srv := server.NewServer(cfg, db, repomaker, providers, gitignores, licenses)
 

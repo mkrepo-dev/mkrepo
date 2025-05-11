@@ -1,53 +1,55 @@
 package mkrepo_test
 
 import (
+	"io/fs"
 	"testing"
+	"testing/fstest"
 
 	"github.com/mkrepo-dev/mkrepo/internal/mkrepo"
 	"github.com/mkrepo-dev/mkrepo/template/gitignore"
-	"github.com/spf13/afero"
 )
 
 func TestPrepareGitignore(t *testing.T) {
 	t.Parallel()
-	cmp := func(t *testing.T, want map[string]struct{}, got []string) {
-		t.Helper()
-		for _, g := range got {
-			if _, ok := want[g]; !ok {
-				t.Errorf("Unexpected gitignore: %s", g)
-			}
-			delete(want, g)
-		}
-		if len(want) > 0 {
-			t.Fatalf("Missing gitignore: %v", want)
-		}
+	tests := []struct {
+		name string
+		args fs.FS
+		want map[string]struct{}
+	}{
+		{
+			"BuildIn",
+			gitignore.FS,
+			map[string]struct{}{
+				"Go": {},
+			},
+		},
+		{
+			"IgnoreSubDirs",
+			fstest.MapFS{
+				"test/.gitignore": {Data: []byte("test")},
+				"Go.gitignore":    {Data: []byte("test")},
+			},
+			map[string]struct{}{
+				"Go": {},
+			},
+		},
 	}
 
-	t.Run("BuildIn", func(t *testing.T) {
-		want := map[string]struct{}{
-			"Go": {},
-		}
-		got, err := mkrepo.PrepareGitignores(gitignore.FS)
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
-		}
-		cmp(t, want, got)
-	})
-	t.Run("IgnoreSubDirs", func(t *testing.T) {
-		fs := afero.NewMemMapFs()
-		err := afero.WriteFile(fs, "test/.gitignore", []byte("test"), 0644)
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
-		}
-		err = afero.WriteFile(fs, "Go.gitignore", []byte("test"), 0644)
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
-		}
-		want := map[string]struct{}{"Go": {}}
-		got, err := mkrepo.PrepareGitignores(afero.NewIOFS(fs))
-		if err != nil {
-			t.Fatalf("Unexpected error: %v", err)
-		}
-		cmp(t, want, got)
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := mkrepo.PrepareGitignores(tt.args)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			for _, g := range got {
+				if _, ok := tt.want[g]; !ok {
+					t.Errorf("Unexpected gitignore: %s", g)
+				}
+				delete(tt.want, g)
+			}
+			if len(tt.want) > 0 {
+				t.Fatalf("Missing gitignore: %v", tt.want)
+			}
+		})
+	}
 }

@@ -1,4 +1,4 @@
-package mkrepo_test
+package mkrepo
 
 import (
 	"bytes"
@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/mkrepo-dev/mkrepo/internal/mkrepo"
 	"github.com/mkrepo-dev/mkrepo/internal/test"
 	"github.com/mkrepo-dev/mkrepo/template/template"
 )
@@ -20,12 +19,12 @@ func TestReadmeTemplate(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		args mkrepo.ReadmeContext
+		args readmeContext
 		want []byte
 	}{
 		{
 			name: "WithoutDescription",
-			args: mkrepo.ReadmeContext{
+			args: readmeContext{
 				Name:        "test",
 				Description: nil,
 			},
@@ -33,7 +32,7 @@ func TestReadmeTemplate(t *testing.T) {
 		},
 		{
 			name: "WithDescription",
-			args: mkrepo.ReadmeContext{
+			args: readmeContext{
 				Name:        "test",
 				Description: ptr("This is a test description"),
 			},
@@ -41,7 +40,7 @@ func TestReadmeTemplate(t *testing.T) {
 		},
 		{
 			name: "WithEmptyDescription",
-			args: mkrepo.ReadmeContext{
+			args: readmeContext{
 				Name:        "test",
 				Description: ptr(""),
 			},
@@ -52,7 +51,7 @@ func TestReadmeTemplate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var got bytes.Buffer
-			err := mkrepo.Readme.Execute(&got, tt.args)
+			err := readme.Execute(&got, tt.args)
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
@@ -77,13 +76,13 @@ func TestExecuteTemplateDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Cannot create sub FS: %v", err)
 	}
-	context := mkrepo.TemplateContext{
+	context := TemplateContext{
 		FullName: "github.com/mkrepo-dev/mkrepo",
 		Values: map[string]string{
 			"goVersion": "1.24",
 		},
 	}
-	err = mkrepo.ExecuteTemplateDir(dir, templateFS, context)
+	err = ExecuteTemplateDir(dir, templateFS, context)
 	if err != nil {
 		t.Fatalf("Template execution: %v", err)
 	}

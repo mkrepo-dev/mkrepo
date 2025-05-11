@@ -2,11 +2,12 @@ package mkrepo
 
 import (
 	"io/fs"
+	"log/slog"
 	"strings"
 )
 
-func PrepareGitignores(gitignoreFS fs.FS) ([]string, error) {
-	entries, err := fs.ReadDir(gitignoreFS, ".")
+func PrepareGitignores(gitignoresFS fs.FS) ([]string, error) {
+	entries, err := fs.ReadDir(gitignoresFS, ".")
 	if err != nil {
 		return nil, err
 	}
@@ -16,7 +17,12 @@ func PrepareGitignores(gitignoreFS fs.FS) ([]string, error) {
 			continue
 		}
 
-		gitignores = append(gitignores, strings.TrimSuffix(entry.Name(), ".gitignore"))
+		gitignore := strings.TrimSuffix(entry.Name(), ".gitignore")
+		gitignores = append(gitignores, gitignore)
+		slog.Debug("Gitignore prepared", "name", gitignore)
 	}
+
+	slog.Info("Gitignores prepared", slog.Int("count", len(gitignores)))
+
 	return gitignores, nil
 }

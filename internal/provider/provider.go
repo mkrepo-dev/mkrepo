@@ -44,6 +44,7 @@ type CreateRepo struct {
 	Name        string
 	Description *string
 	Visibility  RepoVisibility
+	Sha256      *bool
 }
 
 type RemoteRepo struct {
