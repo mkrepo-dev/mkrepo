@@ -79,7 +79,7 @@
         <label for="license" class="form-label mb-0"><small><b>Add <code>License</code></b></small></label>
         <select id="license" class="form-select form-select-sm" name="license">
           <option value="" vars="">None</option>
-          {{range $key, $license:= .Licenses}}
+          {{range $key, $license := .Licenses}}
           <option value="{{$key}}" vars="{{range $license.Vars}}{{.}},{{end}}">{{$license.Title}}</option>
           {{end}}
         </select>
@@ -106,9 +106,9 @@
         <label for="dockerfile" class="form-label mb-0"><small><b>Add <code>Dockerfile</code></b></small></label>
         <select id="dockerfile" class="form-select form-select-sm" name="dockerfile">
           <option value="">None</option>
-          <option value="go">Go</option>
-          <option value="node">Node</option>
-          <option value="python">Python</option>
+          {{range $key, $dockerfile := .Dockerfiles}}
+          <option value="{{$key}}" {{if $dockerfile.Dockerignore}}hasdockerignore{{end}}>{{$key}}</option>
+          {{end}}
         </select>
       </div>
       <div class="col form-check" style="margin-top: 2.25rem;">

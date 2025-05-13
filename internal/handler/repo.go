@@ -18,7 +18,7 @@ import (
 	"github.com/mkrepo-dev/mkrepo/template/html"
 )
 
-func MkrepoForm(db *database.DB, providers provider.Providers, gitignores []string, licenses mkrepo.Licenses) http.Handler {
+func MkrepoForm(db *database.DB, providers provider.Providers, gitignores []string, licenses mkrepo.Licenses, dockerfiles mkrepo.Dockerfiles) http.Handler {
 	type newRepoFormContext struct {
 		baseContext
 		Name        string
@@ -26,6 +26,7 @@ func MkrepoForm(db *database.DB, providers provider.Providers, gitignores []stri
 		Owners      []provider.RepoOwner
 		Gitignores  []string
 		Licenses    mkrepo.Licenses
+		Dockerfiles mkrepo.Dockerfiles
 		CurrentYear int
 	}
 	tmpl := template.Must(template.ParseFS(html.FS, "base.html", "new.html"))
@@ -55,13 +56,14 @@ func MkrepoForm(db *database.DB, providers provider.Providers, gitignores []stri
 			Name:        r.FormValue("name"),
 			Gitignores:  gitignores,
 			Licenses:    licenses,
+			Dockerfiles: dockerfiles,
 			CurrentYear: time.Now().Year(),
 		}
 		render(w, tmpl, context)
 	})
 }
 
-func MkrepoCreate(db *database.DB, repomaker *mkrepo.RepoMaker, providers provider.Providers, licenses mkrepo.Licenses) http.Handler {
+func MkrepoCreate(db *database.DB, repomaker *mkrepo.RepoMaker, providers provider.Providers) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		account := middleware.Account(r.Context())
 		// TODO: Do better validation of input values

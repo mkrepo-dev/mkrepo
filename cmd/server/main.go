@@ -73,7 +73,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	_, _ = mkrepo.PrepareDockerfiles(docker.FS)
+	dockerfiles, err := mkrepo.PrepareDockerfiles(docker.FS)
+	if err != nil {
+		slog.Error("Cannot prepare dockerfiles", log.Err(err))
+		os.Exit(1)
+	}
 
 	err = mkrepo.PrepareTemplates(db, template.FS)
 	if err != nil {
@@ -81,9 +85,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	repomaker := mkrepo.New(db, gitignore.FS, licenses, template.FS)
+	repomaker := mkrepo.New(db, gitignore.FS, licenses, dockerfiles, docker.FS, template.FS)
 
-	srv := server.NewServer(cfg, db, repomaker, providers, gitignores, licenses)
+	srv := server.NewServer(cfg, db, repomaker, providers, gitignores, licenses, dockerfiles)
 
 	errCh := make(chan error)
 	go func() {

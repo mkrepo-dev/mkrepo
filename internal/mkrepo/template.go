@@ -16,42 +16,6 @@ import (
 	"github.com/mkrepo-dev/mkrepo/internal/database"
 )
 
-// TODO: Add more context
-type TemplateContext struct {
-	Name        string
-	Description *string
-	FullName    string
-	Url         string
-	Values      any
-}
-
-func ExecuteTemplateDir(dstDir string, templateFS fs.FS, context TemplateContext) error {
-	err := fs.WalkDir(templateFS, ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return nil
-		}
-		if d.Name() == "mkrepo.yaml" {
-			return nil
-		}
-
-		t, err := template.ParseFS(templateFS, path)
-		if err != nil {
-			return err
-		}
-		f, err := os.Create(filepath.Join(dstDir, strings.TrimSuffix(path, ".tmpl")))
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-
-		return t.Execute(f, context)
-	})
-	return err
-}
-
 type MkrepoFile struct {
 	Description *string        `json:"description,omitempty"`
 	Lang        *string        `json:"lang,omitempty"`
@@ -129,4 +93,31 @@ func prepareTemplateVersion(db *database.DB, templatesFS fs.FS, name string, ver
 
 	slog.Debug("Template prepared", "name", name, "version", version)
 	return nil
+}
+
+func executeTemplateDir(dstDir string, templateFS fs.FS, context repoInitContext) error {
+	err := fs.WalkDir(templateFS, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if d.Name() == "mkrepo.yaml" {
+			return nil
+		}
+
+		t, err := template.ParseFS(templateFS, path)
+		if err != nil {
+			return err
+		}
+		f, err := os.Create(filepath.Join(dstDir, strings.TrimSuffix(path, ".tmpl")))
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		return t.Execute(f, context)
+	})
+	return err
 }

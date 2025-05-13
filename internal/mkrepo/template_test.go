@@ -19,12 +19,12 @@ func TestReadmeTemplate(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		args readmeContext
+		args repoInitContext
 		want []byte
 	}{
 		{
 			name: "WithoutDescription",
-			args: readmeContext{
+			args: repoInitContext{
 				Name:        "test",
 				Description: nil,
 			},
@@ -32,7 +32,7 @@ func TestReadmeTemplate(t *testing.T) {
 		},
 		{
 			name: "WithDescription",
-			args: readmeContext{
+			args: repoInitContext{
 				Name:        "test",
 				Description: ptr("This is a test description"),
 			},
@@ -40,7 +40,7 @@ func TestReadmeTemplate(t *testing.T) {
 		},
 		{
 			name: "WithEmptyDescription",
-			args: readmeContext{
+			args: repoInitContext{
 				Name:        "test",
 				Description: ptr(""),
 			},
@@ -76,13 +76,13 @@ func TestExecuteTemplateDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Cannot create sub FS: %v", err)
 	}
-	context := TemplateContext{
+	context := repoInitContext{
 		FullName: "github.com/mkrepo-dev/mkrepo",
 		Values: map[string]string{
 			"goVersion": "1.24",
 		},
 	}
-	err = ExecuteTemplateDir(dir, templateFS, context)
+	err = executeTemplateDir(dir, templateFS, context)
 	if err != nil {
 		t.Fatalf("Template execution: %v", err)
 	}

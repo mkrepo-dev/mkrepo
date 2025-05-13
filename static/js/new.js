@@ -8,18 +8,6 @@ function updateUrl() {
   $("#url-path").text(path+"/"+name);
 }
 
-$(document).ready(updateDockerIgnore);
-$("#dockerfile").on("change", updateDockerIgnore);
-
-function updateDockerIgnore() {
-  if ($("#dockerfile").val() == "") {
-    $("#dockerignore").prop("disabled", true);
-    $("#dockerignore").prop("checked", false);
-  } else {
-    $("#dockerignore").prop("disabled", false);
-  }
-}
-
 $(document).ready(updateLicenseVars);
 $("#license").on("change", updateLicenseVars);
 
@@ -36,6 +24,19 @@ function updateLicenseVars() {
     }
   });
 }
+
+$(document).ready(updateDockerIgnore);
+$("#dockerfile").on("change", updateDockerIgnore);
+
+function updateDockerIgnore() {
+  if ($("#dockerfile").find(":selected").attr("hasdockerignore") == "") {
+    $("#dockerignore").prop("disabled", false);
+  } else {
+    $("#dockerignore").prop("disabled", true);
+    $("#dockerignore").prop("checked", false);
+  }
+}
+
 
 $(document).ready(updateInitTag);
 $("#readme").on("change", updateInitTag);

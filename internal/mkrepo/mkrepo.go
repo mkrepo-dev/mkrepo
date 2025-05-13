@@ -9,22 +9,39 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	texttemplate "text/template"
+	"text/template"
 
 	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/internal/types"
 )
 
+type repoInitContext struct {
+	Name        string
+	Description *string
+	FullName    string
+	Url         string
+	Values      any
+}
+
 type RepoMaker struct {
 	db               *database.DB
 	licenses         Licenses
 	gitignores       fs.FS
+	dockerfiles      Dockerfiles
+	dockerignores    fs.FS
 	buildInTemplates fs.FS
 }
 
-func New(db *database.DB, gitignores fs.FS, licenses Licenses, buildInTemplates fs.FS) *RepoMaker {
-	return &RepoMaker{db: db, gitignores: gitignores, licenses: licenses, buildInTemplates: buildInTemplates}
+func New(db *database.DB, gitignores fs.FS, licenses Licenses, dockerfiles Dockerfiles, dockerignores fs.FS, buildInTemplates fs.FS) *RepoMaker {
+	return &RepoMaker{
+		db:               db,
+		gitignores:       gitignores,
+		licenses:         licenses,
+		dockerfiles:      dockerfiles,
+		dockerignores:    dockerignores,
+		buildInTemplates: buildInTemplates,
+	}
 }
 
 // Create remote repo and initialize it if needed. Returns url to the repo.
@@ -45,7 +62,6 @@ func (rm *RepoMaker) CreateNewRepo(ctx context.Context, client provider.Client, 
 		return remoteRepo.HtmlUrl, nil
 	}
 
-	// TODO: Wait with context
 	err = rm.InitializeRepo(ctx, client, repo, remoteRepo)
 	if err != nil {
 		return remoteRepo.HtmlUrl, err
@@ -79,8 +95,16 @@ func (rm *RepoMaker) InitializeRepo(ctx context.Context, client provider.Client,
 }
 
 func (rm *RepoMaker) addFiles(ctx context.Context, repo *types.CreateRepo, remoteRepo provider.RemoteRepo, dir string) error {
+	context := repoInitContext{
+		Name:        repo.Name,
+		Description: repo.Description,
+		FullName:    strings.TrimPrefix(strings.TrimPrefix(remoteRepo.HtmlUrl, "https://"), "http://"),
+		Url:         remoteRepo.HtmlUrl,
+		Values:      repo.Initialize.Template.Values,
+	}
+
 	if repo.Initialize.Template != nil {
-		err := rm.executeTemplateRepo(ctx, repo, remoteRepo, dir)
+		err := rm.executeTemplateRepo(ctx, dir, repo, context)
 		if err != nil {
 			return err
 		}
@@ -88,7 +112,7 @@ func (rm *RepoMaker) addFiles(ctx context.Context, repo *types.CreateRepo, remot
 	}
 
 	if repo.Initialize.Readme != nil && *repo.Initialize.Readme {
-		err := addReadme(dir, repo.Name, repo.Description)
+		err := addReadme(dir, context)
 		if err != nil {
 			return err
 		}
@@ -108,12 +132,17 @@ func (rm *RepoMaker) addFiles(ctx context.Context, repo *types.CreateRepo, remot
 		}
 	}
 
-	// TODO: Init Dockerfile and .dockerignore
+	if repo.Initialize.Dockerfile != nil {
+		err := addDockerfile(dir, rm.dockerfiles, *repo.Initialize.Dockerfile, context, rm.dockerignores, repo.Initialize.Dockerignore)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
 
-func (rm *RepoMaker) executeTemplateRepo(ctx context.Context, repo *types.CreateRepo, remoteRepo provider.RemoteRepo, dir string) error {
+func (rm *RepoMaker) executeTemplateRepo(ctx context.Context, dir string, repo *types.CreateRepo, context repoInitContext) error {
 	templateInfo, err := rm.db.GetTemplate(ctx, repo.Initialize.Template.FullName, repo.Initialize.Template.Version)
 	if err != nil {
 		return err
@@ -133,25 +162,13 @@ func (rm *RepoMaker) executeTemplateRepo(ctx context.Context, repo *types.Create
 		}
 	}
 
-	context := TemplateContext{
-		Name:        repo.Name,
-		Description: repo.Description,
-		FullName:    strings.TrimPrefix(strings.TrimPrefix(remoteRepo.HtmlUrl, "https://"), "http://"),
-		Url:         remoteRepo.HtmlUrl,
-		Values:      repo.Initialize.Template.Values,
-	}
-	return ExecuteTemplateDir(dir, templateFS, context)
+	return executeTemplateDir(dir, templateFS, context)
 }
 
-type readmeContext struct {
-	Name        string
-	Description *string
-}
+var readme = template.Must(template.New("").Parse("# {{.Name}}{{if .Description}}\n\n{{.Description}}{{end}}\n"))
 
-var readme = texttemplate.Must(texttemplate.New("").Parse("# {{.Name}}{{if .Description}}\n\n{{.Description}}{{end}}\n"))
-
-func addReadme(dir string, title string, desc *string) error {
-	return createFile(filepath.Join(dir, "README.md"), readme, readmeContext{Name: title, Description: desc})
+func addReadme(dir string, context repoInitContext) error {
+	return createFile(filepath.Join(dir, "README.md"), readme, context)
 }
 
 func addGitignore(dir string, gitignoreFS fs.FS, gitignoreName string) error {
@@ -183,7 +200,18 @@ func addLicense(dir string, licenses Licenses, createLicense types.CreateRepoIni
 	return nil
 }
 
-func createFile(filepath string, tmpl *texttemplate.Template, context any) error {
+func addDockerfile(dir string, dockerfiles Dockerfiles, dockerfileName string, context repoInitContext, dockerignoresFS fs.FS, dockerignore *bool) error {
+	err := createFile(filepath.Join(dir, "Dockerfile"), dockerfiles[dockerfileName].Template, context)
+	if err != nil {
+		return err
+	}
+	if dockerfiles[dockerfileName].Dockerignore && dockerignore != nil && *dockerignore {
+		err = addFile(filepath.Join(dir, ".dockerignore"), dockerignoresFS, dockerfileName+".dockerignore")
+	}
+	return err
+}
+
+func createFile(filepath string, tmpl *template.Template, context any) error {
 	f, err := os.Create(filepath)
 	if err != nil {
 		return err

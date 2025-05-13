@@ -8,7 +8,7 @@ import (
 )
 
 type Dockerfile struct {
-	Dockerignore *string
+	Dockerignore bool
 	Template     *template.Template
 }
 
@@ -28,9 +28,8 @@ func PrepareDockerfiles(dockerfilesFS fs.FS) (Dockerfiles, error) {
 
 		key := strings.TrimSuffix(strings.TrimSuffix(entry.Name(), ".Dockerfile.tmpl"), ".dockerignore")
 		if strings.HasSuffix(entry.Name(), ".dockerignore") {
-			filename := entry.Name()
 			dockerfile := dockerfiles[key]
-			dockerfile.Dockerignore = &filename
+			dockerfile.Dockerignore = true
 			dockerfiles[key] = dockerfile
 			slog.Debug("Dockerignore prepared", "name", key)
 			continue
