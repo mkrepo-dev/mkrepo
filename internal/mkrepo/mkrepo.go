@@ -12,6 +12,7 @@ import (
 	"text/template"
 
 	"github.com/mkrepo-dev/mkrepo/internal/database"
+	"github.com/mkrepo-dev/mkrepo/internal/metrics"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/internal/types"
 )
@@ -25,6 +26,7 @@ type repoInitContext struct {
 }
 
 type RepoMaker struct {
+	metrics          *metrics.Metrics
 	db               *database.DB
 	licenses         Licenses
 	gitignores       fs.FS
@@ -33,8 +35,9 @@ type RepoMaker struct {
 	buildInTemplates fs.FS
 }
 
-func New(db *database.DB, gitignores fs.FS, licenses Licenses, dockerfiles Dockerfiles, dockerignores fs.FS, buildInTemplates fs.FS) *RepoMaker {
+func New(metrics *metrics.Metrics, db *database.DB, gitignores fs.FS, licenses Licenses, dockerfiles Dockerfiles, dockerignores fs.FS, buildInTemplates fs.FS) *RepoMaker {
 	return &RepoMaker{
+		metrics:          metrics,
 		db:               db,
 		gitignores:       gitignores,
 		licenses:         licenses,
@@ -67,6 +70,7 @@ func (rm *RepoMaker) CreateNewRepo(ctx context.Context, client provider.Client, 
 		return remoteRepo.HtmlUrl, err
 	}
 	slog.Info("Repo created and initialized")
+	rm.metrics.ReposCreated.Inc()
 
 	if types.CreateRepoIsTemplate(repo) {
 		err = client.CreateWebhook(ctx, remoteRepo)
@@ -100,7 +104,9 @@ func (rm *RepoMaker) addFiles(ctx context.Context, repo *types.CreateRepo, remot
 		Description: repo.Description,
 		FullName:    strings.TrimPrefix(strings.TrimPrefix(remoteRepo.HtmlUrl, "https://"), "http://"),
 		Url:         remoteRepo.HtmlUrl,
-		Values:      repo.Initialize.Template.Values,
+	}
+	if repo.Initialize.Template != nil {
+		context.Values = repo.Initialize.Template.Values
 	}
 
 	if repo.Initialize.Template != nil {

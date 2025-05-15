@@ -17,6 +17,7 @@ import (
 	"github.com/mkrepo-dev/mkrepo/internal/config"
 	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/log"
+	"github.com/mkrepo-dev/mkrepo/internal/metrics"
 	"github.com/mkrepo-dev/mkrepo/internal/mkrepo"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/internal/server"
@@ -24,6 +25,7 @@ import (
 	"github.com/mkrepo-dev/mkrepo/template/gitignore"
 	"github.com/mkrepo-dev/mkrepo/template/license"
 	"github.com/mkrepo-dev/mkrepo/template/template"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func main() {
@@ -61,6 +63,9 @@ func main() {
 	defer db.Close()
 	go db.GarbageCollector(ctx, 12*time.Hour)
 
+	reg := prometheus.NewRegistry()
+	metrics := metrics.NewMetrics(reg, db.SqlDB)
+
 	gitignores, err := mkrepo.PrepareGitignores(gitignore.FS)
 	if err != nil {
 		slog.Error("Cannot prepare gitignores", log.Err(err))
@@ -85,9 +90,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	repomaker := mkrepo.New(db, gitignore.FS, licenses, dockerfiles, docker.FS, template.FS)
+	repomaker := mkrepo.New(metrics, db, gitignore.FS, licenses, dockerfiles, docker.FS, template.FS)
 
-	srv := server.NewServer(cfg, db, repomaker, providers, gitignores, licenses, dockerfiles)
+	srv := server.NewServer(cfg, reg, metrics, db, repomaker, providers, gitignores, licenses, dockerfiles)
 
 	errCh := make(chan error)
 	go func() {

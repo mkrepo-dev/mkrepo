@@ -2,7 +2,9 @@ package middleware
 
 import (
 	"context"
+	"crypto/subtle"
 	"net/http"
+	"strings"
 
 	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/handler/cookie"
@@ -64,9 +66,12 @@ func MustAuthenticate(next http.Handler) http.Handler {
 func MetricsAuth(token string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if token != "" && r.Header.Get("Authorization") != "Bearer "+token {
-				w.WriteHeader(http.StatusUnauthorized)
-				return
+			if token != "" {
+				auth, _ := strings.CutPrefix(w.Header().Get("Authorization"), "Bearer ")
+				if subtle.ConstantTimeCompare([]byte(auth), []byte(token)) == 0 {
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
 			}
 			next.ServeHTTP(w, r)
 		})

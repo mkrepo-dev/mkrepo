@@ -5,6 +5,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"io"
@@ -18,6 +19,7 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 	"golang.org/x/oauth2"
 
 	"github.com/mkrepo-dev/mkrepo/internal/log"
@@ -29,7 +31,8 @@ import (
 var ErrAlreadyExists = errors.New("already exists")
 
 type DB struct {
-	*pgxpool.Pool
+	Pool          *pgxpool.Pool
+	SqlDB         *sql.DB
 	encryptionKey string
 }
 
@@ -38,9 +41,10 @@ func New(ctx context.Context, connectionUri string, encryptionKey string) (*DB, 
 	if err != nil {
 		return nil, err
 	}
-	db := &DB{Pool: pool, encryptionKey: encryptionKey}
+	sqlDB := stdlib.OpenDBFromPool(pool)
+	db := &DB{Pool: pool, SqlDB: sqlDB, encryptionKey: encryptionKey}
 
-	err = db.Ping(ctx)
+	err = db.Pool.Ping(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -66,6 +70,11 @@ func New(ctx context.Context, connectionUri string, encryptionKey string) (*DB, 
 	return db, nil
 }
 
+func (db *DB) Close() {
+	db.Pool.Close()
+	db.SqlDB.Close()
+}
+
 func (db *DB) GarbageCollector(ctx context.Context, interval time.Duration) {
 	ticker := time.Tick(interval)
 	for {
@@ -84,16 +93,16 @@ func (db *DB) GarbageCollector(ctx context.Context, interval time.Duration) {
 }
 
 func (db *DB) Cleanup(ctx context.Context) error {
-	_, err := db.Exec(ctx, `DELETE FROM "oauth2_state" WHERE "expires_at" < 'now'::timestamp;`)
+	_, err := db.Pool.Exec(ctx, `DELETE FROM "oauth2_state" WHERE "expires_at" < 'now'::timestamp;`)
 	if err != nil {
 		return err
 	}
-	_, err = db.Exec(ctx, `DELETE FROM "session" WHERE "expires_at" < 'now'::timestamp;`)
+	_, err = db.Pool.Exec(ctx, `DELETE FROM "session" WHERE "expires_at" < 'now'::timestamp;`)
 	return err
 }
 
 func (db *DB) CreateOAuth2State(ctx context.Context, state string, expires_at time.Time) error {
-	_, err := db.Exec(ctx,
+	_, err := db.Pool.Exec(ctx,
 		`INSERT INTO "oauth2_state" ("state", "expires_at")
 		 VALUES ($1, $2);`,
 		state, expires_at,
@@ -103,7 +112,7 @@ func (db *DB) CreateOAuth2State(ctx context.Context, state string, expires_at ti
 
 func (db *DB) ValidateOAuth2State(ctx context.Context, state string) (bool, error) {
 	var valid bool
-	err := db.QueryRow(ctx,
+	err := db.Pool.QueryRow(ctx,
 		`SELECT EXISTS (
 		   SELECT 1
 		   FROM "oauth2_state"
@@ -136,7 +145,7 @@ func (db *DB) GetAccountByValidSession(ctx context.Context, session string) (Acc
 	// This function should be called each time before use.
 	var accessTokenEnc, refreshTokenEnc string
 	account := Account{Token: &oauth2.Token{}}
-	err := db.QueryRow(ctx,
+	err := db.Pool.QueryRow(ctx,
 		`SELECT a."id", a."provider", a."access_token", a."refresh_token",
 		 a."expires_at", a."email", a."username", a."display_name", a."avatar_url"
 		 FROM "account" a JOIN "session" s ON a."id" = s."account_id"
@@ -174,7 +183,7 @@ func (db *DB) CreateAccountSession(ctx context.Context, session string, sessionE
 		return err
 	}
 
-	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
+	tx, err := db.Pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
 	}
@@ -225,7 +234,7 @@ func (db *DB) UpdateAccountToken(ctx context.Context, provider string, username 
 	if err != nil {
 		return err
 	}
-	_, err = db.Exec(ctx,
+	_, err = db.Pool.Exec(ctx,
 		`UPDATE "account"
 		 SET "access_token" = $1, "refresh_token" = $2, "expires_at" = $3
 		 WHERE "provider" = $4 AND "username" = $5;`,
@@ -235,7 +244,7 @@ func (db *DB) UpdateAccountToken(ctx context.Context, provider string, username 
 }
 
 func (db *DB) DeleteAccount(ctx context.Context, session string, provider string, username string) error {
-	_, err := db.Exec(ctx,
+	_, err := db.Pool.Exec(ctx,
 		`DELETE FROM "account"
 		 WHERE "session" = $1 AND "provider" = $2 AND "username" = $3;`,
 		session, provider, username,
@@ -244,7 +253,7 @@ func (db *DB) DeleteAccount(ctx context.Context, session string, provider string
 }
 
 func (db *DB) DeleteSession(ctx context.Context, session string) error {
-	_, err := db.Exec(ctx,
+	_, err := db.Pool.Exec(ctx,
 		`DELETE FROM "session"
 		 WHERE "session" = $1;`,
 		session,
@@ -253,7 +262,7 @@ func (db *DB) DeleteSession(ctx context.Context, session string) error {
 }
 
 func (db *DB) CreateTemplate(ctx context.Context, name string, fullName string, url *string, version string, description *string, language *string, buildIn bool) error {
-	tx, err := db.BeginTx(ctx, pgx.TxOptions{})
+	tx, err := db.Pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
 	}
@@ -287,7 +296,7 @@ func (db *DB) CreateTemplate(ctx context.Context, name string, fullName string, 
 }
 
 func (db *DB) SearchTemplates(ctx context.Context, query string) ([]types.GetTemplateVersion, error) {
-	rows, err := db.Query(ctx,
+	rows, err := db.Pool.Query(ctx,
 		`SELECT t."name", t."full_name", t."url", t."build_in", t."stars", tv."version", tv."description", tv."language"
 		 FROM "template" t JOIN "template_version" tv ON t."id" = tv."template_id"
 		 WHERE tv."version" = (
@@ -321,7 +330,7 @@ func (db *DB) GetTemplate(ctx context.Context, fullName string, version *string)
 	var template types.GetTemplateVersion
 	var row pgx.Row
 	if version != nil {
-		row = db.QueryRow(ctx,
+		row = db.Pool.QueryRow(ctx,
 			`SELECT t."name", t."full_name", t."url", t."build_in", t."stars", tv."version", tv."description", tv."language"
 			 FROM "template" t JOIN "template_version" tv ON t."id" = tv."template_id"
 			 WHERE t."full_name" = $1
@@ -330,7 +339,7 @@ func (db *DB) GetTemplate(ctx context.Context, fullName string, version *string)
 			fullName, version,
 		)
 	} else {
-		row = db.QueryRow(ctx,
+		row = db.Pool.QueryRow(ctx,
 			`SELECT t."name", t."full_name", t."url", t."build_in", t."stars", tv."version", tv."description", tv."language"
 			 FROM "template" t JOIN "template_version" tv ON t."id" = tv."template_id"
 			 WHERE t."full_name" = $1 AND tv."version" = $2;`,
@@ -347,7 +356,7 @@ func (db *DB) GetTemplate(ctx context.Context, fullName string, version *string)
 }
 
 func (db *DB) UpdateTemplateStars(ctx context.Context, fullName string, stars int) error {
-	_, err := db.Exec(ctx,
+	_, err := db.Pool.Exec(ctx,
 		`UPDATE "template"
 		 SET "stars" = $1
 		 WHERE "full_name" = $2;`,
@@ -357,7 +366,7 @@ func (db *DB) UpdateTemplateStars(ctx context.Context, fullName string, stars in
 }
 
 func (db *DB) IncreaseTemplateUses(ctx context.Context, fullName string) error {
-	_, err := db.Exec(ctx,
+	_, err := db.Pool.Exec(ctx,
 		`UPDATE "template"
 		 SET "used" = "used" + 1
 		 WHERE "full_name" = $2;`,

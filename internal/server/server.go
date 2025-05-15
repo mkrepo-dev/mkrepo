@@ -4,12 +4,14 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/mkrepo-dev/mkrepo/internal/config"
 	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/handler"
 	"github.com/mkrepo-dev/mkrepo/internal/handler/middleware"
+	"github.com/mkrepo-dev/mkrepo/internal/metrics"
 	"github.com/mkrepo-dev/mkrepo/internal/mkrepo"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/static"
@@ -17,6 +19,8 @@ import (
 
 func NewServer(
 	cfg config.Config,
+	reg *prometheus.Registry,
+	metrics *metrics.Metrics,
 	db *database.DB,
 	repomaker *mkrepo.RepoMaker,
 	providers provider.Providers,
@@ -28,7 +32,9 @@ func NewServer(
 
 	mux.Handle("GET /", handler.Index(providers))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(static.FS))))
-	mux.Handle("GET /metrics", middleware.MetricsAuth(cfg.MetricsToken)(promhttp.Handler()))
+	mux.Handle("GET /metrics", middleware.MetricsAuth(cfg.MetricsToken)(promhttp.HandlerFor(reg, promhttp.HandlerOpts{
+		Registry: reg,
+	})))
 
 	mux.HandleFunc("GET /auth/login", handler.Login(db, providers))
 	mux.HandleFunc("GET /auth/logout", handler.Logout(db))
@@ -41,7 +47,8 @@ func NewServer(
 
 	mux.Handle("POST /webhook/{provider}", handler.Webhook(db, providers))
 
-	handler := middleware.Authenticate(db)(mux)
+	handler := middleware.Metrics(metrics)(mux)
+	handler = middleware.Authenticate(db)(handler)
 
 	server := &http.Server{
 		Addr:         ":8080",
