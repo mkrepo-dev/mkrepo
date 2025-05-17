@@ -60,11 +60,16 @@ func main() {
 		slog.Error("Cannot open database", log.Err(err))
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer func() {
+		err := db.Close()
+		if err != nil {
+			slog.Error("Cannot close database", log.Err(err))
+		}
+	}()
 	go db.GarbageCollector(ctx, 12*time.Hour)
 
 	reg := prometheus.NewRegistry()
-	metrics := metrics.NewMetrics(reg, db.SqlDB)
+	metrics := metrics.NewMetrics(reg, db.DB)
 
 	gitignores, err := mkrepo.PrepareGitignores(gitignore.FS)
 	if err != nil {

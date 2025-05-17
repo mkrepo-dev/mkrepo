@@ -16,10 +16,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
-	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jackc/pgx/v5/stdlib"
 	"golang.org/x/oauth2"
 
 	"github.com/mkrepo-dev/mkrepo/internal/log"
@@ -31,20 +28,19 @@ import (
 var ErrAlreadyExists = errors.New("already exists")
 
 type DB struct {
-	Pool          *pgxpool.Pool
-	SqlDB         *sql.DB
+	*sql.DB
 	encryptionKey string
 }
 
 func New(ctx context.Context, connectionUri string, encryptionKey string) (*DB, error) {
-	pool, err := pgxpool.New(ctx, connectionUri)
+	sqlDB, err := sql.Open("pgx", connectionUri)
 	if err != nil {
 		return nil, err
 	}
-	sqlDB := stdlib.OpenDBFromPool(pool)
-	db := &DB{Pool: pool, SqlDB: sqlDB, encryptionKey: encryptionKey}
 
-	err = db.Pool.Ping(ctx)
+	db := &DB{DB: sqlDB, encryptionKey: encryptionKey}
+
+	err = db.PingContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -70,11 +66,6 @@ func New(ctx context.Context, connectionUri string, encryptionKey string) (*DB, 
 	return db, nil
 }
 
-func (db *DB) Close() {
-	db.Pool.Close()
-	db.SqlDB.Close()
-}
-
 func (db *DB) GarbageCollector(ctx context.Context, interval time.Duration) {
 	ticker := time.Tick(interval)
 	for {
@@ -93,16 +84,16 @@ func (db *DB) GarbageCollector(ctx context.Context, interval time.Duration) {
 }
 
 func (db *DB) Cleanup(ctx context.Context) error {
-	_, err := db.Pool.Exec(ctx, `DELETE FROM "oauth2_state" WHERE "expires_at" < 'now'::timestamp;`)
+	_, err := db.ExecContext(ctx, `DELETE FROM "oauth2_state" WHERE "expires_at" < 'now'::timestamp;`)
 	if err != nil {
 		return err
 	}
-	_, err = db.Pool.Exec(ctx, `DELETE FROM "session" WHERE "expires_at" < 'now'::timestamp;`)
+	_, err = db.ExecContext(ctx, `DELETE FROM "session" WHERE "expires_at" < 'now'::timestamp;`)
 	return err
 }
 
 func (db *DB) CreateOAuth2State(ctx context.Context, state string, expires_at time.Time) error {
-	_, err := db.Pool.Exec(ctx,
+	_, err := db.ExecContext(ctx,
 		`INSERT INTO "oauth2_state" ("state", "expires_at")
 		 VALUES ($1, $2);`,
 		state, expires_at,
@@ -112,7 +103,7 @@ func (db *DB) CreateOAuth2State(ctx context.Context, state string, expires_at ti
 
 func (db *DB) ValidateOAuth2State(ctx context.Context, state string) (bool, error) {
 	var valid bool
-	err := db.Pool.QueryRow(ctx,
+	err := db.QueryRowContext(ctx,
 		`SELECT EXISTS (
 		   SELECT 1
 		   FROM "oauth2_state"
@@ -145,7 +136,7 @@ func (db *DB) GetAccountByValidSession(ctx context.Context, session string) (Acc
 	// This function should be called each time before use.
 	var accessTokenEnc, refreshTokenEnc string
 	account := Account{Token: &oauth2.Token{}}
-	err := db.Pool.QueryRow(ctx,
+	err := db.QueryRowContext(ctx,
 		`SELECT a."id", a."provider", a."access_token", a."refresh_token",
 		 a."expires_at", a."email", a."username", a."display_name", a."avatar_url"
 		 FROM "account" a JOIN "session" s ON a."id" = s."account_id"
@@ -183,14 +174,14 @@ func (db *DB) CreateAccountSession(ctx context.Context, session string, sessionE
 		return err
 	}
 
-	tx, err := db.Pool.BeginTx(ctx, pgx.TxOptions{})
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return err
 	}
-	defer rollback(ctx, tx)
+	defer rollback(tx)
 
 	var id int
-	err = tx.QueryRow(ctx,
+	err = tx.QueryRowContext(ctx,
 		`UPDATE "account"
 		 SET "access_token" = $1, "refresh_token" = $2, "expires_at" = $3
 		 WHERE "provider" = $4 AND "username" = $5
@@ -201,7 +192,7 @@ func (db *DB) CreateAccountSession(ctx context.Context, session string, sessionE
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return err
 		}
-		err = tx.QueryRow(ctx,
+		err = tx.QueryRowContext(ctx,
 			`INSERT INTO "account" ("provider", "access_token", "refresh_token", "expires_at", "email", "username", "display_name", "avatar_url")
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			 RETURNING "id";`,
@@ -213,7 +204,7 @@ func (db *DB) CreateAccountSession(ctx context.Context, session string, sessionE
 		}
 	}
 
-	_, err = tx.Exec(ctx,
+	_, err = tx.ExecContext(ctx,
 		`INSERT INTO "session" ("session", "expires_at", "account_id")
 		 VALUES ($1, $2, $3);`,
 		session, sessionExpiresAt, id,
@@ -222,7 +213,7 @@ func (db *DB) CreateAccountSession(ctx context.Context, session string, sessionE
 		return err
 	}
 
-	return tx.Commit(ctx)
+	return tx.Commit()
 }
 
 func (db *DB) UpdateAccountToken(ctx context.Context, provider string, username string, token *oauth2.Token) error {
@@ -234,7 +225,7 @@ func (db *DB) UpdateAccountToken(ctx context.Context, provider string, username 
 	if err != nil {
 		return err
 	}
-	_, err = db.Pool.Exec(ctx,
+	_, err = db.ExecContext(ctx,
 		`UPDATE "account"
 		 SET "access_token" = $1, "refresh_token" = $2, "expires_at" = $3
 		 WHERE "provider" = $4 AND "username" = $5;`,
@@ -244,7 +235,7 @@ func (db *DB) UpdateAccountToken(ctx context.Context, provider string, username 
 }
 
 func (db *DB) DeleteAccount(ctx context.Context, session string, provider string, username string) error {
-	_, err := db.Pool.Exec(ctx,
+	_, err := db.ExecContext(ctx,
 		`DELETE FROM "account"
 		 WHERE "session" = $1 AND "provider" = $2 AND "username" = $3;`,
 		session, provider, username,
@@ -253,7 +244,7 @@ func (db *DB) DeleteAccount(ctx context.Context, session string, provider string
 }
 
 func (db *DB) DeleteSession(ctx context.Context, session string) error {
-	_, err := db.Pool.Exec(ctx,
+	_, err := db.ExecContext(ctx,
 		`DELETE FROM "session"
 		 WHERE "session" = $1;`,
 		session,
@@ -262,14 +253,14 @@ func (db *DB) DeleteSession(ctx context.Context, session string) error {
 }
 
 func (db *DB) CreateTemplate(ctx context.Context, name string, fullName string, url *string, version string, description *string, language *string, buildIn bool) error {
-	tx, err := db.Pool.BeginTx(ctx, pgx.TxOptions{})
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return err
 	}
-	defer rollback(ctx, tx)
+	defer rollback(tx)
 
 	// TODO: First get then insert to not generate new id from serial type
-	_, err = tx.Exec(ctx,
+	_, err = tx.ExecContext(ctx,
 		`INSERT INTO "template" ("name", "full_name", "url", "build_in")
 		 VALUES ($1, $2, $3, $4)
 		 ON CONFLICT ("full_name") DO NOTHING;`,
@@ -279,24 +270,23 @@ func (db *DB) CreateTemplate(ctx context.Context, name string, fullName string, 
 		return err
 	}
 
-	_, err = tx.Exec(ctx,
+	_, err = tx.ExecContext(ctx,
 		`INSERT INTO "template_version" ("description", "language", "version", "template_id")
 		 VALUES ($1, $2, $3, (SELECT "id" FROM "template" WHERE "full_name" = $4));`,
 		description, language, version, fullName,
 	)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
+		if strings.Contains(err.Error(), "23505") {
 			return ErrAlreadyExists
 		}
 		return err
 	}
 
-	return tx.Commit(ctx)
+	return tx.Commit()
 }
 
 func (db *DB) SearchTemplates(ctx context.Context, query string) ([]types.GetTemplateVersion, error) {
-	rows, err := db.Pool.Query(ctx,
+	rows, err := db.QueryContext(ctx,
 		`SELECT t."name", t."full_name", t."url", t."build_in", t."stars", tv."version", tv."description", tv."language"
 		 FROM "template" t JOIN "template_version" tv ON t."id" = tv."template_id"
 		 WHERE tv."version" = (
@@ -330,7 +320,7 @@ func (db *DB) GetTemplate(ctx context.Context, fullName string, version *string)
 	var template types.GetTemplateVersion
 	var row pgx.Row
 	if version != nil {
-		row = db.Pool.QueryRow(ctx,
+		row = db.QueryRowContext(ctx,
 			`SELECT t."name", t."full_name", t."url", t."build_in", t."stars", tv."version", tv."description", tv."language"
 			 FROM "template" t JOIN "template_version" tv ON t."id" = tv."template_id"
 			 WHERE t."full_name" = $1
@@ -339,7 +329,7 @@ func (db *DB) GetTemplate(ctx context.Context, fullName string, version *string)
 			fullName, version,
 		)
 	} else {
-		row = db.Pool.QueryRow(ctx,
+		row = db.QueryRowContext(ctx,
 			`SELECT t."name", t."full_name", t."url", t."build_in", t."stars", tv."version", tv."description", tv."language"
 			 FROM "template" t JOIN "template_version" tv ON t."id" = tv."template_id"
 			 WHERE t."full_name" = $1 AND tv."version" = $2;`,
@@ -356,7 +346,7 @@ func (db *DB) GetTemplate(ctx context.Context, fullName string, version *string)
 }
 
 func (db *DB) UpdateTemplateStars(ctx context.Context, fullName string, stars int) error {
-	_, err := db.Pool.Exec(ctx,
+	_, err := db.ExecContext(ctx,
 		`UPDATE "template"
 		 SET "stars" = $1
 		 WHERE "full_name" = $2;`,
@@ -366,7 +356,7 @@ func (db *DB) UpdateTemplateStars(ctx context.Context, fullName string, stars in
 }
 
 func (db *DB) IncreaseTemplateUses(ctx context.Context, fullName string) error {
-	_, err := db.Pool.Exec(ctx,
+	_, err := db.ExecContext(ctx,
 		`UPDATE "template"
 		 SET "used" = "used" + 1
 		 WHERE "full_name" = $2;`,
@@ -375,8 +365,8 @@ func (db *DB) IncreaseTemplateUses(ctx context.Context, fullName string) error {
 	return err
 }
 
-func rollback(ctx context.Context, tx pgx.Tx) {
-	err := tx.Rollback(ctx)
+func rollback(tx *sql.Tx) {
+	err := tx.Rollback()
 	if err != nil && !errors.Is(err, pgx.ErrTxClosed) {
 		slog.Error("Failed to rollback transaction", log.Err(err))
 	}
