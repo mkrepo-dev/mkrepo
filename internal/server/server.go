@@ -32,6 +32,8 @@ func NewServer(
 
 	mux.Handle("GET /", handler.Index(providers))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(static.FS))))
+	mux.Handle("GET /livez", handler.Healthz())
+	mux.Handle("GET /readyz", handler.Readyz(db.DB))
 	mux.Handle("GET /metrics", middleware.MetricsAuth(cfg.MetricsToken)(promhttp.HandlerFor(reg, promhttp.HandlerOpts{
 		Registry: reg,
 	})))

@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -65,6 +66,8 @@ func requestRemoteIPVersion(r *http.Request) string {
 			return "unknown"
 		}
 	}
+
+	fmt.Println("TEST", ipStr) // TODO: Remove this. Only to test if ip is correct or from proxy.
 
 	ip := net.ParseIP(ipStr)
 	if ip == nil {
