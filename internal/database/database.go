@@ -367,7 +367,7 @@ func (db *DB) IncreaseTemplateUses(ctx context.Context, fullName string) error {
 
 func rollback(tx *sql.Tx) {
 	err := tx.Rollback()
-	if err != nil && !errors.Is(err, pgx.ErrTxClosed) {
+	if err != nil && !errors.Is(err, sql.ErrTxDone) {
 		slog.Error("Failed to rollback transaction", log.Err(err))
 	}
 }

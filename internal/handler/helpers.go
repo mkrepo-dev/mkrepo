@@ -28,11 +28,6 @@ func render(w http.ResponseWriter, t *template.Template, context any) {
 	}
 }
 
-func internalServerError(w http.ResponseWriter, msg string, err error) {
-	slog.Error(msg, log.Err(err))
-	http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-}
-
 func encode[T any](w http.ResponseWriter, v T) {
 	w.Header().Set("Content-Type", "application/json")
 	err := json.NewEncoder(w).Encode(v)
@@ -40,4 +35,9 @@ func encode[T any](w http.ResponseWriter, v T) {
 		internalServerError(w, "Failed to encode response", err)
 		slog.Error("Failed to encode response", log.Err(err))
 	}
+}
+
+func internalServerError(w http.ResponseWriter, msg string, err error) {
+	slog.Error(msg, log.Err(err))
+	http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 }
