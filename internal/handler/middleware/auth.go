@@ -67,7 +67,7 @@ func MetricsAuth(token string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if token != "" {
-				auth, _ := strings.CutPrefix(w.Header().Get("Authorization"), "Bearer ")
+				auth, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 				if subtle.ConstantTimeCompare([]byte(auth), []byte(token)) == 0 {
 					w.WriteHeader(http.StatusUnauthorized)
 					return
