@@ -20,29 +20,24 @@
                   <a class="nav-link" href="/templates">Templates</a>
                 </li>
                 <li class="nav-item">
-                  <a class="nav-link" href="/docs">Docs</a>
+                  <a class="nav-link" href="https://github.com/mkrepo-dev/mkrepo/blob/main/README.md">Docs</a>
                 </li>
                 <li class="nav-item">
                   <a class="nav-link" href="https://github.com/mkrepo-dev/mkrepo">Source</a>
                 </li>
+                {{if .Account}}
                 <li class="nav-item dropdown">
-                  {{if .Account}}
-                  <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                    Accounts
+                  <a class="btn btn-outline-success dropdown-toggle" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <img src="{{.Account.AvatarURL}}" class="rounded-circle me-2" width="25" height="25">
+                    {{.Account.Username}}
                   </a>
                   <ul class="dropdown-menu">
-                    <li>
-                      <img src="{{.Account.AvatarURL}}" class="rounded-circle me-2" width="25" height="25">
-                      {{.Account.Provider}} - {{.Account.Username}}
-                      <form action="/auth/logout" method="get">
-                        <button type="submit" class="btn btn-outline-danger">Logout</button>
-                      </form>
-                    </li>
+                    <li><a class="dropdown-item" href="/auth/logout">Logout</a></li>
                   </ul>
-                  {{else}}
-                  <p>TODO: Login button</p>
-                  {{end}}
                 </li>
+                {{else}}
+                <a href="/auth/login" class="btn btn-success">Login</a>
+                {{end}}
               </ul>
             </div>
           </div>
