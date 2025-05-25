@@ -1,23 +1,26 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
-	"log/slog"
 	"os"
 	"slices"
 	"strings"
 
-	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	DatabaseUri  string `yaml:"-"`
-	Secret       string `yaml:"-"`
-	MetricsToken string `yaml:"-"`
+	BaseUrl string `yaml:"baseUrl"`
 
-	BaseUrl         string     `yaml:"baseUrl"`
-	WebhookInsecure bool       `yaml:"webhookInsecure"`
-	Providers       []Provider `yaml:"providers"`
+	DatabaseUri  string `yaml:"databaseUri"`
+	SecretKey    string `yaml:"secretKey"`
+	MetricsToken string `yaml:"metricsToken"`
+
+	WebhookSecret   string `yaml:"webhookSecret"`
+	WebhookInsecure bool   `yaml:"webhookInsecure"`
+
+	Providers []Provider `yaml:"providers"`
 }
 
 type Provider struct {
@@ -35,27 +38,37 @@ type ProviderType string
 const (
 	GitHubProvider ProviderType = "github"
 	GitLabProvider ProviderType = "gitlab"
+	GiteaProvider  ProviderType = "gitea"
 )
 
-var ProviderTypes = []ProviderType{GitHubProvider, GitLabProvider}
+var providerTypes = []ProviderType{GitHubProvider, GitLabProvider, GiteaProvider}
 
 func LoadConfig(filename string) (Config, error) {
-	vp := viper.NewWithOptions(viper.WithLogger(slog.Default()))
-	vp.SetConfigFile(filename)
-
-	err := vp.ReadInConfig()
+	file, err := os.ReadFile(filename)
 	if err != nil {
 		return Config{}, err
 	}
 
 	var cfg Config
-	err = vp.Unmarshal(&cfg)
+	err = yaml.NewDecoder(bytes.NewReader(file)).Decode(&cfg)
 	if err != nil {
 		return Config{}, err
 	}
 
 	cfg = setDefaults(cfg)
-	cfg = fillFromEnv(cfg)
+
+	// Reencode so we can replace env vars with os.ExpandEnv
+	var buff bytes.Buffer
+	err = yaml.NewEncoder(&buff).Encode(cfg)
+	if err != nil {
+		return Config{}, err
+	}
+	expanded := os.ExpandEnv(buff.String())
+	err = yaml.NewDecoder(strings.NewReader(expanded)).Decode(&cfg)
+	if err != nil {
+		return Config{}, err
+	}
+
 	err = validate(cfg)
 	if err != nil {
 		return Config{}, err
@@ -65,7 +78,21 @@ func LoadConfig(filename string) (Config, error) {
 }
 
 func setDefaults(cfg Config) Config {
-	cfg.DatabaseUri = "postgres://mkrepo:mkrepo@localhost:5432/mkrepo?sslmode=disable&search_path=public"
+	if cfg.BaseUrl == "" {
+		cfg.BaseUrl = "http://localhost:8080"
+	}
+	if cfg.DatabaseUri == "" {
+		cfg.DatabaseUri = "postgres://mkrepo:mkrepo@localhost:5432/mkrepo?sslmode=disable&search_path=public"
+	}
+	if cfg.SecretKey == "" {
+		cfg.SecretKey = "$SECRET_KEY"
+	}
+	if cfg.MetricsToken == "" {
+		cfg.MetricsToken = "$METRICS_TOKEN"
+	}
+	if cfg.WebhookSecret == "" {
+		cfg.WebhookSecret = "$WEBHOOK_SECRET"
+	}
 	for i, provider := range cfg.Providers {
 		cfg.Providers[i] = setDefaultsProvider(provider)
 	}
@@ -74,47 +101,30 @@ func setDefaults(cfg Config) Config {
 }
 
 func setDefaultsProvider(provider Provider) Provider {
-	if provider.Type == "" && slices.Contains(ProviderTypes, ProviderType(provider.Key)) {
+	if provider.Type == "" && slices.Contains(providerTypes, ProviderType(provider.Key)) {
 		provider.Type = ProviderType(provider.Key)
 	}
-	if provider.ClientID == "" {
-		provider.ClientID = fmt.Sprintf("$%s_CLIENT_ID", strings.ToUpper(provider.Key))
-	}
-	if provider.ClientSecret == "" {
-		provider.ClientSecret = fmt.Sprintf("$%s_CLIENT_SECRET", strings.ToUpper(provider.Key))
+	if provider.Name == "" {
+		switch provider.Type {
+		case GitHubProvider:
+			provider.Name = "GitHub"
+		case GitLabProvider:
+			provider.Name = "GitLab"
+		case GiteaProvider:
+			provider.Name = "Gitea"
+		}
 	}
 	return provider
 }
 
-func fillFromEnv(cfg Config) Config {
-	databaseUri, ok := os.LookupEnv("DATABASE_URI")
-	if ok {
-		cfg.DatabaseUri = databaseUri
-	}
-
-	secret, ok := os.LookupEnv("SECRET_KEY")
-	if !ok {
-		slog.Warn("SECRET_KEY env not set")
-	}
-	cfg.Secret = secret
-
-	metricsToken, ok := os.LookupEnv("METRICS_TOKEN")
-	if ok {
-		cfg.MetricsToken = metricsToken
-	}
-
-	for i, provider := range cfg.Providers {
-		cfg.Providers[i].ClientID = readFromEnv(provider.ClientID)
-		cfg.Providers[i].ClientSecret = readFromEnv(provider.ClientSecret)
-	}
-	return cfg
-}
-
 func validate(cfg Config) error {
+	if cfg.SecretKey == "" {
+		return fmt.Errorf("missing secret key")
+	}
+
 	if len(cfg.Providers) == 0 {
 		return fmt.Errorf("no providers defined")
 	}
-
 	keys := make(map[string]struct{})
 	for _, provider := range cfg.Providers {
 		if _, ok := keys[provider.Key]; ok {
@@ -122,7 +132,6 @@ func validate(cfg Config) error {
 		}
 		keys[provider.Key] = struct{}{}
 	}
-
 	for _, provider := range cfg.Providers {
 		err := validateProvider(provider)
 		if err != nil {
@@ -143,15 +152,8 @@ func validateProvider(provider Provider) error {
 	if provider.ClientSecret == "" {
 		return fmt.Errorf("missing client secret")
 	}
-	if !slices.Contains(ProviderTypes, provider.Type) {
+	if !slices.Contains(providerTypes, provider.Type) {
 		return fmt.Errorf("unknown provider type: %s", provider.Type)
 	}
 	return nil
-}
-
-func readFromEnv(key string) string {
-	if key, ok := strings.CutPrefix(key, "$"); ok {
-		return os.Getenv(key)
-	}
-	return key
 }

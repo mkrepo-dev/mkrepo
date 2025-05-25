@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/automaxprocs/maxprocs"
 
 	"github.com/mkrepo-dev/mkrepo/internal"
@@ -25,7 +27,6 @@ import (
 	"github.com/mkrepo-dev/mkrepo/template/gitignore"
 	"github.com/mkrepo-dev/mkrepo/template/license"
 	"github.com/mkrepo-dev/mkrepo/template/template"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 func main() {
@@ -55,7 +56,7 @@ func main() {
 	providers := provider.NewProvidersFromConfig(cfg)
 
 	ctx := context.Background()
-	db, err := database.New(ctx, cfg.DatabaseUri, cfg.Secret)
+	db, err := database.New(ctx, cfg.DatabaseUri, cfg.SecretKey)
 	if err != nil {
 		slog.Error("Cannot open database", log.Err(err))
 		os.Exit(1)
@@ -110,7 +111,7 @@ func main() {
 
 	select {
 	case err := <-errCh:
-		if err != nil && err != http.ErrServerClosed {
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("Cannot run server", log.Err(err))
 			os.Exit(1)
 		}

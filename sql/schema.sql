@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS "session" (
 
 CREATE TABLE IF NOT EXISTS "template" (
 	"id" bigserial PRIMARY KEY,
-	"name" text NOT NULL, -- TODO: Maybe move to tempalte_version and let users set this in mkrepo.yaml
+	"name" text NOT NULL, -- TODO: Maybe move to template_version and let users set this in mkrepo.yaml
 	"full_name" text NOT NULL UNIQUE,
 	"url" text UNIQUE,
 	"build_in" boolean NOT NULL DEFAULT false,

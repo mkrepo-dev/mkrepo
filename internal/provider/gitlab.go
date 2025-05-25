@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"io"
@@ -52,6 +53,10 @@ func NewGitLabFromConfig(cfg config.Config, provider config.Provider) *GitLab {
 	return gl
 }
 
+func (gl *GitLab) Key() string {
+	return gl.provider.Key
+}
+
 func (gl *GitLab) Name() string {
 	return gl.provider.Name
 }
@@ -72,7 +77,7 @@ func (gl *GitLab) OAuth2Config() *oauth2.Config {
 
 func (gl *GitLab) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
 	token := r.Header.Get("X-Gitlab-Token")
-	if token != gl.config.Secret {
+	if gl.config.WebhookSecret != "" && subtle.ConstantTimeCompare([]byte(gl.config.WebhookSecret), []byte(token)) == 0 {
 		return WebhookEvent{}, errors.New("invalid request")
 	}
 	payload, err := io.ReadAll(r.Body)
@@ -107,12 +112,16 @@ func (gl *GitLab) NewClient(ctx context.Context, token *oauth2.Token) Client {
 }
 
 func (gl *GitLab) webhookConfig() *gitlab.AddProjectHookOptions {
+	var secret *string
+	if gl.config.WebhookSecret != "" {
+		secret = &gl.config.WebhookSecret
+	}
 	return &gitlab.AddProjectHookOptions{
 		Name:                  gitlab.Ptr("mkrepo"),
 		Description:           gitlab.Ptr("mkrepo webhook"),
 		URL:                   gitlab.Ptr(buildWebhookUrl(gl.config.BaseUrl, gl.provider.Key)),
 		TagPushEvents:         gitlab.Ptr(true),
-		Token:                 gitlab.Ptr(gl.config.Secret),
+		Token:                 secret,
 		EnableSSLVerification: gitlab.Ptr(!gl.config.WebhookInsecure),
 	}
 }

@@ -45,6 +45,10 @@ func NewGitHubFromConfig(cfg config.Config, provider config.Provider) *GitHub {
 	return gh
 }
 
+func (gh *GitHub) Key() string {
+	return gh.provider.Key
+}
+
 func (gh *GitHub) Name() string {
 	return gh.provider.Name
 }
@@ -63,7 +67,11 @@ func (gh *GitHub) OAuth2Config() *oauth2.Config {
 }
 
 func (gh *GitHub) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
-	payload, err := github.ValidatePayload(r, []byte(gh.config.Secret))
+	var secret []byte
+	if gh.config.WebhookSecret != "" {
+		secret = []byte(gh.config.WebhookSecret)
+	}
+	payload, err := github.ValidatePayload(r, secret)
 	if err != nil {
 		return WebhookEvent{}, err
 	}
@@ -98,6 +106,10 @@ func (gh *GitHub) webhookConfig() *github.Hook {
 	if gh.config.WebhookInsecure {
 		insecureTls = "1"
 	}
+	var secret *string
+	if gh.config.WebhookSecret != "" {
+		secret = &gh.config.WebhookSecret
+	}
 	return &github.Hook{
 		Active: github.Ptr(true),
 		Events: []string{"create"},
@@ -105,7 +117,7 @@ func (gh *GitHub) webhookConfig() *github.Hook {
 			ContentType: github.Ptr("json"),
 			InsecureSSL: &insecureTls,
 			URL:         github.Ptr(buildWebhookUrl(gh.config.BaseUrl, gh.provider.Key)),
-			Secret:      &gh.config.Secret,
+			Secret:      secret,
 		},
 	}
 }

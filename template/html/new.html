@@ -122,12 +122,14 @@
         <label for="tag" class="form-check-label">Create init tag <code>v0.0.0</code></label>
       </div>
     </div>
+    {{if ne .Provider.Key "github"}}
     <div class="row g-2 my-1">
       <div class="col form-check">
         <input type="checkbox" class="form-check-input" id="sha256" name="sha256" value="">
         <label for="sha256" class="form-check-label">Use SHA-256 for git object format</label>
       </div>
     </div>
+    {{end}}
     <hr class="my-3">
 
     <button type="submit" class="btn btn-success">Create 🚀</button>

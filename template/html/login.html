@@ -1,7 +1,14 @@
 {{define "title"}}Login{{end}}
 
 {{define "content"}}
-{{range $key, $provider := .Providers}}
-<a href="/auth/login?provider={{$key}}">Login with {{$provider.Name}}</a>
-{{end}}
+<div class="flex-grow-1 d-flex justify-content-center align-items-center">
+  <div class="container text-center border rounded p-4 shadow" style="max-width: 500px; background: white;">
+    <h1>Login</h1>
+    <div class="d-grid gap-2">
+      {{range $key, $provider := .Providers}}
+      <a class="btn btn-primary" href="/auth/login?provider={{$key}}">Login with {{$provider.Name}}</a>
+      {{end}}
+    </div>
+  </div>
+</div>
 {{end}}

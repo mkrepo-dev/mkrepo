@@ -2,6 +2,7 @@ package mkrepo_test
 
 import (
 	"io/fs"
+	"log/slog"
 	"testing"
 	"testing/fstest"
 
@@ -11,6 +12,7 @@ import (
 
 func TestPrepareGitignore(t *testing.T) {
 	t.Parallel()
+	slog.SetDefault(slog.New(slog.DiscardHandler))
 	tests := []struct {
 		name string
 		args fs.FS

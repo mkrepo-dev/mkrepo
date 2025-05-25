@@ -62,6 +62,7 @@ type WebhookEvent struct {
 }
 
 type Provider interface {
+	Key() string
 	Name() string
 	Url() string
 	OAuth2Config() *oauth2.Config

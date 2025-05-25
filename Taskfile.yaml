@@ -59,13 +59,13 @@ tasks:
   lint:
     desc: Run lint
     cmds:
-      - go tool golangci-lint run
+      - go tool -modfile=tool.go.mod golangci-lint run
 
   vulncheck:
     desc: Run vulnerability check
     deps: [build]
     cmds:
-      - go tool govulncheck -mode binary bin/server
+      - go tool -modfile=tool.go.mod govulncheck -mode binary bin/server
 
   makemigrations:
     desc: Make migrations
@@ -124,6 +124,16 @@ tasks:
       - task: docker:build
       - task: test
       - task: vulncheck
+
+  config:default:
+    desc: Create default configuration
+    cmds:
+      - kcl run kcl/default.k --output config.yaml
+
+  config:validate:
+    desc: Validate configuration
+    cmds:
+      - kcl vet config.yaml kcl/config.k --format yaml
 
   docker:build:
     desc: Build Docker image
