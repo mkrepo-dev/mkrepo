@@ -128,12 +128,12 @@ tasks:
   config:default:
     desc: Create default configuration
     cmds:
-      - kcl run kcl/default.k --output config.yaml
+      - go tool -modfile=tool.go.mod kcl run kcl/default.k --output config.yaml
 
   config:validate:
     desc: Validate configuration
     cmds:
-      - kcl vet config.yaml kcl/config.k --format yaml
+      - go tool -modfile=tool.go.mod kcl vet config.yaml kcl/config.k --format yaml
 
   docker:build:
     desc: Build Docker image
