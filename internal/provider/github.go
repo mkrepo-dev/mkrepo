@@ -75,17 +75,29 @@ func (gh *GitHub) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
 	if err != nil {
 		return WebhookEvent{}, err
 	}
+
 	event, err := github.ParseWebHook(github.WebHookType(r), payload)
 	if err != nil {
 		return WebhookEvent{}, err
-
 	}
+
 	switch event := event.(type) {
 	case *github.CreateEvent:
 		if event.GetRefType() != "tag" {
 			return WebhookEvent{}, ErrIgnoreEvent
 		}
 		return WebhookEvent{
+			Type:     EventTypeCreateTag,
+			Tag:      strings.TrimPrefix(strings.TrimPrefix(event.GetRef(), "refs/tags/"), "v"),
+			Url:      event.GetRepo().GetHTMLURL(),
+			CloneUrl: event.GetRepo().GetCloneURL(),
+		}, nil
+	case *github.DeleteEvent:
+		if event.GetRefType() != "tag" {
+			return WebhookEvent{}, ErrIgnoreEvent
+		}
+		return WebhookEvent{
+			Type:     EventTypeDeleteTag,
 			Tag:      strings.TrimPrefix(strings.TrimPrefix(event.GetRef(), "refs/tags/"), "v"),
 			Url:      event.GetRepo().GetHTMLURL(),
 			CloneUrl: event.GetRepo().GetCloneURL(),

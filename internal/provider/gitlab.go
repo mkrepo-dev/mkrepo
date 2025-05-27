@@ -84,13 +84,16 @@ func (gl *GitLab) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
 	if err != nil {
 		return WebhookEvent{}, err
 	}
+
 	event, err := gitlab.ParseWebhook(gitlab.HookEventType(r), payload)
 	if err != nil {
 		return WebhookEvent{}, err
 	}
+
 	switch event := event.(type) {
 	case *gitlab.TagEvent:
 		return WebhookEvent{
+			Type:     gitlabWebhookType(event.Before),
 			Tag:      strings.TrimPrefix(strings.TrimPrefix(event.Ref, "refs/tags/"), "v"),
 			Url:      event.Repository.WebURL,
 			CloneUrl: event.Repository.HTTPURL,
@@ -204,4 +207,12 @@ func (client *GitLabClient) CreateRemoteRepo(ctx context.Context, repo CreateRep
 func (client *GitLabClient) CreateWebhook(ctx context.Context, repo RemoteRepo) error {
 	_, _, err := client.Projects.AddProjectHook(repo.Id, client.gl.webhookConfig())
 	return err
+}
+
+func gitlabWebhookType(beforeHash string) EventType {
+	zeros := strings.Repeat("0", len(beforeHash))
+	if beforeHash == zeros {
+		return EventTypeCreateTag
+	}
+	return EventTypeDeleteTag
 }

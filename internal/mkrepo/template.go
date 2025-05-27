@@ -76,7 +76,7 @@ func prepareTemplateVersion(db *database.DB, templatesFS fs.FS, name string, ver
 	if err != nil {
 		return err
 	}
-	defer mkrepoFile.Close()
+	defer mkrepoFile.Close() // nolint:errcheck
 
 	var mkrepo MkrepoFile
 	err = yaml.NewDecoder(mkrepoFile).Decode(&mkrepo)
@@ -115,7 +115,7 @@ func executeTemplateDir(dstDir string, templateFS fs.FS, context repoInitContext
 		if err != nil {
 			return err
 		}
-		defer f.Close()
+		defer f.Close() // nolint:errcheck
 
 		return t.Execute(f, context)
 	})

@@ -1,7 +1,6 @@
 package mkrepo
 
 import (
-	"io"
 	"io/fs"
 	"log/slog"
 	"regexp"
@@ -46,13 +45,7 @@ func PrepareLicenses(licensesFS fs.FS) (Licenses, error) {
 		license := License{Filename: "LICENSE"}
 		key := strings.TrimSuffix(entry.Name(), ".tmpl")
 
-		f, err := licensesFS.Open(entry.Name())
-		if err != nil {
-			slog.Error("Error opening license file", "file", entry.Name(), "error", err)
-			continue
-		}
-		defer f.Close()
-		content, err := io.ReadAll(f)
+		content, err := fs.ReadFile(licensesFS, entry.Name())
 		if err != nil {
 			slog.Error("Error reading license file", "file", entry.Name(), "error", err)
 			continue

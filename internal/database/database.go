@@ -189,7 +189,7 @@ func (db *DB) CreateAccountSession(ctx context.Context, session string, sessionE
 		accessTokenEnc, refreshTokenEnc, token.Expiry, provider, userInfo.Username,
 	).Scan(&id)
 	if err != nil {
-		if !errors.Is(err, pgx.ErrNoRows) {
+		if !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
 		err = tx.QueryRowContext(ctx,
@@ -299,7 +299,7 @@ func (db *DB) SearchTemplates(ctx context.Context, query string) ([]types.GetTem
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer closeRows(rows)
 
 	var results []types.GetTemplateVersion
 	for rows.Next() {
@@ -363,6 +363,13 @@ func (db *DB) IncreaseTemplateUses(ctx context.Context, fullName string) error {
 		fullName,
 	)
 	return err
+}
+
+func closeRows(rows *sql.Rows) {
+	err := rows.Close()
+	if err != nil {
+		slog.Error("Failed to close rows", log.Err(err))
+	}
 }
 
 func rollback(tx *sql.Tx) {

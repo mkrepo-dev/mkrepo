@@ -8,6 +8,9 @@ providers:
   - key: gitlab
     clientId: $GITLAB_CLIENT_ID
     clientSecret: $GITLAB_CLIENT_SECRET
+  - key: gitea
+    clientId: $GITEA_CLIENT_ID
+    clientSecret: $GITEA_CLIENT_SECRET
 
   # Custom
   - key: private

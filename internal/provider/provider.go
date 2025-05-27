@@ -56,10 +56,18 @@ type RemoteRepo struct {
 }
 
 type WebhookEvent struct {
+	Type     EventType
 	Tag      string
 	Url      string
 	CloneUrl string
 }
+
+type EventType string
+
+const (
+	EventTypeCreateTag EventType = "create_tag"
+	EventTypeDeleteTag EventType = "delete_tag"
+)
 
 type Provider interface {
 	Key() string
@@ -75,6 +83,7 @@ type Provider interface {
 	// and request scoped. If token is refreshed during client creation it is up to caller
 	// to update token in persistent storage. Token refreshed or not is accessible from
 	// returned client using [ProviderClient.Token] method.
+	// TODO: Return error
 	NewClient(ctx context.Context, token *oauth2.Token) Client
 }
 
@@ -103,6 +112,8 @@ func NewProvidersFromConfig(cfg config.Config) Providers {
 			providers[providerConfig.Key] = NewGitHubFromConfig(cfg, providerConfig)
 		case config.GitLabProvider:
 			providers[providerConfig.Key] = NewGitLabFromConfig(cfg, providerConfig)
+		case config.GiteaProvider:
+			providers[providerConfig.Key] = NewGiteaFromConfig(cfg, providerConfig)
 		default:
 			slog.Warn("Unknown provider type", slog.String("type", string(providerConfig.Type)))
 		}

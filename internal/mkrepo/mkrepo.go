@@ -88,7 +88,12 @@ func (rm *RepoMaker) InitializeRepo(ctx context.Context, client provider.Client,
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(dir)
+	defer func() {
+		err := os.RemoveAll(dir)
+		if err != nil {
+			slog.Error("Failed to remove temporary directory", "dir", dir, "error", err)
+		}
+	}()
 
 	err = rm.addFiles(ctx, repo, remoteRepo, dir)
 	if err != nil {
@@ -222,7 +227,12 @@ func createFile(filepath string, tmpl *template.Template, context any) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		err := f.Close()
+		if err != nil {
+			slog.Error("Failed to close file", "file", filepath, "error", err)
+		}
+	}()
 	return tmpl.Execute(f, context)
 }
 
@@ -231,7 +241,7 @@ func addFile(dstFile string, srcFS fs.FS, srcFile string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer f.Close() // nolint:errcheck
 
 	err = os.MkdirAll(filepath.Dir(dstFile), 0755)
 	if err != nil {
@@ -241,7 +251,7 @@ func addFile(dstFile string, srcFS fs.FS, srcFile string) error {
 	if err != nil {
 		return err
 	}
-	defer dst.Close()
+	defer dst.Close() // nolint:errcheck
 
 	_, err = io.Copy(dst, f)
 	return err
