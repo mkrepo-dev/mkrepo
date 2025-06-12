@@ -67,7 +67,6 @@ func TestExecuteTemplateDir(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	wantFiles := map[string][]byte{
-		"go.sum":  []byte(""),
 		"go.mod":  []byte("module github.com/mkrepo-dev/mkrepo\n\ngo 1.24\n"),
 		"main.go": []byte("package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"Hello, 世界\")\n}\n"),
 	}
@@ -78,7 +77,7 @@ func TestExecuteTemplateDir(t *testing.T) {
 	}
 	context := repoInitContext{
 		FullName: "github.com/mkrepo-dev/mkrepo",
-		Values: map[string]string{
+		Values: map[string]any{
 			"goVersion": "1.24",
 		},
 	}

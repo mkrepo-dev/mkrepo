@@ -326,7 +326,7 @@ func (db *DB) GetTemplate(ctx context.Context, fullName string, version *string)
 			 WHERE t."full_name" = $1
 			 ORDER BY tv."version" DESC
 			 LIMIT 1;`,
-			fullName, version,
+			fullName,
 		)
 	} else {
 		row = db.QueryRowContext(ctx,

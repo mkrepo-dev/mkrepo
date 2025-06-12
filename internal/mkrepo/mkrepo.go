@@ -22,7 +22,7 @@ type repoInitContext struct {
 	Description *string
 	FullName    string
 	Url         string
-	Values      any
+	Values      map[string]any
 }
 
 type RepoMaker struct {
@@ -111,7 +111,7 @@ func (rm *RepoMaker) addFiles(ctx context.Context, repo *types.CreateRepo, remot
 		Url:         remoteRepo.HtmlUrl,
 	}
 	if repo.Initialize.Template != nil {
-		context.Values = repo.Initialize.Template.Values
+		context.Values = *repo.Initialize.Template.Values
 	}
 
 	if repo.Initialize.Template != nil {

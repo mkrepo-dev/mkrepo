@@ -116,14 +116,19 @@ func (gt *Gitea) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
 }
 
 func (gt *Gitea) NewClient(ctx context.Context, token *oauth2.Token) Client {
+	ts := gt.OAuth2Config().TokenSource(ctx, token)
+	tkn, err := ts.Token()
+	if err != nil {
+		slog.Error("Failed to get token", log.Err(err))
+	}
 	client, err := gitea.NewClient(gt.provider.ApiUrl,
-		gitea.SetToken(token.AccessToken),
+		gitea.SetToken(tkn.AccessToken),
 		gitea.SetUserAgent(internal.UserAgent),
 	)
 	if err != nil {
 		slog.Error("Failed to create Gitea client.", log.Err(err))
 	}
-	return &GiteaClient{Client: client, token: token, gt: gt}
+	return &GiteaClient{Client: client, token: tkn, gt: gt}
 }
 
 func (client *GiteaClient) Token() *oauth2.Token {
