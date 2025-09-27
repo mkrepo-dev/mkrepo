@@ -62,12 +62,13 @@ func (gt *Gitea) Url() string {
 
 func (gt *Gitea) OAuth2Config() *oauth2.Config {
 	return &oauth2.Config{
-		ClientID:     gt.provider.ClientID,
-		ClientSecret: gt.provider.ClientSecret,
-		Scopes:       []string{"repository", "read:user", "read:organization"},
+		ClientID: gt.provider.ClientID,
+		//ClientSecret: gt.provider.ClientSecret,
+		Scopes: []string{"repository", "read:user", "read:organization"},
 		Endpoint: oauth2.Endpoint{
-			AuthURL:  gt.provider.Url + "/login/oauth/authorize",
-			TokenURL: gt.provider.Url + "/login/oauth/access_token",
+			AuthURL:   gt.provider.Url + "/login/oauth/authorize",
+			TokenURL:  gt.provider.Url + "/login/oauth/access_token",
+			AuthStyle: oauth2.AuthStyleInParams,
 		},
 		RedirectURL: gt.config.BaseUrl + "/auth/oauth2/callback/gitea",
 	}

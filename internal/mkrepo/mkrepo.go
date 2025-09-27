@@ -222,7 +222,7 @@ func addDockerfile(dir string, dockerfiles Dockerfiles, dockerfileName string, c
 	return err
 }
 
-func createFile(filepath string, tmpl *template.Template, context any) error {
+func createFile(filepath string, tmpl *template.Template, data any) error {
 	f, err := os.Create(filepath)
 	if err != nil {
 		return err
@@ -233,7 +233,7 @@ func createFile(filepath string, tmpl *template.Template, context any) error {
 			slog.Error("Failed to close file", "file", filepath, "error", err)
 		}
 	}()
-	return tmpl.Execute(f, context)
+	return tmpl.Execute(f, data)
 }
 
 func addFile(dstFile string, srcFS fs.FS, srcFile string) error {

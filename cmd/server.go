@@ -1,10 +1,8 @@
-package main
+package cmd
 
 import (
 	"context"
 	"errors"
-	"flag"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -13,7 +11,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/automaxprocs/maxprocs"
+	"github.com/spf13/cobra"
 
 	"github.com/mkrepo-dev/mkrepo/internal"
 	"github.com/mkrepo-dev/mkrepo/internal/config"
@@ -29,7 +27,24 @@ import (
 	"github.com/mkrepo-dev/mkrepo/template/template"
 )
 
-func main() {
+func NewServerCommand() *cobra.Command {
+	var (
+		port   int
+		config string
+	)
+	command := &cobra.Command{
+		Short: "Run mkrepo server",
+		Use:   "server",
+		Run: func(cmd *cobra.Command, args []string) {
+			runServer(config)
+		},
+	}
+	command.Flags().IntVar(&port, "port", 8080, "Port to listen on")
+	command.Flags().StringVar(&config, "config", "config.yaml", "Config file")
+	return command
+}
+
+func runServer(configFile string) {
 	log.SetupLogger()
 	version := internal.ReadVersion()
 	slog.Info("Build info",
@@ -37,23 +52,7 @@ func main() {
 		slog.String("revision", version.Revision[:7]), slog.Time("buildDatetime", version.BuildDatetime),
 	)
 
-	_, err := maxprocs.Set(maxprocs.Logger(func(s string, i ...any) {
-		slog.Info(fmt.Sprintf(s, i...))
-	}))
-	if err != nil {
-		slog.Warn("Failed to set GOMAXPROCS", log.Err(err))
-	}
-
-	licenseFlag := flag.Bool("license", false, "Print license and exit")
-	configFile := flag.String("config", "config.yaml", "Path to the configuration file")
-	flag.Parse()
-
-	if *licenseFlag {
-		//fmt.Println(root.License)
-		os.Exit(0)
-	}
-
-	cfg, err := config.LoadConfig(*configFile)
+	cfg, err := config.LoadConfig(configFile)
 	if err != nil {
 		slog.Error("Cannot load config", log.Err(err))
 		os.Exit(1)

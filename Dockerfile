@@ -16,9 +16,8 @@ FROM gcr.io/distroless/static-debian12
 WORKDIR /app
 
 COPY --from=build /app/bin/ .
-COPY --from=build /app/LICENSE .
 
-CMD ["./server"]
+CMD ["./server", "server"]
 
 ARG VERSION
 ARG DATETIME

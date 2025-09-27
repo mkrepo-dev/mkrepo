@@ -113,6 +113,9 @@ type GetTemplateVersion struct {
 	// Name The name of the template.
 	Name string `json:"name"`
 
+	// Schema The schema of the template values.
+	Schema *map[string]interface{} `json:"schema,omitempty"`
+
 	// Stars The number of stars for the template.
 	Stars int `json:"stars"`
 

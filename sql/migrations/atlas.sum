@@ -1,2 +1,4 @@
-h1:lqth5xcU9BTTFSjClFkDBF+0Y5fq3Iqhj283uER4OkM=
+h1:GsvOA2VxNE6m3zuKCASF2e/Ck0tTO1O4Cj8YUj2M0IU=
 20250509165049_init.up.sql h1:smyfI6gtJ+vWgC/IWKdww+4PdI9jj1pPW0HkaTXmQd8=
+20250614155923_add_template_schema.up.sql h1:SC5uR5gOyUXYhrENlt45cZL8WDxuqcJYWQTjeIoG7ic=
+20250713182527_oauth2_add_verifier.up.sql h1:hn/7uqngtBPz2OR/o/03Inp4/etytPcp7+YHxZ1IJF0=

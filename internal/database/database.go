@@ -92,29 +92,27 @@ func (db *DB) Cleanup(ctx context.Context) error {
 	return err
 }
 
-func (db *DB) CreateOAuth2State(ctx context.Context, state string, expires_at time.Time) error {
+func (db *DB) CreateOAuth2State(ctx context.Context, state string, verifier string, expires_at time.Time) error {
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO "oauth2_state" ("state", "expires_at")
-		 VALUES ($1, $2);`,
-		state, expires_at,
+		`INSERT INTO "oauth2_state" ("state", "verifier", "expires_at")
+		 VALUES ($1, $2, $3);`,
+		state, verifier, expires_at,
 	)
 	return err
 }
 
-func (db *DB) ValidateOAuth2State(ctx context.Context, state string) (bool, error) {
-	var valid bool
+func (db *DB) GetValidOAuth2Verifier(ctx context.Context, state string) (string, error) {
+	var verifier string
 	err := db.QueryRowContext(ctx,
-		`SELECT EXISTS (
-		   SELECT 1
-		   FROM "oauth2_state"
-		   WHERE "state" = $1 AND "expires_at" > 'now'::timestamp
-		 );`,
+		`SELECT "verifier"
+		 FROM "oauth2_state"
+		 WHERE "state" = $1 AND "expires_at" > 'now'::timestamp;`,
 		state,
-	).Scan(&valid)
+	).Scan(&verifier)
 	if err != nil {
-		return false, err
+		return "", err
 	}
-	return valid, nil
+	return verifier, nil
 }
 
 type Account struct {
@@ -252,7 +250,7 @@ func (db *DB) DeleteSession(ctx context.Context, session string) error {
 	return err
 }
 
-func (db *DB) CreateTemplate(ctx context.Context, name string, fullName string, url *string, version string, description *string, language *string, buildIn bool) error {
+func (db *DB) CreateTemplate(ctx context.Context, name string, fullName string, url *string, version string, description *string, language *string, schema []byte, buildIn bool) error {
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return err
@@ -271,9 +269,9 @@ func (db *DB) CreateTemplate(ctx context.Context, name string, fullName string, 
 	}
 
 	_, err = tx.ExecContext(ctx,
-		`INSERT INTO "template_version" ("description", "language", "version", "template_id")
-		 VALUES ($1, $2, $3, (SELECT "id" FROM "template" WHERE "full_name" = $4));`,
-		description, language, version, fullName,
+		`INSERT INTO "template_version" ("description", "language", "version", "schema", "template_id")
+		 VALUES ($1, $2, $3, $4,(SELECT "id" FROM "template" WHERE "full_name" = $5));`,
+		description, language, version, schema, fullName,
 	)
 	if err != nil {
 		if strings.Contains(err.Error(), "23505") {
@@ -321,7 +319,7 @@ func (db *DB) GetTemplate(ctx context.Context, fullName string, version *string)
 	var row pgx.Row
 	if version != nil {
 		row = db.QueryRowContext(ctx,
-			`SELECT t."name", t."full_name", t."url", t."build_in", t."stars", tv."version", tv."description", tv."language"
+			`SELECT t."name", t."full_name", t."url", t."build_in", t."stars", tv."version", tv."description", tv."language", tv."schema"
 			 FROM "template" t JOIN "template_version" tv ON t."id" = tv."template_id"
 			 WHERE t."full_name" = $1
 			 ORDER BY tv."version" DESC
@@ -330,7 +328,7 @@ func (db *DB) GetTemplate(ctx context.Context, fullName string, version *string)
 		)
 	} else {
 		row = db.QueryRowContext(ctx,
-			`SELECT t."name", t."full_name", t."url", t."build_in", t."stars", tv."version", tv."description", tv."language"
+			`SELECT t."name", t."full_name", t."url", t."build_in", t."stars", tv."version", tv."description", tv."language", tv."schema"
 			 FROM "template" t JOIN "template_version" tv ON t."id" = tv."template_id"
 			 WHERE t."full_name" = $1 AND tv."version" = $2;`,
 			fullName, version,
@@ -338,7 +336,7 @@ func (db *DB) GetTemplate(ctx context.Context, fullName string, version *string)
 
 	}
 	err := row.Scan(&template.Name, &template.FullName, &template.Url, &template.BuildIn,
-		&template.Stars, &template.Version, &template.Description, &template.Language)
+		&template.Stars, &template.Version, &template.Description, &template.Language, &template.Schema)
 	if err != nil {
 		return types.GetTemplateVersion{}, err
 	}

@@ -2,6 +2,7 @@ package mkrepo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"log/slog"
@@ -23,7 +24,7 @@ type MkrepoFile struct {
 }
 
 // TODO: Take multiple filesystems so user can merge directory with buildin templates
-// TODO: Retun fs with templates as root dirs without template subdir and make embed fs private
+// TODO: Return fs with templates as root dirs without template subdir and make embed fs private
 func PrepareTemplates(db *database.DB, templatesFS fs.FS) error {
 	entries, err := fs.ReadDir(templatesFS, ".")
 	if err != nil {
@@ -84,9 +85,14 @@ func prepareTemplateVersion(db *database.DB, templatesFS fs.FS, name string, ver
 		return err
 	}
 
+	schema, err := json.Marshal(mkrepo.Schema)
+	if err != nil {
+		return err
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err = db.CreateTemplate(ctx, name, name, nil, version, mkrepo.Description, mkrepo.Lang, true)
+	err = db.CreateTemplate(ctx, name, name, nil, version, mkrepo.Description, mkrepo.Lang, schema, true)
 	if err != nil && !errors.Is(err, database.ErrAlreadyExists) {
 		return err
 	}

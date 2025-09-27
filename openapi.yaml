@@ -147,3 +147,9 @@ components:
         language:
           type: string
           description: The language this template is for.
+        schema:
+          type: object
+          description: The schema of the template values.
+          additionalProperties: true
+          example:
+            goVersion: "1.24"

@@ -10,6 +10,7 @@ require (
 	github.com/google/go-github/v72 v72.0.0
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/prometheus/client_golang v1.22.0
+	github.com/spf13/cobra v1.9.1
 	gitlab.com/gitlab-org/api/client-go v0.129.0
 	go.uber.org/automaxprocs v1.6.0
 	go.uber.org/zap v1.27.0
@@ -42,6 +43,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgconn v1.14.3 // indirect
 	github.com/jackc/pgerrcode v0.0.0-20240316143900-6e2875d9b438 // indirect
@@ -64,6 +66,7 @@ require (
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
+	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.58.0 // indirect
 	go.opentelemetry.io/otel/metric v1.34.0 // indirect

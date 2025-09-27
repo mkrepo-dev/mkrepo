@@ -10,6 +10,7 @@ import (
 	"github.com/mkrepo-dev/mkrepo/internal/handler/cookie"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/template/html"
+	"golang.org/x/oauth2"
 )
 
 func Login(db *database.DB, providers provider.Providers) http.HandlerFunc {
@@ -29,13 +30,16 @@ func Login(db *database.DB, providers provider.Providers) http.HandlerFunc {
 		}
 
 		state := rand.Text()
-		err := db.CreateOAuth2State(r.Context(), state, time.Now().Add(15*time.Minute))
+		verifier := oauth2.GenerateVerifier()
+		err := db.CreateOAuth2State(r.Context(), state, verifier, time.Now().Add(15*time.Minute))
 		if err != nil {
 			internalServerError(w, "Failed to create state", err)
 			return
 		}
 
-		http.Redirect(w, r, provider.OAuth2Config().AuthCodeURL(state), http.StatusFound)
+		url := provider.OAuth2Config().AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier))
+
+		http.Redirect(w, r, url, http.StatusFound)
 	}
 }
 
@@ -67,14 +71,15 @@ func OAuth2Callback(db *database.DB, providers provider.Providers) http.HandlerF
 			return
 		}
 
-		valid, err := db.ValidateOAuth2State(r.Context(), r.FormValue("state"))
-		if err != nil || !valid {
+		// TODO: Verifier may be empty string
+		verifier, err := db.GetValidOAuth2Verifier(r.Context(), r.FormValue("state"))
+		if err != nil {
 			http.Error(w, "invalid state", http.StatusBadRequest)
 			return
 		}
 
 		cfg := provider.OAuth2Config()
-		token, err := cfg.Exchange(r.Context(), r.FormValue("code"))
+		token, err := cfg.Exchange(r.Context(), r.FormValue("code"), oauth2.VerifierOption(verifier))
 		if err != nil {
 			internalServerError(w, "Failed to exchange code for token", err)
 			return

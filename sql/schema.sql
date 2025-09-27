@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS "oauth2_state" (
     "state" text PRIMARY KEY,
+	"verifier" text,
     "expires_at" timestamp NOT NULL
 );
 
@@ -37,6 +38,7 @@ CREATE TABLE IF NOT EXISTS "template_version" (
 	"description" text,
 	"language" text,
 	"version" text NOT NULL,
+	"schema" jsonb,
 	"template_id" bigint NOT NULL REFERENCES "template" ("id") ON DELETE CASCADE,
 	UNIQUE ("template_id", "version")
 );
