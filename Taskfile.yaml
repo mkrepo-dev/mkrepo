@@ -65,7 +65,7 @@ tasks:
     desc: Run vulnerability check
     deps: [build]
     cmds:
-      - go tool -modfile=tool.go.mod govulncheck -mode binary bin/server
+      - go tool -modfile=tool.go.mod govulncheck -mode binary bin/mkrepo
 
   makemigrations:
     desc: Make migrations
