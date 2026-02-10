@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	code.gitea.io/sdk/gitea v0.21.0
-	github.com/go-git/go-git/v5 v5.16.0
+	github.com/go-git/go-git/v5 v5.16.5
 	github.com/golang-migrate/migrate/v4 v4.18.3
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-github/v72 v72.0.0
