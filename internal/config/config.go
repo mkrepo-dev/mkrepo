@@ -17,8 +17,10 @@ type Config struct {
 	SecretKey    string `yaml:"secretKey"`
 	MetricsToken string `yaml:"metricsToken"`
 
-	WebhookSecret   string `yaml:"webhookSecret"`
-	WebhookInsecure bool   `yaml:"webhookInsecure"`
+	LicensesDir    string `yaml:"licensesDir"`
+	GitignoresDir  string `yaml:"gitignoresDir"`
+	DockerfilesDir string `yaml:"dockerfilesDir"`
+	TemplatesDir   string `yaml:"templatesDir"`
 
 	Providers []Provider `yaml:"providers"`
 }
@@ -89,9 +91,6 @@ func setDefaults(cfg Config) Config {
 	}
 	if cfg.MetricsToken == "" {
 		cfg.MetricsToken = "$METRICS_TOKEN"
-	}
-	if cfg.WebhookSecret == "" {
-		cfg.WebhookSecret = "$WEBHOOK_SECRET"
 	}
 	for i, provider := range cfg.Providers {
 		cfg.Providers[i] = setDefaultsProvider(provider)

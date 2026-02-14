@@ -2,15 +2,9 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"io"
 	"log/slog"
-	"net/http"
-	"strings"
 
 	"code.gitea.io/sdk/gitea"
-	"github.com/mkrepo-dev/mkrepo/internal"
 	"github.com/mkrepo-dev/mkrepo/internal/config"
 	"github.com/mkrepo-dev/mkrepo/internal/log"
 	"golang.org/x/oauth2"
@@ -60,6 +54,13 @@ func (gt *Gitea) Url() string {
 	return gt.provider.Url
 }
 
+func (*Gitea) Features() ProviderFeatures {
+	return ProviderFeatures{
+		OAuth2AuthorizationCodeFlowWithPKCE: true,
+		Sha256Repo:                          true,
+	}
+}
+
 func (gt *Gitea) OAuth2Config() *oauth2.Config {
 	return &oauth2.Config{
 		ClientID: gt.provider.ClientID,
@@ -74,48 +75,6 @@ func (gt *Gitea) OAuth2Config() *oauth2.Config {
 	}
 }
 
-func (gt *Gitea) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
-	etype, err := giteaWebhookType(r.Header.Get("X-Gitea-Event"))
-	if err != nil {
-		return WebhookEvent{}, err
-	}
-
-	payload, err := io.ReadAll(r.Body)
-	if err != nil {
-		return WebhookEvent{}, err
-	}
-	if gt.config.WebhookSecret != "" {
-		token := r.Header.Get("X-Gitea-Signature")
-		ok, err := gitea.VerifyWebhookSignature(token, gt.config.WebhookSecret, payload)
-		if err != nil {
-			return WebhookEvent{}, err
-		}
-		if !ok {
-			return WebhookEvent{}, errors.New("invalid signature")
-		}
-	}
-
-	type event struct {
-		Ref        string `json:"ref"`
-		Repository struct {
-			HtmlUrl  string `json:"html_url"`
-			CloneUrl string `json:"clone_url"`
-		} `json:"repository"`
-	}
-	var e event
-	err = json.Unmarshal(payload, &e)
-	if err != nil {
-		return WebhookEvent{}, err
-	}
-
-	return WebhookEvent{
-		Type:     etype,
-		Tag:      strings.TrimPrefix(strings.TrimPrefix(e.Ref, "refs/tags/"), "v"),
-		Url:      e.Repository.HtmlUrl,
-		CloneUrl: e.Repository.CloneUrl,
-	}, nil
-}
-
 func (gt *Gitea) NewClient(ctx context.Context, token *oauth2.Token) Client {
 	ts := gt.OAuth2Config().TokenSource(ctx, token)
 	tkn, err := ts.Token()
@@ -124,7 +83,7 @@ func (gt *Gitea) NewClient(ctx context.Context, token *oauth2.Token) Client {
 	}
 	client, err := gitea.NewClient(gt.provider.ApiUrl,
 		gitea.SetToken(tkn.AccessToken),
-		gitea.SetUserAgent(internal.UserAgent),
+		gitea.SetUserAgent(userAgent),
 	)
 	if err != nil {
 		slog.Error("Failed to create Gitea client.", log.Err(err))
@@ -224,29 +183,4 @@ func (client *GiteaClient) CreateRemoteRepo(ctx context.Context, repo CreateRepo
 		HtmlUrl:   r.HTMLURL,
 		CloneUrl:  r.CloneURL,
 	}, nil
-}
-
-func (client *GiteaClient) CreateWebhook(ctx context.Context, repo RemoteRepo) error {
-	_, _, err := client.CreateRepoHook(repo.Namespace, repo.Name, gitea.CreateHookOption{
-		Type:   gitea.HookTypeGitea,
-		Active: true,
-		Events: []string{"create", "delete"},
-		Config: map[string]string{
-			"url":          buildWebhookUrl(client.gt.config.BaseUrl, client.gt.provider.Key),
-			"content_type": "application/json",
-			"secret":       client.gt.config.WebhookSecret,
-		},
-	})
-	return err
-}
-
-func giteaWebhookType(etype string) (EventType, error) {
-	switch etype {
-	case "create":
-		return EventTypeCreateTag, nil
-	case "delete":
-		return EventTypeDeleteTag, nil
-	default:
-		return "", ErrIgnoreEvent
-	}
 }

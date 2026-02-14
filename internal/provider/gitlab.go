@@ -2,20 +2,14 @@ package provider
 
 import (
 	"context"
-	"crypto/subtle"
-	"errors"
 	"fmt"
-	"io"
 	"log/slog"
-	"net/http"
 	"strconv"
-	"strings"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/endpoints"
 
-	"github.com/mkrepo-dev/mkrepo/internal"
 	"github.com/mkrepo-dev/mkrepo/internal/config"
 	"github.com/mkrepo-dev/mkrepo/internal/log"
 )
@@ -65,6 +59,13 @@ func (gl *GitLab) Url() string {
 	return gl.provider.Url
 }
 
+func (*GitLab) Features() ProviderFeatures {
+	return ProviderFeatures{
+		OAuth2AuthorizationCodeFlowWithPKCE: true,
+		Sha256Repo:                          true,
+	}
+}
+
 func (gl *GitLab) OAuth2Config() *oauth2.Config {
 	return &oauth2.Config{
 		ClientID:     gl.provider.ClientID,
@@ -75,34 +76,6 @@ func (gl *GitLab) OAuth2Config() *oauth2.Config {
 	}
 }
 
-func (gl *GitLab) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
-	token := r.Header.Get("X-Gitlab-Token")
-	if gl.config.WebhookSecret != "" && subtle.ConstantTimeCompare([]byte(gl.config.WebhookSecret), []byte(token)) == 0 {
-		return WebhookEvent{}, errors.New("invalid request")
-	}
-	payload, err := io.ReadAll(r.Body)
-	if err != nil {
-		return WebhookEvent{}, err
-	}
-
-	event, err := gitlab.ParseWebhook(gitlab.HookEventType(r), payload)
-	if err != nil {
-		return WebhookEvent{}, err
-	}
-
-	switch event := event.(type) {
-	case *gitlab.TagEvent:
-		return WebhookEvent{
-			Type:     gitlabWebhookType(event.Before),
-			Tag:      strings.TrimPrefix(strings.TrimPrefix(event.Ref, "refs/tags/"), "v"),
-			Url:      event.Repository.WebURL,
-			CloneUrl: event.Repository.HTTPURL,
-		}, nil
-	default:
-		return WebhookEvent{}, ErrIgnoreEvent
-	}
-}
-
 func (gl *GitLab) NewClient(ctx context.Context, token *oauth2.Token) Client {
 	ts := gl.OAuth2Config().TokenSource(ctx, token)
 	tkn, err := ts.Token()
@@ -110,23 +83,8 @@ func (gl *GitLab) NewClient(ctx context.Context, token *oauth2.Token) Client {
 		slog.Error("Failed to get token", log.Err(err))
 	}
 	client, _ := gitlab.NewOAuthClient(tkn.AccessToken)
-	client.UserAgent = internal.UserAgent
+	client.UserAgent = userAgent
 	return &GitLabClient{Client: client, token: tkn, gl: gl}
-}
-
-func (gl *GitLab) webhookConfig() *gitlab.AddProjectHookOptions {
-	var secret *string
-	if gl.config.WebhookSecret != "" {
-		secret = &gl.config.WebhookSecret
-	}
-	return &gitlab.AddProjectHookOptions{
-		Name:                  gitlab.Ptr("mkrepo"),
-		Description:           gitlab.Ptr("mkrepo webhook"),
-		URL:                   gitlab.Ptr(buildWebhookUrl(gl.config.BaseUrl, gl.provider.Key)),
-		TagPushEvents:         gitlab.Ptr(true),
-		Token:                 secret,
-		EnableSSLVerification: gitlab.Ptr(!gl.config.WebhookInsecure),
-	}
 }
 
 func (client *GitLabClient) Token() *oauth2.Token {
@@ -167,7 +125,7 @@ func (client *GitLabClient) GetPosibleRepoOwners(ctx context.Context) ([]RepoOwn
 	}
 	for _, group := range groups {
 		owners = append(owners, RepoOwner{
-			Namespace:   strconv.Itoa(group.ID),
+			Namespace:   strconv.FormatInt(group.ID, 10),
 			Path:        group.FullPath,
 			DisplayName: group.Name,
 			AvatarUrl:   group.AvatarURL,
@@ -185,7 +143,7 @@ func (client *GitLabClient) CreateRemoteRepo(ctx context.Context, repo CreateRep
 		Visibility:  gitlab.Ptr(gitlab.VisibilityValue(repo.Visibility)),
 	}
 	if repo.Namespace != "" {
-		namespace, err := strconv.Atoi(repo.Namespace)
+		namespace, err := strconv.ParseInt(repo.Namespace, 10, 64)
 		if err != nil {
 			return RemoteRepo{}, err
 		}
@@ -202,17 +160,4 @@ func (client *GitLabClient) CreateRemoteRepo(ctx context.Context, repo CreateRep
 		HtmlUrl:   r.WebURL,
 		CloneUrl:  r.HTTPURLToRepo,
 	}, nil
-}
-
-func (client *GitLabClient) CreateWebhook(ctx context.Context, repo RemoteRepo) error {
-	_, _, err := client.Projects.AddProjectHook(repo.Id, client.gl.webhookConfig())
-	return err
-}
-
-func gitlabWebhookType(beforeHash string) EventType {
-	zeros := strings.Repeat("0", len(beforeHash))
-	if beforeHash == zeros {
-		return EventTypeCreateTag
-	}
-	return EventTypeDeleteTag
 }

@@ -1,21 +1,28 @@
 baseUrl: http://localhost:8080
-webhookInsecure: false
+
+# Optional: operator-configurable resource directories
+# If not set, embedded defaults are used
+#licensesDir: /path/to/licenses
+#gitignoresDir: /path/to/gitignores
+#dockerfilesDir: /path/to/dockerfiles
+#templatesDir: /path/to/templates
+
 providers:
   # Minimal
   - key: github
     clientId: $GITHUB_CLIENT_ID
     clientSecret: $GITHUB_CLIENT_SECRET
-  - key: gitlab
-    clientId: $GITLAB_CLIENT_ID
-    clientSecret: $GITLAB_CLIENT_SECRET
-  - key: gitea
-    clientId: $GITEA_CLIENT_ID
-    clientSecret: $GITEA_CLIENT_SECRET
+  #- key: gitlab
+  #  clientId: $GITLAB_CLIENT_ID
+  #  clientSecret: $GITLAB_CLIENT_SECRET
+  #- key: gitea
+  #  clientId: $GITEA_CLIENT_ID
+  #  clientSecret: $GITEA_CLIENT_SECRET
 
   # Custom
-  - key: private
-    name: My Enterprise Github
-    type: github
-    url: https://github.mycompany.com
-    clientId: $GITHUB_CLIENT_ID
-    clientSecret: $GITHUB_CLIENT_SECRET
+  #- key: private
+  #  name: My Enterprise Github
+  #  type: github
+  #  url: https://github.mycompany.com
+  #  clientId: $GITHUB_CLIENT_ID
+  #  clientSecret: $GITHUB_CLIENT_SECRET

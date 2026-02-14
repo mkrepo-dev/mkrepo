@@ -5,17 +5,18 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 
 	"golang.org/x/oauth2"
 
+	"github.com/mkrepo-dev/mkrepo/internal"
 	"github.com/mkrepo-dev/mkrepo/internal/config"
 )
 
 var (
 	ErrRepoAlreadyExists = errors.New("repository already exists") // TODO: Use this error in handler
-	ErrIgnoreEvent       = errors.New("ignore event")
 )
+
+var userAgent = fmt.Sprintf("mkrepo/%s", internal.Build.Version)
 
 type RepoVisibility string
 
@@ -55,28 +56,17 @@ type RemoteRepo struct {
 	CloneUrl  string
 }
 
-type WebhookEvent struct {
-	Type     EventType
-	Tag      string
-	Url      string
-	CloneUrl string
+type ProviderFeatures struct {
+	OAuth2AuthorizationCodeFlowWithPKCE bool
+	Sha256Repo                          bool
 }
-
-type EventType string
-
-const (
-	EventTypeCreateTag EventType = "create_tag"
-	EventTypeDeleteTag EventType = "delete_tag"
-)
 
 type Provider interface {
 	Key() string
 	Name() string
 	Url() string
 	OAuth2Config() *oauth2.Config
-
-	// Parse webhook from provider and return event. Only relevant event is tag creation.
-	ParseWebhookEvent(r *http.Request) (WebhookEvent, error)
+	Features() ProviderFeatures
 
 	// Create provider client based on oauth2 token. Refreshes token if needed. Created
 	// client have same token during its lifetime and one client should be short lived
@@ -98,8 +88,6 @@ type Client interface {
 
 	// Create new repo and return user accessible url and http clone url
 	CreateRemoteRepo(ctx context.Context, repo CreateRepo) (RemoteRepo, error)
-	// Create webhook for the repo
-	CreateWebhook(ctx context.Context, repo RemoteRepo) error
 }
 
 type Providers map[string]Provider
@@ -119,8 +107,4 @@ func NewProvidersFromConfig(cfg config.Config) Providers {
 		}
 	}
 	return providers
-}
-
-func buildWebhookUrl(baseUrl string, providerKey string) string {
-	return fmt.Sprintf("%s/webhook/%s", baseUrl, providerKey)
 }

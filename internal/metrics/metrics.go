@@ -36,7 +36,7 @@ func NewMetrics(reg *prometheus.Registry, db *sql.DB) *Metrics {
 			Help: "Total number of requests by IP version",
 		}, []string{"version"}),
 	}
-	buildInfo := internal.ReadVersion()
+	buildInfo := internal.Build
 	metrics.buildInfo.WithLabelValues(
 		buildInfo.Version,
 		buildInfo.Revision,
@@ -45,7 +45,9 @@ func NewMetrics(reg *prometheus.Registry, db *sql.DB) *Metrics {
 	).Set(1)
 	reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	reg.MustRegister(collectors.NewGoCollector())
-	reg.MustRegister(collectors.NewDBStatsCollector(db, "mkrepo"))
+	if db != nil {
+		reg.MustRegister(collectors.NewDBStatsCollector(db, "mkrepo"))
+	}
 	reg.MustRegister(metrics.buildInfo)
 	reg.MustRegister(metrics.ReposCreated)
 	reg.MustRegister(metrics.RequestDuration)

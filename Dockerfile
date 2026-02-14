@@ -1,26 +1,24 @@
-FROM golang:1.24 AS build
+FROM golang:1.25 AS build
 
 WORKDIR /app
-
-RUN go install github.com/go-task/task/v3/cmd/task@latest
 
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY ./ ./
-RUN task build
+RUN scripts/build.sh
 
 
-FROM gcr.io/distroless/static-debian12
+FROM gcr.io/distroless/static-debian13
 
 WORKDIR /app
 
 COPY --from=build /app/bin/ .
 
-CMD ["./server", "server"]
+CMD ["./mkrepo", "server"]
 
 ARG VERSION
-ARG DATETIME
+ARG BUILD_DATETIME
 ARG REVISION
 ARG IMAGE_REF
 
@@ -28,7 +26,7 @@ LABEL \
     org.opencontainers.image.title="mkrepo" \
     org.opencontainers.image.description="mkrepo is tool for bootstraping git repo on diffrent VCS providers" \
     org.opencontainers.image.version="$VERSION" \
-    org.opencontainers.image.created="$DATETIME" \
+    org.opencontainers.image.created="$BUILD_DATETIME" \
     org.opencontainers.image.authors="Filip Solich" \
     org.opencontainers.image.licenses="MIT License" \
     org.opencontainers.image.url="https://mkrepo.dev" \
@@ -36,4 +34,4 @@ LABEL \
     org.opencontainers.image.source="https://github.com/mkrepo-dev/mkrepo" \
     org.opencontainers.image.revision="$REVISION" \
     org.opencontainers.image.ref.name="$IMAGE_REF" \
-    org.opencontainers.image.base.name="gcr.io/distroless/static-debian12"
+    org.opencontainers.image.base.name="gcr.io/distroless/static-debian13"

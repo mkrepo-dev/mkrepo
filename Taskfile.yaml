@@ -1,37 +1,6 @@
 version: '3'
 
-interval: 1s
-
-dotenv:
-  - .env
-
-env:
-  CGO_ENABLED: 0
-  GOAMD64: v2
-  GOARM64: v8.0
-
-vars:
-  MODULE: github.com/mkrepo-dev/mkrepo
-
-  DATETIME:
-    sh: date --utc --iso-8601=seconds
-  EXACT_VERSION:
-    sh: if git describe --exact-match --tags HEAD > /dev/null 2>&1; then echo 0; else echo 1; fi
-  VERSION_NUMBER:
-    sh: git describe --tags --abbrev=0 | sed 's/^v//'
-  REVISION:
-    sh: git rev-parse HEAD
-  REVISION_SHORT:
-    sh: git rev-parse --short HEAD
-  VERSION:
-    sh: if [ {{.EXACT_VERSION}} = 0 ]; then echo {{.VERSION_NUMBER}}; else echo "{{.VERSION_NUMBER}}+{{.REVISION_SHORT}}"; fi
-
-  REGISTRY: ghcr.io
-  NAMESPACE: mkrepo-dev
-  IMAGE: '{{.REGISTRY}}/{{.NAMESPACE}}/mkrepo'
-  TAG_DEV: '{{.IMAGE}}:dev'
-  TAG_LATEST: '{{.IMAGE}}:latest'
-  TAG_VERSION_NUMBER: '{{.IMAGE}}:{{.VERSION_NUMBER}}'
+dotenv: [.env]
 
 tasks:
   default:
@@ -41,41 +10,27 @@ tasks:
     cmds:
       - task -l --sort none
 
+  lint:
+    desc: Run lint
+    cmds:
+      - go fmt ./...
+      - go vet ./...
+      - golangci-lint run
+
   generate:
     desc: Run go generate
     cmds:
       - go generate ./...
-
-  fmt:
-    desc: Run go fmt
-    cmds:
-      - go fmt ./...
-
-  vet:
-    desc: Run go vet
-    cmds:
-      - go vet ./...
-
-  lint:
-    desc: Run lint
-    cmds:
-      - go tool -modfile=tool.go.mod golangci-lint run
-
-  vulncheck:
-    desc: Run vulnerability check
-    deps: [build]
-    cmds:
-      - go tool -modfile=tool.go.mod govulncheck -mode binary bin/mkrepo
+      - go tool sqlc generate -f sql/sqlc.yaml
 
   makemigrations:
     desc: Make migrations
     vars:
       NAME: '{{default "" .NAME}}'
-    cmds:
-      - atlas migrate diff {{.NAME}} --to file://sql/schema.sql --dir file://sql/migrations?format=golang-migrate --dev-url "docker://postgres/17/dev?search_path=public"
+    cmd: atlas migrate diff {{.NAME}} --to file://sql/schema.sql --dir file://sql/migrations?format=golang-migrate --dev-url "docker://postgres/18/dev?search_path=public"
 
   build:
-    desc: Build server
+    desc: Build mkrepo
     aliases: [b]
     sources:
       - 'cmd/**/*'
@@ -87,17 +42,18 @@ tasks:
       - 'go.sum'
     generates:
       - bin/mkrepo
-    cmds:
-      - go build
-        -ldflags "-X {{.MODULE}}/internal.version={{.VERSION}} -X {{.MODULE}}/internal.revision={{.REVISION}} -X {{.MODULE}}/internal.buildDatetime={{.DATETIME}}"
-        -o bin/mkrepo .
+    cmd: scripts/build.sh
 
-  run:server:
+  run:
     desc: Run server
     deps: [build]
     aliases: [r]
-    cmds:
-      - bin/mkrepo server
+    cmd: bin/mkrepo server
+
+  vulncheck:
+    desc: Run vulnerability check
+    deps: [build]
+    cmd: go tool govulncheck -mode binary bin/mkrepo
 
   test:
     desc: Run tests
@@ -117,51 +73,19 @@ tasks:
     desc: Run pre-commit checks
     cmds:
       - task: generate
-      - task: fmt
-      - task: vet
       - task: lint
       - task: build
       - task: docker:build
       - task: test
       - task: vulncheck
 
-  config:default:
-    desc: Create default configuration
-    cmds:
-      - go tool -modfile=tool.go.mod kcl run kcl/default.k --output config.yaml
-
-  config:validate:
-    desc: Validate configuration
-    cmds:
-      - go tool -modfile=tool.go.mod kcl vet config.yaml kcl/config.k --format yaml
-
   docker:build:
     desc: Build Docker image
-    silent: true
-    cmds:
-      - |
-        if [ {{.EXACT_VERSION}} = 0 ]; then
-          echo "Building image for version {{.VERSION}}"
-          docker build --build-arg VERSION={{.VERSION}} --build-arg REVISION={{.REVISION}} \
-            --build-arg DATETIME={{.DATETIME}} --build-arg IMAGE_REF={{.TAG_VERSION_NUMBER}} \
-            -t {{.TAG_LATEST}} -t {{.TAG_VERSION_NUMBER}} .
-        else
-          echo "Building image for dev version {{.VERSION}}"
-          docker build --build-arg VERSION={{.VERSION}} --build-arg REVISION={{.REVISION}} \
-            --build-arg DATETIME={{.DATETIME}} --build-arg IMAGE_REF={{.TAG_DEV}} \
-            -t {{.TAG_DEV}} .
-        fi
+    cmd: scripts/docker-build.sh
 
   docker:push:
     desc: Push Docker image
-    silent: true
-    cmds:
-      - |
-        if [ {{.EXACT_VERSION}} = 0 ]; then
-          docker push {{.TAG_LATEST}} {{.TAG_VERSION_NUMBER}}
-        else
-          docker push {{.TAG_DEV}}
-        fi
+    cmd: scripts/docker-push.sh
 
   release:
     desc: Release new version

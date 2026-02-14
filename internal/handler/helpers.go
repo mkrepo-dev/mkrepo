@@ -6,21 +6,21 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/mkrepo-dev/mkrepo/internal/database"
+	"github.com/mkrepo-dev/mkrepo/internal/app"
 	"github.com/mkrepo-dev/mkrepo/internal/handler/middleware"
 	"github.com/mkrepo-dev/mkrepo/internal/log"
 )
 
 type baseContext struct {
-	Account *database.Account
+	Account *app.Account
 }
 
 func getBaseContext(r *http.Request) baseContext {
-	account := middleware.Account(r.Context())
-	return baseContext{Account: account}
+	return baseContext{Account: middleware.Account(r.Context())}
 }
 
 func render(w http.ResponseWriter, t *template.Template, context any) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	err := t.Execute(w, context)
 	if err != nil {
 		slog.Error("Failed to render template", log.Err(err))

@@ -2,14 +2,12 @@ package provider
 
 import (
 	"context"
-	"net/http"
 	"strings"
 
 	"github.com/google/go-github/v72/github"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/endpoints"
 
-	"github.com/mkrepo-dev/mkrepo/internal"
 	"github.com/mkrepo-dev/mkrepo/internal/config"
 )
 
@@ -57,6 +55,13 @@ func (gh *GitHub) Url() string {
 	return gh.provider.Url
 }
 
+func (*GitHub) Features() ProviderFeatures {
+	return ProviderFeatures{
+		OAuth2AuthorizationCodeFlowWithPKCE: false,
+		Sha256Repo:                          false,
+	}
+}
+
 func (gh *GitHub) OAuth2Config() *oauth2.Config {
 	return &oauth2.Config{
 		ClientID:     gh.provider.ClientID,
@@ -66,72 +71,10 @@ func (gh *GitHub) OAuth2Config() *oauth2.Config {
 	}
 }
 
-func (gh *GitHub) ParseWebhookEvent(r *http.Request) (WebhookEvent, error) {
-	var secret []byte
-	if gh.config.WebhookSecret != "" {
-		secret = []byte(gh.config.WebhookSecret)
-	}
-	payload, err := github.ValidatePayload(r, secret)
-	if err != nil {
-		return WebhookEvent{}, err
-	}
-
-	event, err := github.ParseWebHook(github.WebHookType(r), payload)
-	if err != nil {
-		return WebhookEvent{}, err
-	}
-
-	switch event := event.(type) {
-	case *github.CreateEvent:
-		if event.GetRefType() != "tag" {
-			return WebhookEvent{}, ErrIgnoreEvent
-		}
-		return WebhookEvent{
-			Type:     EventTypeCreateTag,
-			Tag:      strings.TrimPrefix(strings.TrimPrefix(event.GetRef(), "refs/tags/"), "v"),
-			Url:      event.GetRepo().GetHTMLURL(),
-			CloneUrl: event.GetRepo().GetCloneURL(),
-		}, nil
-	case *github.DeleteEvent:
-		if event.GetRefType() != "tag" {
-			return WebhookEvent{}, ErrIgnoreEvent
-		}
-		return WebhookEvent{
-			Type:     EventTypeDeleteTag,
-			Tag:      strings.TrimPrefix(strings.TrimPrefix(event.GetRef(), "refs/tags/"), "v"),
-			Url:      event.GetRepo().GetHTMLURL(),
-			CloneUrl: event.GetRepo().GetCloneURL(),
-		}, nil
-	default:
-		return WebhookEvent{}, ErrIgnoreEvent
-	}
-}
-
 func (gh *GitHub) NewClient(ctx context.Context, token *oauth2.Token) Client {
 	client := github.NewClient(nil).WithAuthToken(token.AccessToken)
-	client.UserAgent = internal.UserAgent
+	client.UserAgent = userAgent
 	return &GitHubClient{Client: client, token: token, gh: gh}
-}
-
-func (gh *GitHub) webhookConfig() *github.Hook {
-	insecureTls := "0"
-	if gh.config.WebhookInsecure {
-		insecureTls = "1"
-	}
-	var secret *string
-	if gh.config.WebhookSecret != "" {
-		secret = &gh.config.WebhookSecret
-	}
-	return &github.Hook{
-		Active: github.Ptr(true),
-		Events: []string{"create"},
-		Config: &github.HookConfig{
-			ContentType: github.Ptr("json"),
-			InsecureSSL: &insecureTls,
-			URL:         github.Ptr(buildWebhookUrl(gh.config.BaseUrl, gh.provider.Key)),
-			Secret:      secret,
-		},
-	}
 }
 
 func (client *GitHubClient) Token() *oauth2.Token {
@@ -221,9 +164,4 @@ func (client *GitHubClient) CreateRemoteRepo(ctx context.Context, repo CreateRep
 		HtmlUrl:   r.GetHTMLURL(),
 		CloneUrl:  r.GetCloneURL(),
 	}, nil
-}
-
-func (client *GitHubClient) CreateWebhook(ctx context.Context, repo RemoteRepo) error {
-	_, _, err := client.Repositories.CreateHook(ctx, repo.Namespace, repo.Name, client.gh.webhookConfig())
-	return err
 }

@@ -1,112 +1,138 @@
 package handler
 
 import (
-	"crypto/rand"
 	"html/template"
+	"io/fs"
+	"log/slog"
 	"net/http"
 	"time"
 
-	"github.com/mkrepo-dev/mkrepo/internal/database"
-	"github.com/mkrepo-dev/mkrepo/internal/handler/cookie"
+	"github.com/mkrepo-dev/mkrepo/internal/app"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
-	"github.com/mkrepo-dev/mkrepo/template/html"
-	"golang.org/x/oauth2"
 )
 
-func Login(db *database.DB, providers provider.Providers) http.HandlerFunc {
-	type loginContext struct {
-		baseContext
-		Providers provider.Providers
-	}
-	tmpl := template.Must(template.ParseFS(html.FS, "base.html", "login.html"))
-	return func(w http.ResponseWriter, r *http.Request) {
-		provider, ok := providers[r.FormValue("provider")]
-		if !ok {
-			render(w, tmpl, loginContext{
-				baseContext: getBaseContext(r),
-				Providers:   providers,
-			})
-			return
-		}
+const (
+	sessionCookieName  = "session"
+	redirectCookieName = "redirect_uri" // TODO: This is not set anywhere
+)
 
-		state := rand.Text()
-		verifier := oauth2.GenerateVerifier()
-		err := db.CreateOAuth2State(r.Context(), state, verifier, time.Now().Add(15*time.Minute))
-		if err != nil {
-			internalServerError(w, "Failed to create state", err)
-			return
-		}
-
-		url := provider.OAuth2Config().AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier))
-
-		http.Redirect(w, r, url, http.StatusFound)
+func baseCookie(name string) *http.Cookie {
+	return &http.Cookie{
+		Name:     name,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
 	}
 }
 
-func Logout(db *database.DB) http.HandlerFunc {
+func Authenticate(logger *slog.Logger, authService *app.AuthService) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			sessionCookie, err := r.Cookie(sessionCookieName)
+			if err == nil {
+				account, err := authService.Authenticate(ctx, sessionCookie.Value)
+				if err != nil {
+					Logout(logger, authService)(w, r)
+					return
+				}
+				ctx = app.ContextWithAccount(ctx, account)
+			}
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+func Login(logger *slog.Logger, fs fs.FS, authService *app.AuthService, providers provider.Providers) http.HandlerFunc {
+	tmpl := template.Must(template.ParseFS(fs, "base.html", "login.html"))
 	return func(w http.ResponseWriter, r *http.Request) {
-		sessionCookie, err := r.Cookie("session")
+		providerKey := r.FormValue("provider")
+		if providerKey == "" {
+			render(w, tmpl, struct {
+				baseContext
+				Providers provider.Providers
+			}{
+				baseContext: getBaseContext(r),
+				Providers:   providers,
+			})
+		}
+
+		authURL, err := authService.GetAuthURL(r.Context(), app.ProviderKey(providerKey))
+		if err != nil {
+			logger.Error("Failed to get auth URL.", "err", err)
+			http.Error(w, "Failed to get auth URL.", http.StatusInternalServerError)
+			return
+		}
+
+		http.Redirect(w, r, authURL, http.StatusFound)
+	}
+}
+
+func Logout(logger *slog.Logger, authService *app.AuthService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sessionCookie, err := r.Cookie(sessionCookieName)
 		if err != nil {
 			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}
 
-		err = db.DeleteSession(r.Context(), sessionCookie.Value)
+		err = authService.Logout(r.Context(), sessionCookie.Value)
 		if err != nil {
-			internalServerError(w, "Failed to delete session", err)
-			return
+			logger.Error("Failed to logout user.", "err", err)
 		}
 
-		http.SetCookie(w, cookie.NewDeleteCookie("session"))
+		cookie := baseCookie(sessionCookieName)
+		cookie.Value = ""
+		cookie.MaxAge = -1
+		http.SetCookie(w, cookie)
 		http.Redirect(w, r, "/", http.StatusFound)
 	}
 }
 
-func OAuth2Callback(db *database.DB, providers provider.Providers) http.HandlerFunc {
+func OAuth2Callback(logger *slog.Logger, authService *app.AuthService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		errMsg := r.FormValue("error")
+		if errMsg != "" {
+			http.Error(w, "OAuth2 error: "+errMsg, http.StatusBadRequest)
+			return
+		}
+		state := r.FormValue("state")
+		if state == "" {
+			http.Error(w, "Missing state.", http.StatusBadRequest)
+			return
+		}
+		code := r.FormValue("code")
+		if code == "" {
+			http.Error(w, "Missing code.", http.StatusBadRequest)
+			return
+		}
 		providerKey := r.PathValue("provider")
-		provider, ok := providers[providerKey]
-		if !ok {
-			http.Error(w, "unsupported provider", http.StatusBadRequest)
+		if providerKey == "" {
+			http.Error(w, "Missing provider.", http.StatusBadRequest)
 			return
 		}
 
-		// TODO: Verifier may be empty string
-		verifier, err := db.GetValidOAuth2Verifier(r.Context(), r.FormValue("state"))
+		session, err := authService.LoginWithOAuth2Callback(r.Context(), app.ProviderKey(providerKey), state, code)
 		if err != nil {
-			http.Error(w, "invalid state", http.StatusBadRequest)
+			logger.Error("Failed to login with OAuth2 callback.", "err", err)
+			http.Error(w, "Failed to login.", http.StatusInternalServerError)
 			return
 		}
 
-		cfg := provider.OAuth2Config()
-		token, err := cfg.Exchange(r.Context(), r.FormValue("code"), oauth2.VerifierOption(verifier))
-		if err != nil {
-			internalServerError(w, "Failed to exchange code for token", err)
-			return
-		}
+		cookie := baseCookie(sessionCookieName)
+		cookie.Value = session.ID
+		cookie.MaxAge = int(time.Until(session.ExpiresAt).Seconds())
+		http.SetCookie(w, cookie)
 
-		client := provider.NewClient(r.Context(), token)
-		info, err := client.GetUser(r.Context())
-		if err != nil {
-			internalServerError(w, "Failed to get user info", err)
-			return
-		}
-
-		session := rand.Text()
-		sessionExpiresIn := 30 * 24 * 60 * 60
-		sessionExpiresAt := time.Now().Add(time.Duration(sessionExpiresIn) * time.Second)
-		err = db.CreateAccountSession(r.Context(), session, sessionExpiresAt, providerKey, client.Token(), info)
-		if err != nil {
-			internalServerError(w, "Failed to create account", err)
-			return
-		}
-
-		http.SetCookie(w, cookie.NewCookie("session", session, sessionExpiresIn))
-
-		redirectCookie, err := r.Cookie("redirect_uri")
+		redirectCookie, err := r.Cookie(redirectCookieName)
 		if err == nil {
-			http.SetCookie(w, cookie.NewDeleteCookie("redirect_uri"))
-			http.Redirect(w, r, redirectCookie.Value, http.StatusFound)
+			redirectURL := redirectCookie.Value
+			redirectCookie = baseCookie(redirectCookieName)
+			redirectCookie.Value = ""
+			redirectCookie.MaxAge = -1
+			http.SetCookie(w, redirectCookie)
+			http.Redirect(w, r, redirectURL, http.StatusFound)
 			return
 		}
 

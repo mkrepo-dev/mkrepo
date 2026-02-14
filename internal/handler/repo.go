@@ -10,15 +10,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mkrepo-dev/mkrepo/internal/database"
+	"github.com/mkrepo-dev/mkrepo/internal/adapter"
 	"github.com/mkrepo-dev/mkrepo/internal/handler/middleware"
-	"github.com/mkrepo-dev/mkrepo/internal/mkrepo"
+	mkrepo "github.com/mkrepo-dev/mkrepo/internal/service"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/internal/types"
 	"github.com/mkrepo-dev/mkrepo/template/html"
 )
 
-func MkrepoForm(db *database.DB, providers provider.Providers, gitignores []string, licenses mkrepo.Licenses, dockerfiles mkrepo.Dockerfiles) http.Handler {
+func MkrepoForm(db *adapter.Repository, providers provider.Providers, gitignores []string, licenses mkrepo.Licenses, dockerfiles mkrepo.Dockerfiles) http.Handler {
 	type newRepoFormContext struct {
 		baseContext
 		Name        string
@@ -32,12 +32,12 @@ func MkrepoForm(db *database.DB, providers provider.Providers, gitignores []stri
 	tmpl := template.Must(template.ParseFS(html.FS, "base.html", "new.html"))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		account := middleware.Account(r.Context())
-		provider := providers[account.Provider]
-		client := provider.NewClient(r.Context(), account.Token)
+		provider := providers[string(account.Provider)]
+		client := provider.NewClient(r.Context(), account.Session.Token)
 
 		// TODO: Assume that token is valid during whole request. Maybe assure this in middleware.
-		account.Token = client.Token()
-		err := db.UpdateAccountToken(r.Context(), account.Provider, account.Username, account.Token)
+		account.Session.Token = client.Token()
+		err := db.UpdateAccountWithSession(r.Context(), *account)
 		if err != nil {
 			internalServerError(w, "Failed to update account token", err)
 			return
@@ -63,7 +63,7 @@ func MkrepoForm(db *database.DB, providers provider.Providers, gitignores []stri
 	})
 }
 
-func MkrepoCreate(db *database.DB, repomaker *mkrepo.RepoMaker, providers provider.Providers) http.Handler {
+func MkrepoCreate(db *adapter.Repository, repomaker *mkrepo.MkrepoService, providers provider.Providers) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		account := middleware.Account(r.Context())
 		// TODO: Do better validation of input values
@@ -75,14 +75,14 @@ func MkrepoCreate(db *database.DB, repomaker *mkrepo.RepoMaker, providers provid
 			return
 		}
 
-		provider, ok := providers[account.Provider]
+		provider, ok := providers[string(account.Provider)]
 		if !ok {
 			http.Error(w, "unsupported provider", http.StatusBadRequest)
 			return
 		}
-		client := provider.NewClient(r.Context(), account.Token)
-		account.Token = client.Token()
-		err = db.UpdateAccountToken(r.Context(), account.Provider, account.Username, account.Token)
+		client := provider.NewClient(r.Context(), account.Session.Token)
+		account.Session.Token = client.Token()
+		err = db.UpdateAccountWithSession(r.Context(), *account)
 		if err != nil {
 			internalServerError(w, "Failed to update token in db", err)
 			return

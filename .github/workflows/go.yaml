@@ -23,31 +23,25 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version: "1.25"
 
       - name: Download dependencies
         run: go mod download
 
       - name: Install Task
-        uses: arduino/setup-task@v2
-
-      - name: Go generate
-        run: task generate
+        uses: go-task/setup-task@v1
 
       - name: Fmt Go code
         run: "[ ! $(task fmt) ]"
 
-      - name: Vet Go code
-        run: task vet
-
       - name: Lint Go code
         run: task lint
 
-      - name: Vulnerability check
-        run: task vulncheck
-
       - name: Build
         run: task build
+
+      - name: Vulnerability check
+        run: task vulncheck
 
       - name: Test
         run: task test
@@ -64,7 +58,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install Task
-        uses: arduino/setup-task@v2
+        uses: go-task/setup-task@v1
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
