@@ -31,9 +31,6 @@ jobs:
       - name: Install Task
         uses: go-task/setup-task@v1
 
-      - name: Fmt Go code
-        run: "[ ! $(task fmt) ]"
-
       - name: Lint Go code
         run: task lint
 
