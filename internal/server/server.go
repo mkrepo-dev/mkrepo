@@ -8,14 +8,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/mkrepo-dev/mkrepo/internal/adapter"
 	"github.com/mkrepo-dev/mkrepo/internal/app"
 	"github.com/mkrepo-dev/mkrepo/internal/config"
-	"github.com/mkrepo-dev/mkrepo/internal/adapter"
 	"github.com/mkrepo-dev/mkrepo/internal/handler"
 	"github.com/mkrepo-dev/mkrepo/internal/handler/middleware"
 	"github.com/mkrepo-dev/mkrepo/internal/metrics"
-	mkrepo "github.com/mkrepo-dev/mkrepo/internal/service"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
+	mkrepo "github.com/mkrepo-dev/mkrepo/internal/service"
 	"github.com/mkrepo-dev/mkrepo/static"
 	"github.com/mkrepo-dev/mkrepo/template/html"
 )
