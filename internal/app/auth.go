@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"golang.org/x/oauth2"
 )
 
@@ -24,7 +25,7 @@ func (s OAuth2State) Valid() bool {
 
 type Account struct {
 	ID          uuid.UUID
-	Provider    ProviderKey
+	Provider    provider.ProviderKey
 	Email       string
 	Username    string
 	DisplayName string
@@ -62,10 +63,10 @@ type authRepo interface {
 type AuthService struct {
 	logger    *slog.Logger
 	repo      authRepo
-	providers Providers
+	providers provider.Providers
 }
 
-func NewAuthService(logger *slog.Logger, repo authRepo, providers Providers) *AuthService {
+func NewAuthService(logger *slog.Logger, repo authRepo, providers provider.Providers) *AuthService {
 	return &AuthService{
 		logger:    logger,
 		repo:      repo,
@@ -73,7 +74,7 @@ func NewAuthService(logger *slog.Logger, repo authRepo, providers Providers) *Au
 	}
 }
 
-func (s *AuthService) GetAuthURL(ctx context.Context, providerKey ProviderKey) (string, error) {
+func (s *AuthService) GetAuthURL(ctx context.Context, providerKey provider.ProviderKey) (string, error) {
 	provider, ok := s.providers[providerKey]
 	if !ok {
 		return "", fmt.Errorf("unknown provider: %s", providerKey)
@@ -103,7 +104,7 @@ func (s *AuthService) GetAuthURL(ctx context.Context, providerKey ProviderKey) (
 	return provider.OAuth2Config().AuthCodeURL(state, opts...), nil
 }
 
-func (s *AuthService) LoginWithOAuth2Callback(ctx context.Context, providerKey ProviderKey, state string, code string) (Session, error) {
+func (s *AuthService) LoginWithOAuth2Callback(ctx context.Context, providerKey provider.ProviderKey, state string, code string) (Session, error) {
 	provider, ok := s.providers[providerKey]
 	if !ok {
 		return Session{}, fmt.Errorf("unknown provider: %s", providerKey)
@@ -127,7 +128,7 @@ func (s *AuthService) LoginWithOAuth2Callback(ctx context.Context, providerKey P
 		return Session{}, fmt.Errorf("exchange code for token: %w", err)
 	}
 
-	user, err := provider.Client(token).GetUser(ctx)
+	user, err := provider.NewClient(ctx, token).GetUser(ctx)
 	if err != nil {
 		return Session{}, fmt.Errorf("get user info: %w", err)
 	}
@@ -179,7 +180,7 @@ func (s *AuthService) Authenticate(ctx context.Context, sessionID string) (*Acco
 		return nil, fmt.Errorf("refresh access token: %w", err)
 	}
 	if token.AccessToken != account.Session.Token.AccessToken {
-		user, err := provider.Client(token).GetUser(ctx)
+		user, err := provider.NewClient(ctx, token).GetUser(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("get user info: %w", err)
 		}

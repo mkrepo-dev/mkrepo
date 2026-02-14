@@ -24,7 +24,8 @@ import (
 	"github.com/mkrepo-dev/mkrepo/internal/app"
 	"github.com/mkrepo-dev/mkrepo/internal/generated/database"
 	"github.com/mkrepo-dev/mkrepo/internal/log"
-	"github.com/mkrepo-dev/mkrepo/internal/types"
+	"github.com/mkrepo-dev/mkrepo/internal/provider"
+	"github.com/mkrepo-dev/mkrepo/internal/service"
 	"github.com/mkrepo-dev/mkrepo/sql/migrations"
 )
 
@@ -173,7 +174,7 @@ func (r *Repository) GetAccountBySessionID(ctx context.Context, sessionID string
 	}
 	return app.Account{
 		ID:          dbAccount.ID,
-		Provider:    app.ProviderKey(dbAccount.Provider),
+		Provider:    provider.ProviderKey(dbAccount.Provider),
 		Email:       dbAccount.Email,
 		Username:    dbAccount.Username,
 		DisplayName: dbAccount.DisplayName,
@@ -318,15 +319,15 @@ func (r *Repository) DeleteSession(ctx context.Context, sessionID string) error 
 	return r.queries.DeleteSession(ctx, sessionID)
 }
 
-func (r *Repository) SearchTemplates(ctx context.Context, query string) ([]types.GetTemplateVersion, error) {
+func (r *Repository) SearchTemplates(ctx context.Context, query string) ([]service.Template, error) {
 	rows, err := r.queries.SearchTemplates(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("search templates: %w", err)
 	}
 
-	templates := make([]types.GetTemplateVersion, 0, len(rows))
+	templates := make([]service.Template, 0, len(rows))
 	for _, row := range rows {
-		template := types.GetTemplateVersion{
+		template := service.Template{
 			Name:     row.Name,
 			FullName: row.FullName,
 			BuildIn:  row.BuildIn,
@@ -347,13 +348,13 @@ func (r *Repository) SearchTemplates(ctx context.Context, query string) ([]types
 	return templates, nil
 }
 
-func (r *Repository) GetTemplate(ctx context.Context, fullName string) (types.GetTemplateVersion, error) {
+func (r *Repository) GetTemplate(ctx context.Context, fullName string) (service.Template, error) {
 	row, err := r.queries.GetTemplate(ctx, fullName)
 	if err != nil {
-		return types.GetTemplateVersion{}, fmt.Errorf("get template: %w", err)
+		return service.Template{}, fmt.Errorf("get template: %w", err)
 	}
 
-	template := types.GetTemplateVersion{
+	template := service.Template{
 		Name:     row.Name,
 		FullName: row.FullName,
 		BuildIn:  row.BuildIn,
@@ -370,7 +371,7 @@ func (r *Repository) GetTemplate(ctx context.Context, fullName string) (types.Ge
 		template.Language = &row.Language.String
 	}
 	if len(row.Schema) > 0 {
-		var schema map[string]interface{}
+		var schema map[string]any
 		// Schema is already jsonb, so we can assign it directly
 		// Note: This assumes Schema is stored as a JSON object
 		template.Schema = &schema

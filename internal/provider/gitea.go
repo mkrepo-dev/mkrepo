@@ -104,7 +104,7 @@ func (client *GiteaClient) GetUser(ctx context.Context) (User, error) {
 	user.Username = res.UserName
 	user.Email = res.Email
 	user.DisplayName = res.FullName
-	user.AvatarUrl = res.AvatarURL
+	user.AvatarURL = res.AvatarURL
 	return user, nil
 }
 
@@ -118,7 +118,7 @@ func (client *GiteaClient) GetPosibleRepoOwners(ctx context.Context) ([]RepoOwne
 		Namespace:   "",
 		Path:        user.Username,
 		DisplayName: user.DisplayName,
-		AvatarUrl:   user.AvatarUrl,
+		AvatarUrl:   user.AvatarURL,
 	})
 
 	orgs, _, err := client.ListMyOrgs(gitea.ListOrgsOptions{})

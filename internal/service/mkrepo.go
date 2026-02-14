@@ -13,7 +13,6 @@ import (
 
 	"github.com/mkrepo-dev/mkrepo/internal/metrics"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
-	"github.com/mkrepo-dev/mkrepo/internal/types"
 )
 
 type repoInitContext struct {
@@ -47,7 +46,7 @@ func NewService(metrics *metrics.Metrics, repo Repository, gitignores fs.FS, lic
 }
 
 // Create remote repo and initialize it if needed. Returns url to the repo.
-func (rm *MkrepoService) CreateNewRepo(ctx context.Context, client provider.Client, repo *types.CreateRepo) (string, error) {
+func (rm *MkrepoService) CreateNewRepo(ctx context.Context, client provider.Client, repo *CreateRepo) (string, error) {
 	remoteRepo, err := client.CreateRemoteRepo(ctx, provider.CreateRepo{
 		Namespace:   repo.Namespace,
 		Name:        repo.Name,
@@ -59,7 +58,7 @@ func (rm *MkrepoService) CreateNewRepo(ctx context.Context, client provider.Clie
 		return "", err
 	}
 
-	if !types.CreateRepoNeedsInitialization(repo) {
+	if !CreateRepoNeedsInitialization(repo) {
 		slog.Info("Repo created")
 		return remoteRepo.HtmlUrl, nil
 	}
@@ -74,7 +73,7 @@ func (rm *MkrepoService) CreateNewRepo(ctx context.Context, client provider.Clie
 	return remoteRepo.HtmlUrl, nil
 }
 
-func (rm *MkrepoService) InitializeRepo(ctx context.Context, client provider.Client, repo *types.CreateRepo, remoteRepo provider.RemoteRepo) error {
+func (rm *MkrepoService) InitializeRepo(ctx context.Context, client provider.Client, repo *CreateRepo, remoteRepo provider.RemoteRepo) error {
 	dir, err := os.MkdirTemp("", "mkrepo-")
 	if err != nil {
 		return err
@@ -94,7 +93,7 @@ func (rm *MkrepoService) InitializeRepo(ctx context.Context, client provider.Cli
 	return pushRepo(ctx, repo, dir, remoteRepo.CloneUrl, client.Token().AccessToken)
 }
 
-func (rm *MkrepoService) addFiles(ctx context.Context, repo *types.CreateRepo, remoteRepo provider.RemoteRepo, dir string) error {
+func (rm *MkrepoService) addFiles(ctx context.Context, repo *CreateRepo, remoteRepo provider.RemoteRepo, dir string) error {
 	context := repoInitContext{
 		Name:        repo.Name,
 		Description: repo.Description,
@@ -102,7 +101,7 @@ func (rm *MkrepoService) addFiles(ctx context.Context, repo *types.CreateRepo, r
 		Url:         remoteRepo.HtmlUrl,
 	}
 	if repo.Initialize.Template != nil {
-		context.Values = *repo.Initialize.Template.Values
+		context.Values = repo.Initialize.Template.Values
 	}
 
 	if repo.Initialize.Template != nil {
@@ -143,7 +142,7 @@ func (rm *MkrepoService) addFiles(ctx context.Context, repo *types.CreateRepo, r
 	return nil
 }
 
-func (rm *MkrepoService) executeTemplateRepo(ctx context.Context, dir string, repo *types.CreateRepo, context repoInitContext) error {
+func (rm *MkrepoService) executeTemplateRepo(ctx context.Context, dir string, repo *CreateRepo, context repoInitContext) error {
 	templateInfo, err := rm.repo.GetTemplate(ctx, repo.Initialize.Template.FullName)
 	if err != nil {
 		return err
@@ -178,7 +177,7 @@ func addGitignore(dir string, gitignoreFS fs.FS, gitignoreName string) error {
 	return addFile(dst, gitignoreFS, src)
 }
 
-func addLicense(dir string, licenses Licenses, createLicense types.CreateRepoInitializeLicense) error {
+func addLicense(dir string, licenses Licenses, createLicense CreateRepoInitializeLicense) error {
 	license, ok := licenses[createLicense.Key]
 	if !ok {
 		return fmt.Errorf("license %s not found", createLicense.Key)

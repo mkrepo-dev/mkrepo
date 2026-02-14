@@ -30,7 +30,7 @@ type User struct {
 	Username    string
 	Email       string
 	DisplayName string
-	AvatarUrl   string
+	AvatarURL   string
 }
 
 type RepoOwner struct {
@@ -90,18 +90,20 @@ type Client interface {
 	CreateRemoteRepo(ctx context.Context, repo CreateRepo) (RemoteRepo, error)
 }
 
-type Providers map[string]Provider
+type ProviderKey string
+
+type Providers map[ProviderKey]Provider
 
 func NewProvidersFromConfig(cfg config.Config) Providers {
 	providers := make(Providers)
 	for _, providerConfig := range cfg.Providers {
 		switch providerConfig.Type {
 		case config.GitHubProvider:
-			providers[providerConfig.Key] = NewGitHubFromConfig(cfg, providerConfig)
+			providers[ProviderKey(providerConfig.Key)] = NewGitHubFromConfig(cfg, providerConfig)
 		case config.GitLabProvider:
-			providers[providerConfig.Key] = NewGitLabFromConfig(cfg, providerConfig)
+			providers[ProviderKey(providerConfig.Key)] = NewGitLabFromConfig(cfg, providerConfig)
 		case config.GiteaProvider:
-			providers[providerConfig.Key] = NewGiteaFromConfig(cfg, providerConfig)
+			providers[ProviderKey(providerConfig.Key)] = NewGiteaFromConfig(cfg, providerConfig)
 		default:
 			slog.Warn("Unknown provider type", slog.String("type", string(providerConfig.Type)))
 		}

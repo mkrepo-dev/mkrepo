@@ -12,7 +12,6 @@ import (
 	fmtconfig "github.com/go-git/go-git/v5/plumbing/format/config"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
-	"github.com/mkrepo-dev/mkrepo/internal/types"
 )
 
 func cloneRepo(ctx context.Context, url string) (string, error) {
@@ -35,7 +34,7 @@ func cloneRepo(ctx context.Context, url string) (string, error) {
 	return dir, nil
 }
 
-func pushRepo(ctx context.Context, repo *types.CreateRepo, dir string, remote string, token string) error {
+func pushRepo(ctx context.Context, repo *CreateRepo, dir string, remote string, token string) error {
 	initOpt := &git.PlainInitOptions{
 		InitOptions: git.InitOptions{
 			DefaultBranch: plumbing.Main,

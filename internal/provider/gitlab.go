@@ -100,7 +100,7 @@ func (client *GitLabClient) GetUser(ctx context.Context) (User, error) {
 	user.Username = res.Username
 	user.Email = res.Email
 	user.DisplayName = res.Name
-	user.AvatarUrl = res.AvatarURL
+	user.AvatarURL = res.AvatarURL
 	return user, nil
 }
 

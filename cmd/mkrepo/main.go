@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/mkrepo-dev/mkrepo"
 	"github.com/mkrepo-dev/mkrepo/internal"
 	"github.com/mkrepo-dev/mkrepo/internal/adapter"
 	"github.com/mkrepo-dev/mkrepo/internal/config"
@@ -21,7 +23,7 @@ import (
 	"github.com/mkrepo-dev/mkrepo/internal/metrics"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/internal/server"
-	mkrepo "github.com/mkrepo-dev/mkrepo/internal/service"
+	"github.com/mkrepo-dev/mkrepo/internal/service"
 	"github.com/mkrepo-dev/mkrepo/template/docker"
 	"github.com/mkrepo-dev/mkrepo/template/gitignore"
 	"github.com/mkrepo-dev/mkrepo/template/license"
@@ -29,20 +31,25 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "license":
+			fmt.Println(mkrepo.License)
+			os.Exit(0)
+		case "readme":
+			fmt.Println(mkrepo.Readme)
+			os.Exit(0)
+		}
+	}
+
 	log.SetupLogger()
 	slog.Info("Build info",
 		slog.String("version", internal.Build.Version), slog.String("goVersion", internal.Build.GoVersion),
 		slog.String("revision", internal.Build.Revision), slog.Time("buildDatetime", internal.Build.BuildDatetime),
 	)
 
-	licenseFlag := flag.Bool("license", false, "Print license and exit")
 	configFile := flag.String("config", "config.yaml", "Path to the configuration file")
 	flag.Parse()
-
-	if *licenseFlag {
-		//fmt.Println(root.License)
-		os.Exit(0)
-	}
 
 	cfg, err := config.LoadConfig(*configFile)
 	if err != nil {
@@ -68,7 +75,7 @@ func main() {
 	if cfg.GitignoresDir != "" {
 		gitignoresFS = os.DirFS(cfg.GitignoresDir)
 	}
-	gitignores, err := mkrepo.PrepareGitignores(gitignoresFS)
+	gitignores, err := service.PrepareGitignores(gitignoresFS)
 	if err != nil {
 		slog.Error("Cannot prepare gitignores", log.Err(err))
 		os.Exit(1)
@@ -78,7 +85,7 @@ func main() {
 	if cfg.LicensesDir != "" {
 		licensesFS = os.DirFS(cfg.LicensesDir)
 	}
-	licenses, err := mkrepo.PrepareLicenses(licensesFS)
+	licenses, err := service.PrepareLicenses(licensesFS)
 	if err != nil {
 		slog.Error("Cannot prepare licenses", log.Err(err))
 		os.Exit(1)
@@ -88,7 +95,7 @@ func main() {
 	if cfg.DockerfilesDir != "" {
 		dockerfilesFS = os.DirFS(cfg.DockerfilesDir)
 	}
-	dockerfiles, err := mkrepo.PrepareDockerfiles(dockerfilesFS)
+	dockerfiles, err := service.PrepareDockerfiles(dockerfilesFS)
 	if err != nil {
 		slog.Error("Cannot prepare dockerfiles", log.Err(err))
 		os.Exit(1)
@@ -98,13 +105,13 @@ func main() {
 	if cfg.TemplatesDir != "" {
 		templatesFS = os.DirFS(cfg.TemplatesDir)
 	}
-	err = mkrepo.PrepareTemplates(db, templatesFS)
+	err = service.PrepareTemplates(db, templatesFS)
 	if err != nil {
 		slog.Error("Cannot prepare templates", log.Err(err))
 		os.Exit(1)
 	}
 
-	repomaker := mkrepo.NewService(metrics, db, gitignoresFS, licenses, dockerfiles, dockerfilesFS, templatesFS)
+	repomaker := service.NewService(metrics, db, gitignoresFS, licenses, dockerfiles, dockerfilesFS, templatesFS)
 
 	srv := server.NewServer(cfg, reg, metrics, db, repomaker, providers, gitignores, licenses, dockerfiles)
 

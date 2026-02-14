@@ -90,7 +90,7 @@ func (client *GitHubClient) GetUser(ctx context.Context) (User, error) {
 	user.Username = res.GetLogin()
 	user.Email = res.GetEmail()
 	user.DisplayName = res.GetName()
-	user.AvatarUrl = res.GetAvatarURL()
+	user.AvatarURL = res.GetAvatarURL()
 	return user, nil
 }
 
@@ -156,7 +156,6 @@ func (client *GitHubClient) CreateRemoteRepo(ctx context.Context, repo CreateRep
 		}
 		return RemoteRepo{}, err
 	}
-	// TODO: Wait for repo creation with exponential backoff
 	return RemoteRepo{
 		Id:        r.GetID(),
 		Namespace: r.GetOwner().GetLogin(),

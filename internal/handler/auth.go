@@ -58,7 +58,7 @@ func Login(logger *slog.Logger, fs fs.FS, authService *app.AuthService, provider
 			})
 		}
 
-		authURL, err := authService.GetAuthURL(r.Context(), app.ProviderKey(providerKey))
+		authURL, err := authService.GetAuthURL(r.Context(), provider.ProviderKey(providerKey))
 		if err != nil {
 			logger.Error("Failed to get auth URL.", "err", err)
 			http.Error(w, "Failed to get auth URL.", http.StatusInternalServerError)
@@ -113,7 +113,7 @@ func OAuth2Callback(logger *slog.Logger, authService *app.AuthService) http.Hand
 			return
 		}
 
-		session, err := authService.LoginWithOAuth2Callback(r.Context(), app.ProviderKey(providerKey), state, code)
+		session, err := authService.LoginWithOAuth2Callback(r.Context(), provider.ProviderKey(providerKey), state, code)
 		if err != nil {
 			logger.Error("Failed to login with OAuth2 callback.", "err", err)
 			http.Error(w, "Failed to login.", http.StatusInternalServerError)

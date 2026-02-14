@@ -12,9 +12,8 @@ import (
 
 	"github.com/mkrepo-dev/mkrepo/internal/adapter"
 	"github.com/mkrepo-dev/mkrepo/internal/handler/middleware"
-	mkrepo "github.com/mkrepo-dev/mkrepo/internal/service"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
-	"github.com/mkrepo-dev/mkrepo/internal/types"
+	mkrepo "github.com/mkrepo-dev/mkrepo/internal/service"
 	"github.com/mkrepo-dev/mkrepo/template/html"
 )
 
@@ -32,7 +31,7 @@ func MkrepoForm(db *adapter.Repository, providers provider.Providers, gitignores
 	tmpl := template.Must(template.ParseFS(html.FS, "base.html", "new.html"))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		account := middleware.Account(r.Context())
-		provider := providers[string(account.Provider)]
+		provider := providers[account.Provider]
 		client := provider.NewClient(r.Context(), account.Session.Token)
 
 		// TODO: Assume that token is valid during whole request. Maybe assure this in middleware.
@@ -75,7 +74,7 @@ func MkrepoCreate(db *adapter.Repository, repomaker *mkrepo.MkrepoService, provi
 			return
 		}
 
-		provider, ok := providers[string(account.Provider)]
+		provider, ok := providers[account.Provider]
 		if !ok {
 			http.Error(w, "unsupported provider", http.StatusBadRequest)
 			return
@@ -98,7 +97,7 @@ func MkrepoCreate(db *adapter.Repository, repomaker *mkrepo.MkrepoService, provi
 	})
 }
 
-func CreateRepoFromForm(r *http.Request) (*types.CreateRepo, error) {
+func CreateRepoFromForm(r *http.Request) (*mkrepo.CreateRepo, error) {
 	err := r.ParseForm()
 	if err != nil {
 		return nil, errors.New("invalid form")
@@ -115,9 +114,9 @@ func CreateRepoFromForm(r *http.Request) (*types.CreateRepo, error) {
 	if descriptionStr != "" {
 		description = &descriptionStr
 	}
-	var visibility *types.CreateRepoVisibility
-	formVisibility := types.CreateRepoVisibility(r.FormValue("visibility"))
-	if !slices.Contains([]types.CreateRepoVisibility{types.Private, types.Public}, formVisibility) {
+	var visibility *mkrepo.CreateRepoVisibility
+	formVisibility := mkrepo.CreateRepoVisibility(r.FormValue("visibility"))
+	if !slices.Contains([]mkrepo.CreateRepoVisibility{mkrepo.Private, mkrepo.Public}, formVisibility) {
 		return nil, errors.New("invalid visibility")
 	}
 	visibility = &formVisibility
@@ -132,14 +131,14 @@ func CreateRepoFromForm(r *http.Request) (*types.CreateRepo, error) {
 	if r.Form.Has("tag") {
 		tag = ptr("v0.0.0")
 	}
-	var template *types.CreateRepoTemplate
+	var template *mkrepo.CreateRepoTemplate
 	templateStr := r.FormValue("template")
 	if templateStr != "" {
 		nameVersion := strings.Split(templateStr, "@")
 		if len(nameVersion) != 2 {
 			return nil, errors.New("invalid template name version")
 		}
-		template = &types.CreateRepoTemplate{
+		template = &mkrepo.CreateRepoTemplate{
 			FullName: nameVersion[0],
 			Version:  &nameVersion[1],
 		}
@@ -163,7 +162,7 @@ func CreateRepoFromForm(r *http.Request) (*types.CreateRepo, error) {
 	if r.Form.Has("dockerignore") {
 		dockerignore = ptr(true)
 	}
-	var license *types.CreateRepoInitializeLicense
+	var license *mkrepo.CreateRepoInitializeLicense
 	licenseStr := r.FormValue("license")
 	if licenseStr != "" {
 		var licenseFullName *string
@@ -185,7 +184,7 @@ func CreateRepoFromForm(r *http.Request) (*types.CreateRepo, error) {
 			}
 			year = &yearInt
 		}
-		license = &types.CreateRepoInitializeLicense{
+		license = &mkrepo.CreateRepoInitializeLicense{
 			Key:      licenseStr,
 			Fullname: licenseFullName,
 			Project:  licenseProject,
@@ -193,14 +192,14 @@ func CreateRepoFromForm(r *http.Request) (*types.CreateRepo, error) {
 		}
 	}
 
-	repo := &types.CreateRepo{
+	repo := &mkrepo.CreateRepo{
 		Name:        name,
 		Namespace:   namespace,
 		Description: description,
 		Visibility:  visibility,
 		Sha256:      sha256,
-		Initialize: &types.CreateRepoInitialize{
-			Author: types.CreateRepoInitializeAuthor{
+		Initialize: &mkrepo.CreateRepoInitialize{
+			Author: mkrepo.CreateRepoInitializeAuthor{
 				Name:  account.DisplayName,
 				Email: account.Email,
 			},
