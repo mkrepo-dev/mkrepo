@@ -126,14 +126,14 @@ func (client *GiteaClient) GetPosibleRepoOwners(ctx context.Context) ([]RepoOwne
 		return owners, err
 	}
 	for _, org := range orgs {
-		perm, _, err := client.GetOrgPermissions(org.UserName, user.Username)
+		perm, _, err := client.GetOrgPermissions(org.Name, user.Username)
 		if err != nil {
 			return owners, err
 		}
 
 		orgOwner := RepoOwner{
-			Namespace:   org.UserName,
-			Path:        org.UserName,
+			Namespace:   org.Name,
+			Path:        org.Name,
 			DisplayName: org.FullName,
 			AvatarUrl:   org.AvatarURL,
 		}

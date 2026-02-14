@@ -17,11 +17,11 @@ func Live(healthService *app.HealthService) http.Handler {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(code)
-		json.NewEncoder(w).Encode(struct {
+		json.NewEncoder(w).Encode(struct { // nolint:errcheck
 			Live bool `json:"live"`
 		}{
 			Live: live,
-		}) // nolint:errcheck
+		})
 	})
 }
 
@@ -35,10 +35,10 @@ func Ready(healthService *app.HealthService) http.Handler {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(code)
-		json.NewEncoder(w).Encode(struct {
+		json.NewEncoder(w).Encode(struct { // nolint:errcheck
 			Repository bool `json:"repository"`
 		}{
 			Repository: status.Repository,
-		}) // nolint:errcheck
+		})
 	})
 }

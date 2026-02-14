@@ -82,7 +82,7 @@ func (gl *GitLab) NewClient(ctx context.Context, token *oauth2.Token) Client {
 	if err != nil {
 		slog.Error("Failed to get token", log.Err(err))
 	}
-	client, _ := gitlab.NewOAuthClient(tkn.AccessToken)
+	client, _ := gitlab.NewClient(tkn.AccessToken)
 	client.UserAgent = userAgent
 	return &GitLabClient{Client: client, token: tkn, gl: gl}
 }
