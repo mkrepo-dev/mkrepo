@@ -30,3 +30,5 @@ __debug_bin
 
 # Taskfile
 .task/
+
+.claude

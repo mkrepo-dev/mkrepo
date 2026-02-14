@@ -10,10 +10,9 @@ import (
 )
 
 type Metrics struct {
-	buildInfo        *prometheus.GaugeVec
-	ReposCreated     prometheus.Counter
-	RequestDuration  *prometheus.HistogramVec
-	RequestIPVersion *prometheus.CounterVec
+	buildInfo       *prometheus.GaugeVec
+	ReposCreated    prometheus.Counter
+	RequestDuration *prometheus.HistogramVec
 }
 
 func NewMetrics(reg *prometheus.Registry, db *sql.DB) *Metrics {
@@ -31,10 +30,6 @@ func NewMetrics(reg *prometheus.Registry, db *sql.DB) *Metrics {
 			Help:    "Duration of HTTP requests in seconds",
 			Buckets: []float64{0.01, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10},
 		}, []string{"method", "path", "status"}),
-		RequestIPVersion: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: "mkrepo", Subsystem: "http", Name: "request_ip_version_total",
-			Help: "Total number of requests by IP version",
-		}, []string{"version"}),
 	}
 	buildInfo := internal.Build
 	metrics.buildInfo.WithLabelValues(
@@ -51,6 +46,5 @@ func NewMetrics(reg *prometheus.Registry, db *sql.DB) *Metrics {
 	reg.MustRegister(metrics.buildInfo)
 	reg.MustRegister(metrics.ReposCreated)
 	reg.MustRegister(metrics.RequestDuration)
-	reg.MustRegister(metrics.RequestIPVersion)
 	return metrics
 }
