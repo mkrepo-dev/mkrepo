@@ -31,8 +31,10 @@ jobs:
       - name: Install Task
         uses: go-task/setup-task@v1
 
-      - name: Lint Go code
-        run: task lint
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.6
 
       - name: Build
         run: task build
