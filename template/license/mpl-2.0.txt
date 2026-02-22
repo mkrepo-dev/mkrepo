@@ -1,5 +1,3 @@
-{{- /* title: Mozilla Public License 2.0 */ -}}
-{{- /* filename: LICENSE */ -}}
 Mozilla Public License Version 2.0
 ==================================
 

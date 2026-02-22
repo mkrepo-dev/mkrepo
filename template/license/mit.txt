@@ -1,5 +1,3 @@
-{{- /* title: MIT License */ -}}
-{{- /* filename: LICENSE */ -}}
 MIT License
 
 Copyright (c) {{.Year}} {{.Owner}}

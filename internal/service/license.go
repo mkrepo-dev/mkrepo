@@ -42,7 +42,7 @@ func PrepareLicenses(licensesFS fs.FS) (Licenses, error) {
 		}
 
 		license := License{Filename: "LICENSE"}
-		key := strings.TrimSuffix(entry.Name(), ".tmpl")
+		key := strings.TrimSuffix(entry.Name(), ".txt")
 
 		content, err := fs.ReadFile(licensesFS, entry.Name())
 		if err != nil {

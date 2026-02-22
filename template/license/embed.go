@@ -2,5 +2,8 @@ package license
 
 import "embed"
 
-//go:embed *.tmpl
+//go:embed config.yaml
+var LicenseConfig string
+
+//go:embed *.txt
 var FS embed.FS

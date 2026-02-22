@@ -1,5 +1,3 @@
-{{- /* title: BSD 3-Clause "New" or "Revised" License */ -}}
-{{- /* filename: LICENSE */ -}}
 BSD 3-Clause License
 
 Copyright (c)  {{.Year}}, {{.Owner}}

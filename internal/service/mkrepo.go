@@ -165,7 +165,7 @@ func (rm *MkrepoService) executeTemplateRepo(ctx context.Context, dir string, re
 	return executeTemplateDir(dir, templateFS, context)
 }
 
-var readme = template.Must(template.New("").Parse("# {{.Name}}{{if .Description}}\n\n{{.Description}}{{end}}\n"))
+var readme = template.Must(template.New("").Parse("# {{.Name}}\n{{if .Description}}\n{{.Description}}\n{{end}}"))
 
 func addReadme(dir string, context repoInitContext) error {
 	return createFile(filepath.Join(dir, "README.md"), readme, context)

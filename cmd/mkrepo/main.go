@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -24,32 +25,54 @@ import (
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/internal/server"
 	"github.com/mkrepo-dev/mkrepo/internal/service"
-	"github.com/mkrepo-dev/mkrepo/template/docker"
 	"github.com/mkrepo-dev/mkrepo/template/gitignore"
 	"github.com/mkrepo-dev/mkrepo/template/license"
 	"github.com/mkrepo-dev/mkrepo/template/template"
 )
 
+func printHelp() {
+	fmt.Println("Usage: mkrepo <command>")
+	fmt.Println("Commands:")
+	fmt.Println("  server   - Start the mkrepo server")
+	fmt.Println("  license  - Print the embedded license template")
+	fmt.Println("  readme   - Print the embedded readme template")
+}
+
 func main() {
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
-		case "license":
-			fmt.Println(mkrepo.License)
-			os.Exit(0)
-		case "readme":
-			fmt.Println(mkrepo.Readme)
-			os.Exit(0)
-		}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	if len(os.Args) < 2 {
+		printHelp()
+		os.Exit(0)
 	}
+
+	switch os.Args[1] {
+	case "license":
+		fmt.Println(mkrepo.License)
+		os.Exit(0)
+	case "readme":
+		fmt.Println(mkrepo.Readme)
+		os.Exit(0)
+	case "help":
+		printHelp()
+		os.Exit(0)
+	case "server":
+	default:
+		fmt.Println("Unknown command:", os.Args[1])
+		printHelp()
+		os.Exit(1)
+	}
+
+	configFile := flag.String("config", "config.yaml", "Path to the configuration file")
+	flag.Parse()
 
 	log.SetupLogger()
 	slog.Info("Build info",
 		slog.String("version", internal.Build.Version), slog.String("goVersion", internal.Build.GoVersion),
 		slog.String("revision", internal.Build.Revision), slog.Time("buildDatetime", internal.Build.BuildDatetime),
 	)
-
-	configFile := flag.String("config", "config.yaml", "Path to the configuration file")
-	flag.Parse()
+	slog.Info("Runtime info", slog.Int("GOMAXPROCS", runtime.GOMAXPROCS(0)), slog.Int("numCPU", runtime.NumCPU()))
 
 	cfg, err := config.LoadConfig(*configFile)
 	if err != nil {
@@ -59,7 +82,6 @@ func main() {
 
 	providers := provider.NewProvidersFromConfig(cfg)
 
-	ctx := context.Background()
 	db, err := adapter.New(ctx, cfg.DatabaseUri, cfg.SecretKey)
 	if err != nil {
 		slog.Error("Cannot open database", log.Err(err))
@@ -85,19 +107,9 @@ func main() {
 	if cfg.LicensesDir != "" {
 		licensesFS = os.DirFS(cfg.LicensesDir)
 	}
-	licenses, err := service.PrepareLicenses(licensesFS)
+	licenses, err := service.ParseLicenses(service.LicensesConfig{}, licensesFS)
 	if err != nil {
 		slog.Error("Cannot prepare licenses", log.Err(err))
-		os.Exit(1)
-	}
-
-	var dockerfilesFS fs.FS = docker.FS
-	if cfg.DockerfilesDir != "" {
-		dockerfilesFS = os.DirFS(cfg.DockerfilesDir)
-	}
-	dockerfiles, err := service.PrepareDockerfiles(dockerfilesFS)
-	if err != nil {
-		slog.Error("Cannot prepare dockerfiles", log.Err(err))
 		os.Exit(1)
 	}
 
@@ -111,18 +123,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	repomaker := service.NewService(metrics, db, gitignoresFS, licenses, dockerfiles, dockerfilesFS, templatesFS)
+	repomaker := service.NewService(metrics, db, gitignoresFS, licenses, templatesFS)
 
-	srv := server.NewServer(cfg, reg, metrics, db, repomaker, providers, gitignores, licenses, dockerfiles)
+	srv := server.NewServer(cfg, reg, metrics, db, repomaker, providers, gitignores, licenses)
 
 	errCh := make(chan error)
 	go func() {
 		slog.Info("Starting listening", slog.String("addr", srv.Addr))
 		errCh <- srv.ListenAndServe() // TODO: Use TLS
+		close(errCh)
 	}()
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
 	select {
 	case err := <-errCh:
