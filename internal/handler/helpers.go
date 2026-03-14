@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/mkrepo-dev/mkrepo/internal/app"
-	"github.com/mkrepo-dev/mkrepo/internal/handler/middleware"
 	"github.com/mkrepo-dev/mkrepo/internal/log"
 )
 
@@ -16,7 +15,7 @@ type baseContext struct {
 }
 
 func getBaseContext(r *http.Request) baseContext {
-	return baseContext{Account: middleware.Account(r.Context())}
+	return baseContext{Account: app.GetAccountFromContext(r.Context())}
 }
 
 func render(w http.ResponseWriter, t *template.Template, context any) {

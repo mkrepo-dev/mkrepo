@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-func SetupLogger() {
+func SetupLogger() *slog.Logger {
 	config := zapcore.EncoderConfig{
 		MessageKey:     "msg",
 		LevelKey:       "level",
@@ -31,6 +31,7 @@ func SetupLogger() {
 	logger := slog.New(handler)
 
 	slog.SetDefault(logger)
+	return logger
 }
 
 func Err(err error) slog.Attr {

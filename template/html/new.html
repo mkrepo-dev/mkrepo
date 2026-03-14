@@ -78,42 +78,11 @@
       <div class="col-4">
         <label for="license" class="form-label mb-0"><small><b>Add <code>License</code></b></small></label>
         <select id="license" class="form-select form-select-sm" name="license">
-          <option value="" vars="">None</option>
-          {{range $key, $license := .Licenses}}
-          <option value="{{$key}}" vars="{{range $license.Vars}}{{.}},{{end}}">{{$license.Title}}</option>
-          {{end}}
-        </select>
-      </div>
-      <div class="col">
-        <div class="row g-2">
-          <div class="col-4" style="display: none;">
-            <label for="license-year" class="form-label mb-0 text-small"><small><b>Copyright year</b></small></label>
-            <input type="text" class="form-control form-control-sm" id="license-year" name="license-year" placeholder="Year" value="{{.CurrentYear}}">
-          </div>
-          <div class="col-4" style="display: none;">
-            <label for="license-fullname" class="form-label mb-0 text-small"><small><b>Copyright holder</b></small></label>
-            <input type="text" class="form-control form-control-sm" id="license-fullname" name="license-fullname" placeholder="Full name" value="{{(index .Owners 0).DisplayName}}">
-          </div>
-          <div class="col-4" style="display: none;">
-            <label for="license-project" class="form-label mb-0 text-small"><small><b>Project name</b></small></label>
-            <input type="text" class="form-control form-control-sm" id="license-project" name="license-project" placeholder="Project" value="{{.Name}}">
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="row g-2 my-1">
-      <div class="col-4">
-        <label for="dockerfile" class="form-label mb-0"><small><b>Add <code>Dockerfile</code></b></small></label>
-        <select id="dockerfile" class="form-select form-select-sm" name="dockerfile">
           <option value="">None</option>
-          {{range $key, $dockerfile := .Dockerfiles}}
-          <option value="{{$key}}" {{if $dockerfile.Dockerignore}}hasdockerignore{{end}}>{{$key}}</option>
+          {{range $key, $license := .Licenses}}
+          <option value="{{$key}}">{{$license.Name}}</option>
           {{end}}
         </select>
-      </div>
-      <div class="col form-check" style="margin-top: 2.25rem;">
-        <input type="checkbox" class="form-check-input" id="dockerignore" name="dockerignore" value="" disabled>
-        <label for="dockerignore" class="form-check-label">Add <code>.dockerignore</code></label>
       </div>
     </div>
     <div class="row g-2 my-1">
@@ -130,6 +99,11 @@
       </div>
     </div>
     {{end}}
+
+    <div id="license-schema-fields" style="display: none;">
+      <hr class="my-3">
+      <div id="license-fields-container"></div>
+    </div>
     <hr class="my-3">
 
     <button type="submit" class="btn btn-success">Create 🚀</button>

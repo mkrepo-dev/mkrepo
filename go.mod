@@ -1,6 +1,6 @@
 module github.com/mkrepo-dev/mkrepo
 
-go 1.25.0
+go 1.26
 
 tool (
 	github.com/sqlc-dev/sqlc/cmd/sqlc
@@ -9,12 +9,14 @@ tool (
 
 require (
 	code.gitea.io/sdk/gitea v0.23.2
+	github.com/go-git/go-billy/v5 v5.7.0
 	github.com/go-git/go-git/v5 v5.16.5
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-github/v82 v82.0.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.8.0
+	github.com/kaptinlin/jsonschema v0.7.1
 	github.com/prometheus/client_golang v1.23.2
 	gitlab.com/gitlab-org/api/client-go v1.34.0
 	go.uber.org/zap v1.27.1
@@ -46,8 +48,9 @@ require (
 	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/go-fed/httpsig v1.1.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
-	github.com/go-git/go-billy/v5 v5.7.0 // indirect
+	github.com/go-json-experiment/json v0.0.0-20251027170946-4849db3c2f7e // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
+	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/google/cel-go v0.27.0 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
@@ -62,6 +65,9 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/kaptinlin/go-i18n v0.2.8 // indirect
+	github.com/kaptinlin/jsonpointer v0.4.15 // indirect
+	github.com/kaptinlin/messageformat-go v0.4.16 // indirect
 	github.com/kevinburke/ssh_config v1.4.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect

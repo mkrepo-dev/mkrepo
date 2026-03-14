@@ -19,6 +19,7 @@ import (
 	"github.com/mkrepo-dev/mkrepo"
 	"github.com/mkrepo-dev/mkrepo/internal"
 	"github.com/mkrepo-dev/mkrepo/internal/adapter"
+	"github.com/mkrepo-dev/mkrepo/internal/app"
 	"github.com/mkrepo-dev/mkrepo/internal/config"
 	"github.com/mkrepo-dev/mkrepo/internal/log"
 	"github.com/mkrepo-dev/mkrepo/internal/metrics"
@@ -67,7 +68,7 @@ func main() {
 	configFile := flag.String("config", "config.yaml", "Path to the configuration file")
 	flag.Parse()
 
-	log.SetupLogger()
+	logger := log.SetupLogger()
 	slog.Info("Build info",
 		slog.String("version", internal.Build.Version), slog.String("goVersion", internal.Build.GoVersion),
 		slog.String("revision", internal.Build.Revision), slog.Time("buildDatetime", internal.Build.BuildDatetime),
@@ -107,7 +108,7 @@ func main() {
 	if cfg.LicensesDir != "" {
 		licensesFS = os.DirFS(cfg.LicensesDir)
 	}
-	licenses, err := service.ParseLicenses(service.LicensesConfig{}, licensesFS)
+	licenses, err := service.ParseLicensesFromBytes(license.LicenseConfig, licensesFS)
 	if err != nil {
 		slog.Error("Cannot prepare licenses", log.Err(err))
 		os.Exit(1)
@@ -123,9 +124,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	authService := app.NewAuthService(logger, db, providers)
 	repomaker := service.NewService(metrics, db, gitignoresFS, licenses, templatesFS)
 
-	srv := server.NewServer(cfg, reg, metrics, db, repomaker, providers, gitignores, licenses)
+	srv := server.NewServer(logger, cfg, reg, metrics, db, authService, repomaker, providers, gitignores, licenses)
 
 	errCh := make(chan error)
 	go func() {

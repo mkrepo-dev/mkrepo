@@ -11,20 +11,16 @@ import (
 	"github.com/mkrepo-dev/mkrepo/template/template"
 )
 
-func ptr[T any](v T) *T {
-	return &v
-}
-
 func TestReadmeTemplate(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		args repoInitContext
+		args templateContext
 		want []byte
 	}{
 		{
 			name: "WithoutDescription",
-			args: repoInitContext{
+			args: templateContext{
 				Name:        "test",
 				Description: nil,
 			},
@@ -32,17 +28,17 @@ func TestReadmeTemplate(t *testing.T) {
 		},
 		{
 			name: "WithDescription",
-			args: repoInitContext{
+			args: templateContext{
 				Name:        "test",
-				Description: ptr("This is a test description"),
+				Description: new("This is a test description"),
 			},
 			want: []byte("# test\n\nThis is a test description\n"),
 		},
 		{
 			name: "WithEmptyDescription",
-			args: repoInitContext{
+			args: templateContext{
 				Name:        "test",
-				Description: ptr(""),
+				Description: new(""),
 			},
 			want: []byte("# test\n\n\n"),
 		},
@@ -75,7 +71,7 @@ func TestExecuteTemplateDir(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Cannot create sub FS: %v", err)
 	}
-	context := repoInitContext{
+	context := templateContext{
 		FullName: "github.com/mkrepo-dev/mkrepo",
 		Values: map[string]any{
 			"goVersion": "1.24",

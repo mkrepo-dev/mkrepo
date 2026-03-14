@@ -6,18 +6,17 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/mkrepo-dev/mkrepo/internal/adapter"
-	"github.com/mkrepo-dev/mkrepo/internal/handler/middleware"
+	"github.com/mkrepo-dev/mkrepo/internal/app"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	mkrepo "github.com/mkrepo-dev/mkrepo/internal/service"
 	"github.com/mkrepo-dev/mkrepo/template/html"
 )
 
-func MkrepoForm(db *adapter.Repository, providers provider.Providers, gitignores []string, licenses mkrepo.Licenses, dockerfiles mkrepo.Dockerfiles) http.Handler {
+func MkrepoForm(db *adapter.Repository, providers provider.Providers, gitignores []string, licenses mkrepo.Licenses) http.Handler {
 	type newRepoFormContext struct {
 		baseContext
 		Name        string
@@ -25,12 +24,11 @@ func MkrepoForm(db *adapter.Repository, providers provider.Providers, gitignores
 		Owners      []provider.RepoOwner
 		Gitignores  []string
 		Licenses    mkrepo.Licenses
-		Dockerfiles mkrepo.Dockerfiles
 		CurrentYear int
 	}
 	tmpl := template.Must(template.ParseFS(html.FS, "base.html", "new.html"))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		account := middleware.Account(r.Context())
+		account := app.GetAccountFromContext(r.Context())
 		provider := providers[account.Provider]
 		client := provider.NewClient(r.Context(), account.Session.Token)
 
@@ -55,7 +53,6 @@ func MkrepoForm(db *adapter.Repository, providers provider.Providers, gitignores
 			Name:        r.FormValue("name"),
 			Gitignores:  gitignores,
 			Licenses:    licenses,
-			Dockerfiles: dockerfiles,
 			CurrentYear: time.Now().Year(),
 		}
 		render(w, tmpl, context)
@@ -64,7 +61,7 @@ func MkrepoForm(db *adapter.Repository, providers provider.Providers, gitignores
 
 func MkrepoCreate(db *adapter.Repository, repomaker *mkrepo.MkrepoService, providers provider.Providers) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		account := middleware.Account(r.Context())
+		account := app.GetAccountFromContext(r.Context())
 		// TODO: Do better validation of input values
 
 		repo, err := CreateRepoFromForm(r)
@@ -97,6 +94,16 @@ func MkrepoCreate(db *adapter.Repository, repomaker *mkrepo.MkrepoService, provi
 	})
 }
 
+func Schemas(licenses mkrepo.Licenses) http.Handler {
+	type schemasResponse struct {
+		Licenses mkrepo.Licenses `json:"licenses"`
+	}
+	response := schemasResponse{Licenses: licenses}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		encode(w, response)
+	})
+}
+
 func CreateRepoFromForm(r *http.Request) (*mkrepo.CreateRepo, error) {
 	err := r.ParseForm()
 	if err != nil {
@@ -123,13 +130,13 @@ func CreateRepoFromForm(r *http.Request) (*mkrepo.CreateRepo, error) {
 
 	var sha256 *bool
 	if r.Form.Has("sha256") {
-		sha256 = ptr(true)
+		sha256 = new(true)
 	}
 
-	account := middleware.Account(r.Context())
+	account := app.GetAccountFromContext(r.Context())
 	var tag *string
 	if r.Form.Has("tag") {
-		tag = ptr("v0.0.0")
+		tag = new("v0.0.0")
 	}
 	var template *mkrepo.CreateRepoTemplate
 	templateStr := r.FormValue("template")
@@ -140,55 +147,34 @@ func CreateRepoFromForm(r *http.Request) (*mkrepo.CreateRepo, error) {
 		}
 		template = &mkrepo.CreateRepoTemplate{
 			FullName: nameVersion[0],
-			Version:  &nameVersion[1],
 		}
 	}
 
 	var readme *bool
 	if r.Form.Has("readme") {
-		readme = ptr(true)
+		readme = new(true)
 	}
 	var gitignore *string
 	gitignoreStr := r.FormValue("gitignore")
 	if gitignoreStr != "" {
 		gitignore = &gitignoreStr
 	}
-	var dockerfile *string
-	dockerfileStr := r.FormValue("dockerfile")
-	if dockerfileStr != "" {
-		dockerfile = &dockerfileStr
-	}
-	var dockerignore *bool
-	if r.Form.Has("dockerignore") {
-		dockerignore = ptr(true)
-	}
-	var license *mkrepo.CreateRepoInitializeLicense
+	var license mkrepo.LicenseKey
+	var values map[string]any
 	licenseStr := r.FormValue("license")
 	if licenseStr != "" {
-		var licenseFullName *string
-		licenseFullNameStr := r.FormValue("license-fullname")
-		if licenseFullNameStr != "" {
-			licenseFullName = &licenseFullNameStr
-		}
-		var licenseProject *string
-		licenseProjectStr := r.FormValue("license-project")
-		if licenseProjectStr != "" {
-			licenseProject = &licenseProjectStr
-		}
-		var year *int
-		yearStr := r.FormValue("license-year")
-		if yearStr != "" {
-			yearInt, err := strconv.Atoi(r.FormValue("license-year"))
-			if err != nil {
-				return nil, errors.New("invalid license year")
+		license = mkrepo.LicenseKey(licenseStr)
+		var licenseValues map[string]string
+		for key, vals := range r.Form {
+			if strings.HasPrefix(key, "license-") && len(vals) > 0 && vals[0] != "" {
+				if licenseValues == nil {
+					licenseValues = make(map[string]string)
+				}
+				licenseValues[strings.TrimPrefix(key, "license-")] = vals[0]
 			}
-			year = &yearInt
 		}
-		license = &mkrepo.CreateRepoInitializeLicense{
-			Key:      licenseStr,
-			Fullname: licenseFullName,
-			Project:  licenseProject,
-			Year:     year,
+		if licenseValues != nil {
+			values = map[string]any{"License": licenseValues}
 		}
 	}
 
@@ -203,19 +189,14 @@ func CreateRepoFromForm(r *http.Request) (*mkrepo.CreateRepo, error) {
 				Name:  account.DisplayName,
 				Email: account.Email,
 			},
-			Template:     template,
-			Tag:          tag,
-			Readme:       readme,
-			Gitignore:    gitignore,
-			Dockerfile:   dockerfile,
-			Dockerignore: dockerignore,
-			License:      license,
+			Template:  template,
+			Tag:       tag,
+			Readme:    readme,
+			Gitignore: gitignore,
+			License:   &license,
+			Values:    values,
 		},
 	}
 
 	return repo, nil
-}
-
-func ptr[T any](v T) *T {
-	return &v
 }

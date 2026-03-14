@@ -8,12 +8,12 @@
             "name": "Debug server",
             "type": "go",
             "request": "launch",
-            "mode": "exec",
-            "program": "${workspaceFolder}/bin/mkrepo",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/mkrepo",
             "args": ["server"],
             "envFile": "${workspaceFolder}/.env",
             "console": "integratedTerminal",
-            "preLaunchTask": "Compile server"
+            "cwd": "${workspaceFolder}",
         }
     ]
 }

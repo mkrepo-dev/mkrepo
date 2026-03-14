@@ -148,7 +148,7 @@ func (client *GitHubClient) CreateRemoteRepo(ctx context.Context, repo CreateRep
 		Name:        &repo.Name,
 		Description: repo.Description,
 		Private:     &private,
-		Visibility:  github.Ptr(string(repo.Visibility)),
+		Visibility:  new(string(repo.Visibility)),
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), "already exists") {

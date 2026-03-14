@@ -6,19 +6,21 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
 	"time"
 
+	"github.com/kaptinlin/jsonschema"
 	"gopkg.in/yaml.v3"
 )
 
 type MkrepoFile struct {
-	Description *string        `json:"description,omitempty"`
-	Lang        *string        `json:"lang,omitempty"`
-	Schema      map[string]any `json:"schema,omitempty"`
+	Description *string            `json:"description,omitempty"`
+	Lang        *string            `json:"lang,omitempty"`
+	Schema      *jsonschema.Schema `json:"schema,omitempty"`
 }
 
 func PrepareTemplates(repo Repository, templatesFS fs.FS) error {
@@ -131,7 +133,7 @@ func (rm *MkrepoService) RegisterTemplate(ctx context.Context, url string, fullN
 	return rm.repo.CreateTemplate(ctx, name, fullName, &url, "HEAD", mf.Description, mf.Lang, schema, false)
 }
 
-func executeTemplateDir(dstDir string, templateFS fs.FS, context repoInitContext) error {
+func executeTemplateDir(dstDir string, templateFS fs.FS, context templateContext) error {
 	err := fs.WalkDir(templateFS, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err

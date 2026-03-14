@@ -2,24 +2,32 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"text/template"
 
+	"github.com/go-git/go-billy/v5"
+	"github.com/go-git/go-billy/v5/memfs"
 	"github.com/mkrepo-dev/mkrepo/internal/metrics"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 )
 
-type repoInitContext struct {
+type licenseContext struct {
+	CopyrightYear   int
+	CopyrightHolder string
+}
+
+type templateContext struct {
 	Name        string
 	Description *string
 	FullName    string
 	Url         string
+	License     licenseContext
 	Values      map[string]any
 }
 
@@ -28,19 +36,15 @@ type MkrepoService struct {
 	repo             Repository
 	licenses         Licenses
 	gitignores       fs.FS
-	dockerfiles      Dockerfiles
-	dockerignores    fs.FS
 	buildInTemplates fs.FS
 }
 
-func NewService(metrics *metrics.Metrics, repo Repository, gitignores fs.FS, licenses Licenses, dockerfiles Dockerfiles, dockerignores fs.FS, buildInTemplates fs.FS) *MkrepoService {
+func NewService(metrics *metrics.Metrics, repo Repository, gitignores fs.FS, licenses Licenses, buildInTemplates fs.FS) *MkrepoService {
 	return &MkrepoService{
 		metrics:          metrics,
 		repo:             repo,
 		gitignores:       gitignores,
 		licenses:         licenses,
-		dockerfiles:      dockerfiles,
-		dockerignores:    dockerignores,
 		buildInTemplates: buildInTemplates,
 	}
 }
@@ -94,14 +98,27 @@ func (rm *MkrepoService) InitializeRepo(ctx context.Context, client provider.Cli
 }
 
 func (rm *MkrepoService) addFiles(ctx context.Context, repo *CreateRepo, remoteRepo provider.RemoteRepo, dir string) error {
-	context := repoInitContext{
+	fs := memfs.New()
+	context := templateContext{
 		Name:        repo.Name,
 		Description: repo.Description,
 		FullName:    strings.TrimPrefix(strings.TrimPrefix(remoteRepo.HtmlUrl, "https://"), "http://"),
 		Url:         remoteRepo.HtmlUrl,
 	}
 	if repo.Initialize.Template != nil {
-		context.Values = repo.Initialize.Template.Values
+		context.Values = repo.Initialize.Values
+	}
+	if licenseVals, ok := repo.Initialize.Values["License"]; ok {
+		if licenseMap, ok := licenseVals.(map[string]string); ok {
+			if year, ok := licenseMap["CopyrightYear"]; ok {
+				if y, err := strconv.Atoi(year); err == nil {
+					context.License.CopyrightYear = y
+				}
+			}
+			if holder, ok := licenseMap["CopyrightHolder"]; ok {
+				context.License.CopyrightHolder = holder
+			}
+		}
 	}
 
 	if repo.Initialize.Template != nil {
@@ -112,7 +129,7 @@ func (rm *MkrepoService) addFiles(ctx context.Context, repo *CreateRepo, remoteR
 	}
 
 	if repo.Initialize.Readme != nil && *repo.Initialize.Readme {
-		err := addReadme(dir, context)
+		err := addReadme(fs, context)
 		if err != nil {
 			return err
 		}
@@ -126,14 +143,7 @@ func (rm *MkrepoService) addFiles(ctx context.Context, repo *CreateRepo, remoteR
 	}
 
 	if repo.Initialize.License != nil {
-		err := addLicense(dir, rm.licenses, *repo.Initialize.License)
-		if err != nil {
-			return err
-		}
-	}
-
-	if repo.Initialize.Dockerfile != nil {
-		err := addDockerfile(dir, rm.dockerfiles, *repo.Initialize.Dockerfile, context, rm.dockerignores, repo.Initialize.Dockerignore)
+		err := AddLicense(fs, *repo.Initialize.License, rm.licenses, context)
 		if err != nil {
 			return err
 		}
@@ -142,7 +152,7 @@ func (rm *MkrepoService) addFiles(ctx context.Context, repo *CreateRepo, remoteR
 	return nil
 }
 
-func (rm *MkrepoService) executeTemplateRepo(ctx context.Context, dir string, repo *CreateRepo, context repoInitContext) error {
+func (rm *MkrepoService) executeTemplateRepo(ctx context.Context, dir string, repo *CreateRepo, context templateContext) error {
 	templateInfo, err := rm.repo.GetTemplate(ctx, repo.Initialize.Template.FullName)
 	if err != nil {
 		return err
@@ -167,48 +177,14 @@ func (rm *MkrepoService) executeTemplateRepo(ctx context.Context, dir string, re
 
 var readme = template.Must(template.New("").Parse("# {{.Name}}\n{{if .Description}}\n{{.Description}}\n{{end}}"))
 
-func addReadme(dir string, context repoInitContext) error {
-	return createFile(filepath.Join(dir, "README.md"), readme, context)
+func addReadme(fs billy.Filesystem, context templateContext) error {
+	return templateFile(fs, "README.md", 0644, readme, context)
 }
 
 func addGitignore(dir string, gitignoreFS fs.FS, gitignoreName string) error {
 	dst := filepath.Join(dir, ".gitignore")
 	src := gitignoreName + ".gitignore"
 	return addFile(dst, gitignoreFS, src)
-}
-
-func addLicense(dir string, licenses Licenses, createLicense CreateRepoInitializeLicense) error {
-	license, ok := licenses[createLicense.Key]
-	if !ok {
-		return fmt.Errorf("license %s not found", createLicense.Key)
-	}
-	err := createFile(filepath.Join(dir, license.Filename), license.Template, LicenseContext{
-		Year:    createLicense.Year,
-		Owner:   createLicense.Fullname,
-		Project: createLicense.Project,
-	})
-	if err != nil {
-		return err
-	}
-	for _, licenseKey := range license.With {
-		createLicense.Key = licenseKey
-		err := addLicense(dir, licenses, createLicense)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func addDockerfile(dir string, dockerfiles Dockerfiles, dockerfileName string, context repoInitContext, dockerignoresFS fs.FS, dockerignore *bool) error {
-	err := createFile(filepath.Join(dir, "Dockerfile"), dockerfiles[dockerfileName].Template, context)
-	if err != nil {
-		return err
-	}
-	if dockerfiles[dockerfileName].Dockerignore && dockerignore != nil && *dockerignore {
-		err = addFile(filepath.Join(dir, ".dockerignore"), dockerignoresFS, dockerfileName+".dockerignore")
-	}
-	return err
 }
 
 func createFile(filepath string, tmpl *template.Template, data any) error {
@@ -244,4 +220,13 @@ func addFile(dstFile string, srcFS fs.FS, srcFile string) error {
 
 	_, err = io.Copy(dst, f)
 	return err
+}
+
+func templateFile(fs billy.Filesystem, filepath string, perm os.FileMode, tmpl *template.Template, data any) error {
+	f, err := fs.OpenFile(filepath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+	defer f.Close() // nolint:errcheck
+	return tmpl.Execute(f, data)
 }

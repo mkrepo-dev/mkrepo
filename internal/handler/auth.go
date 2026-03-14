@@ -5,42 +5,22 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/mkrepo-dev/mkrepo/internal/app"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 )
 
-const (
-	sessionCookieName  = "session"
-	redirectCookieName = "redirect_uri" // TODO: This is not set anywhere
-)
+const SessionCookieName = "session"
 
-func baseCookie(name string) *http.Cookie {
+func baseCookie() *http.Cookie {
 	return &http.Cookie{
-		Name:     name,
+		Name:     SessionCookieName,
 		Path:     "/",
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
-	}
-}
-
-func Authenticate(logger *slog.Logger, authService *app.AuthService) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := r.Context()
-			sessionCookie, err := r.Cookie(sessionCookieName)
-			if err == nil {
-				account, err := authService.Authenticate(ctx, sessionCookie.Value)
-				if err != nil {
-					Logout(logger, authService)(w, r)
-					return
-				}
-				ctx = app.ContextWithAccount(ctx, account)
-			}
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
 	}
 }
 
@@ -57,8 +37,9 @@ func Login(logger *slog.Logger, fs fs.FS, authService *app.AuthService, provider
 				Providers:   providers,
 			})
 		}
+		redirectURL, _ := url.QueryUnescape(r.FormValue("redirect")) // nolint:errcheck
 
-		authURL, err := authService.GetAuthURL(r.Context(), provider.ProviderKey(providerKey))
+		authURL, err := authService.GetAuthURL(r.Context(), provider.ProviderKey(providerKey), redirectURL)
 		if err != nil {
 			logger.Error("Failed to get auth URL.", "err", err)
 			http.Error(w, "Failed to get auth URL.", http.StatusInternalServerError)
@@ -71,7 +52,7 @@ func Login(logger *slog.Logger, fs fs.FS, authService *app.AuthService, provider
 
 func Logout(logger *slog.Logger, authService *app.AuthService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		sessionCookie, err := r.Cookie(sessionCookieName)
+		sessionCookie, err := r.Cookie(SessionCookieName)
 		if err != nil {
 			http.Redirect(w, r, "/", http.StatusFound)
 			return
@@ -82,7 +63,7 @@ func Logout(logger *slog.Logger, authService *app.AuthService) http.HandlerFunc 
 			logger.Error("Failed to logout user.", "err", err)
 		}
 
-		cookie := baseCookie(sessionCookieName)
+		cookie := baseCookie()
 		cookie.Value = ""
 		cookie.MaxAge = -1
 		http.SetCookie(w, cookie)
@@ -99,17 +80,17 @@ func OAuth2Callback(logger *slog.Logger, authService *app.AuthService) http.Hand
 		}
 		state := r.FormValue("state")
 		if state == "" {
-			http.Error(w, "Missing state.", http.StatusBadRequest)
+			http.Error(w, "Missing state", http.StatusBadRequest)
 			return
 		}
 		code := r.FormValue("code")
 		if code == "" {
-			http.Error(w, "Missing code.", http.StatusBadRequest)
+			http.Error(w, "Missing code", http.StatusBadRequest)
 			return
 		}
 		providerKey := r.PathValue("provider")
 		if providerKey == "" {
-			http.Error(w, "Missing provider.", http.StatusBadRequest)
+			http.Error(w, "Missing provider", http.StatusBadRequest)
 			return
 		}
 
@@ -120,22 +101,10 @@ func OAuth2Callback(logger *slog.Logger, authService *app.AuthService) http.Hand
 			return
 		}
 
-		cookie := baseCookie(sessionCookieName)
+		cookie := baseCookie()
 		cookie.Value = session.ID
 		cookie.MaxAge = int(time.Until(session.ExpiresAt).Seconds())
 		http.SetCookie(w, cookie)
-
-		redirectCookie, err := r.Cookie(redirectCookieName)
-		if err == nil {
-			redirectURL := redirectCookie.Value
-			redirectCookie = baseCookie(redirectCookieName)
-			redirectCookie.Value = ""
-			redirectCookie.MaxAge = -1
-			http.SetCookie(w, redirectCookie)
-			http.Redirect(w, r, redirectURL, http.StatusFound)
-			return
-		}
-
 		http.Redirect(w, r, "/", http.StatusFound)
 	}
 }

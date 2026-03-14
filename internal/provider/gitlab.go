@@ -118,7 +118,7 @@ func (client *GitLabClient) GetPosibleRepoOwners(ctx context.Context) ([]RepoOwn
 	})
 
 	groups, _, err := client.Groups.ListGroups(&gitlab.ListGroupsOptions{
-		MinAccessLevel: gitlab.Ptr(gitlab.DeveloperPermissions),
+		MinAccessLevel: new(gitlab.DeveloperPermissions),
 	})
 	if err != nil {
 		return owners, err
@@ -140,7 +140,7 @@ func (client *GitLabClient) CreateRemoteRepo(ctx context.Context, repo CreateRep
 	opt := &gitlab.CreateProjectOptions{
 		Name:        &repo.Name,
 		Description: repo.Description,
-		Visibility:  gitlab.Ptr(gitlab.VisibilityValue(repo.Visibility)),
+		Visibility:  new(gitlab.VisibilityValue(repo.Visibility)),
 	}
 	if repo.Namespace != "" {
 		namespace, err := strconv.ParseInt(repo.Namespace, 10, 64)

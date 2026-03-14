@@ -14,9 +14,10 @@ import (
 )
 
 type OAuth2State struct {
-	State     string
-	Verifier  *string
-	ExpiresAt time.Time
+	State       string
+	Verifier    *string
+	ExpiresAt   time.Time
+	RedirectURL string // TODO: Use thi field
 }
 
 func (s OAuth2State) Valid() bool {
@@ -44,7 +45,11 @@ type contextKey int
 const accountContextKey contextKey = iota
 
 func GetAccountFromContext(ctx context.Context) *Account {
-	return ctx.Value(accountContextKey).(*Account)
+	account, ok := ctx.Value(accountContextKey).(*Account)
+	if !ok {
+		return nil
+	}
+	return account
 }
 
 func ContextWithAccount(ctx context.Context, account *Account) context.Context {
@@ -74,31 +79,29 @@ func NewAuthService(logger *slog.Logger, repo authRepo, providers provider.Provi
 	}
 }
 
-func (s *AuthService) GetAuthURL(ctx context.Context, providerKey provider.ProviderKey) (string, error) {
+func (s *AuthService) GetAuthURL(ctx context.Context, providerKey provider.ProviderKey, redirectURL string) (string, error) {
 	provider, ok := s.providers[providerKey]
 	if !ok {
 		return "", fmt.Errorf("unknown provider: %s", providerKey)
 	}
 	pkce := provider.Features().OAuth2AuthorizationCodeFlowWithPKCE
 
-	state := rand.Text()
 	var verifier *string
-	if pkce {
-		verifier = ptr(oauth2.GenerateVerifier())
-	}
-	err := s.repo.CreateOAuth2State(ctx, OAuth2State{
-		State:     state,
-		Verifier:  verifier,
-		ExpiresAt: time.Now().Add(15 * time.Minute),
-	})
-	if err != nil {
-		return "", fmt.Errorf("create OAuth2 state: %w", err)
-	}
-
 	opts := []oauth2.AuthCodeOption{}
 	if pkce {
-		opts = append(opts, oauth2.AccessTypeOffline) // TODO: Is this needed?
+		verifier = new(oauth2.GenerateVerifier())
 		opts = append(opts, oauth2.S256ChallengeOption(*verifier))
+	}
+
+	state := rand.Text()
+	err := s.repo.CreateOAuth2State(ctx, OAuth2State{
+		State:       state,
+		Verifier:    verifier,
+		ExpiresAt:   time.Now().Add(15 * time.Minute),
+		RedirectURL: redirectURL,
+	})
+	if err != nil {
+		return "", fmt.Errorf("create oauth2 state: %w", err)
 	}
 
 	return provider.OAuth2Config().AuthCodeURL(state, opts...), nil
@@ -113,10 +116,10 @@ func (s *AuthService) LoginWithOAuth2Callback(ctx context.Context, providerKey p
 
 	oauth2State, err := s.repo.GetAndDeleteOAuth2State(ctx, state)
 	if err != nil {
-		return Session{}, fmt.Errorf("get and delete OAuth2 state: %w", err)
+		return Session{}, fmt.Errorf("get and delete oauth2 state: %w", err)
 	}
 	if !oauth2State.Valid() {
-		return Session{}, fmt.Errorf("OAuth2 state is not valid")
+		return Session{}, fmt.Errorf("oauth2 state is not valid")
 	}
 
 	var authCodeOptions []oauth2.AuthCodeOption
@@ -195,8 +198,4 @@ func (s *AuthService) Authenticate(ctx context.Context, sessionID string) (*Acco
 	}
 
 	return &account, nil
-}
-
-func ptr[T any](v T) *T {
-	return &v
 }

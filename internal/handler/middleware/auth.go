@@ -1,48 +1,28 @@
 package middleware
 
 import (
-	"context"
 	"crypto/subtle"
+	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 
-	"github.com/mkrepo-dev/mkrepo/internal/adapter"
 	"github.com/mkrepo-dev/mkrepo/internal/app"
-	"github.com/mkrepo-dev/mkrepo/internal/handler/cookie"
+	"github.com/mkrepo-dev/mkrepo/internal/handler"
 )
 
-type accountContextKey int
-
-const accountKey accountContextKey = iota
-
-func Account(ctx context.Context) *app.Account {
-	account, ok := ctx.Value(accountKey).(app.Account)
-	if !ok {
-		return nil // Retrun unauthenticated user
-	}
-	return &account
-}
-
-func SetAccount(ctx context.Context, account app.Account) context.Context {
-	return context.WithValue(ctx, accountKey, account)
-}
-
-// Try to get user based on session and store it in context if authenticated. Context account
-// will be nil if not authenticated.
-func Authenticate(db *adapter.Repository) func(http.Handler) http.Handler {
+func Authenticate(logger *slog.Logger, authService *app.AuthService) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			sessionCookie, err := r.Cookie("session")
+			sessionCookie, err := r.Cookie(handler.SessionCookieName)
 			if err == nil {
-				account, err := db.GetAccountBySessionID(ctx, sessionCookie.Value)
+				account, err := authService.Authenticate(ctx, sessionCookie.Value)
 				if err != nil {
-					http.SetCookie(w, cookie.NewDeleteCookie("session"))
-				} else {
-					// TODO: Hydrate session
-					ctx = SetAccount(ctx, account)
-					// TODO: Here should be validated access token and should be refreshed if it needs to be
+					handler.Logout(logger, authService)(w, r)
+					return
 				}
+				ctx = app.ContextWithAccount(ctx, account)
 			}
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -53,12 +33,13 @@ func Authenticate(db *adapter.Repository) func(http.Handler) http.Handler {
 // Authenticate middleware.
 func MustAuthenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		account := Account(r.Context())
+		account := app.GetAccountFromContext(r.Context())
 		if account == nil {
+			redirect := "/auth/login"
 			if r.Method == http.MethodGet {
-				http.SetCookie(w, cookie.NewCookie("redirect_uri", r.URL.String(), 5*60))
+				redirect += "?redirect=" + url.QueryEscape(r.URL.String())
 			}
-			http.Redirect(w, r, "/auth/login", http.StatusFound)
+			http.Redirect(w, r, redirect, http.StatusFound)
 			return
 		}
 		next.ServeHTTP(w, r)

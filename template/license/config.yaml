@@ -1,42 +1,76 @@
 licenses:
-  - key: agpl-3.0
+  agpl-3.0:
     name: GNU Affero General Public License v3.0
     file: agpl-3.0.txt
-    fileName: LICENSE
-  - key: apache-2.0
+    targetFile: LICENSE
+  apache-2.0:
     name: Apache License 2.0
     file: apache-2.0.txt
-    fileName: LICENSE
-  - key: bsd-3-clause
+    targetFile: LICENSE
+  bsd-3-clause:
     name: BSD 3-Clause "New" or "Revised" License
     file: bsd-3-clause.txt
-    fileName: LICENSE
-  - key: bsd-4-clause
-    name: BSD 4-Clause "Original" or "Old" License
-    file: bsd-4-clause.txt
-    fileName: LICENSE
-  - key: cc0-1.0
+    targetFile: LICENSE
+    schema:
+      type: [object]
+      required:
+        - License
+      properties:
+        License:
+          type: [object]
+          required:
+            - CopyrightYear
+            - CopyrightHolder
+          properties:
+            License:
+            CopyrightYear:
+              title: Copyright Year
+              type: [integer]
+              default: 2026
+            CopyrightHolder:
+              title: Copyright Holder
+              type: [string]
+  cc0-1.0:
     name: Creative Commons Zero v1.0 Universal
     file: cc0-1.0.txt
-    fileName: LICENSE
-  - key: gpl-3.0
+    targetFile: LICENSE
+  gpl-3.0:
     name: GNU General Public License v3.0
     file: gpl-3.0.txt
-    fileName: COPYING
-  - key: lgpl-3.0
+    targetFile: COPYING
+  lgpl-3.0:
     name: GNU Lesser General Public License v3.0
     file: lgpl-3.0.txt
-    fileName: COPYING.LESSER
-    with: gpl-3.0
-  - key: mit
+    targetFile: COPYING.LESSER
+    with: [gpl-3.0]
+  mit:
     name: MIT License
     file: mit.txt
-    fileName: LICENSE
-  - key: mpl-2.0
+    targetFile: LICENSE
+    schema:
+      type: [object]
+      required:
+        - License
+      properties:
+        License:
+          type: [object]
+          required:
+            - CopyrightYear
+            - CopyrightHolder
+          properties:
+            License:
+            CopyrightYear:
+              title: Copyright Year
+              type: [integer]
+              default: 2026
+            CopyrightHolder:
+              title: Copyright Holder
+              type: [string]
+  mpl-2.0:
     name: Mozilla Public License 2.0
     file: mpl-2.0.txt
-    fileName: LICENSE
-  - key: unlicense
+    targetFile: LICENSE
+  unlicense:
     name: The Unlicense
     file: unlicense.txt
-    fileName: UNLICENSE
+    targetFile: UNLICENSE

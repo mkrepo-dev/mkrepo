@@ -4,7 +4,6 @@ baseUrl: http://localhost:8080
 # If not set, embedded defaults are used
 #licensesDir: /path/to/licenses
 #gitignoresDir: /path/to/gitignores
-#dockerfilesDir: /path/to/dockerfiles
 #templatesDir: /path/to/templates
 
 providers:

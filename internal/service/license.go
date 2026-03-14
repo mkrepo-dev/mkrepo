@@ -1,88 +1,82 @@
 package service
 
 import (
+	"fmt"
 	"io/fs"
-	"log/slog"
-	"regexp"
-	"strings"
 	"text/template"
+
+	"github.com/go-git/go-billy/v5"
+	"github.com/kaptinlin/jsonschema"
+	"gopkg.in/yaml.v3"
 )
+
+type LicenseKey string
+
+type Licenses map[LicenseKey]License
 
 type License struct {
-	Title    string
-	Filename string
-	With     []string
-	Vars     []string
-	Template *template.Template
+	Name       string             `json:"name" yaml:"name"`
+	File       string             `json:"file" yaml:"file"`
+	TargetFile string             `json:"targetFile" yaml:"targetFile"`
+	With       []LicenseKey       `json:"with,omitempty" yaml:"with,omitempty"`
+	Schema     *jsonschema.Schema `json:"schema,omitempty" yaml:"schema,omitempty"`
+
+	template *template.Template `json:"-" yaml:"-"`
 }
 
-type LicenseContext struct {
-	Year    *int
-	Owner   *string
-	Project *string
+type LicensesConfig struct {
+	Licenses Licenses `yaml:"licenses"`
 }
 
-type Licenses map[string]License
+// AddLicense adds a license and all it's first class dependecies to filesystem.
+func AddLicense(fs billy.Filesystem, licenseKey LicenseKey, licenses Licenses, values templateContext) error {
+	license, ok := licenses[licenseKey]
+	if !ok {
+		return fmt.Errorf("license %s not found", licenseKey)
+	}
+	err := addLicense(fs, license, values)
+	if err != nil {
+		return err
+	}
 
-var (
-	reFindHeader = regexp.MustCompile(`{{-\s*/\*\s*(.+?):\s*(.+?)\s*\*/\s*-}}`)
-	reFindVars   = regexp.MustCompile(`{{\.(\w+)}}`)
-)
+	for _, licenseKey := range license.With {
+		license, ok := licenses[licenseKey]
+		if !ok {
+			return fmt.Errorf("license %s not found", licenseKey)
+		}
+		err := addLicense(fs, license, values)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
-func PrepareLicenses(licensesFS fs.FS) (Licenses, error) {
-	licenses := make(Licenses)
-	entries, err := fs.ReadDir(licensesFS, ".")
+func addLicense(fs billy.Filesystem, license License, values any) error {
+	return templateFile(fs, license.TargetFile, 0644, license.template, values)
+}
+
+func ParseLicensesFromBytes(configBytes []byte, licensesFS fs.FS) (Licenses, error) {
+	var config LicensesConfig
+	err := yaml.Unmarshal(configBytes, &config)
 	if err != nil {
 		return nil, err
 	}
+	return ParseLicenses(config, licensesFS)
+}
 
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
+func ParseLicenses(config LicensesConfig, licensesFS fs.FS) (Licenses, error) {
+	licenses := make(Licenses)
 
-		license := License{Filename: "LICENSE"}
-		key := strings.TrimSuffix(entry.Name(), ".txt")
-
-		content, err := fs.ReadFile(licensesFS, entry.Name())
+	for key, licenseConfig := range config.Licenses {
+		tmpl, err := template.ParseFS(licensesFS, licenseConfig.File)
 		if err != nil {
-			slog.Error("Error reading license file", "file", entry.Name(), "error", err)
-			continue
+			return nil, err
 		}
-
-		for line := range strings.Lines(string(content)) {
-			matches := reFindHeader.FindAllStringSubmatch(line, -1)
-			for _, match := range matches {
-				if len(match) > 2 {
-					switch match[1] {
-					case "title":
-						license.Title = match[2]
-					case "filename":
-						license.Filename = match[2]
-					case "with":
-						license.With = append(license.With, match[2])
-					}
-				}
-			}
-			matches = reFindVars.FindAllStringSubmatch(line, -1)
-			for _, match := range matches {
-				if len(match) > 1 {
-					license.Vars = append(license.Vars, match[1])
-				}
-			}
-		}
-
-		license.Template, err = template.ParseFS(licensesFS, entry.Name())
-		if err != nil {
-			slog.Error("Error parsing license template", "file", entry.Name(), "error", err)
-			continue
-		}
-
+		license := licenseConfig
+		license.template = tmpl
 		licenses[key] = license
-		slog.Debug("License prepared", "name", license.Title)
 	}
-
-	slog.Info("Licenses prepared", slog.Int("count", len(licenses)))
 
 	return licenses, nil
 }

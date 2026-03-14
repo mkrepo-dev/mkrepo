@@ -11,16 +11,19 @@ import (
 )
 
 type Config struct {
+	Addr    string `yaml:"addr"`
+	Port    int    `yaml:"port"`
 	BaseUrl string `yaml:"baseUrl"`
+
+	AcmeHosts string `yaml:"acmeHosts"`
 
 	DatabaseUri  string `yaml:"databaseUri"`
 	SecretKey    string `yaml:"secretKey"`
 	MetricsToken string `yaml:"metricsToken"`
 
-	LicensesDir    string `yaml:"licensesDir"`
-	GitignoresDir  string `yaml:"gitignoresDir"`
-	DockerfilesDir string `yaml:"dockerfilesDir"`
-	TemplatesDir   string `yaml:"templatesDir"`
+	LicensesDir   string `yaml:"licensesDir"`
+	GitignoresDir string `yaml:"gitignoresDir"`
+	TemplatesDir  string `yaml:"templatesDir"`
 
 	Providers []Provider `yaml:"providers"`
 }

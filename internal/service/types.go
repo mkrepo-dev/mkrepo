@@ -18,28 +18,17 @@ type CreateRepoInitializeAuthor struct {
 // CreateRepoTemplate contains template information for repository initialization
 type CreateRepoTemplate struct {
 	FullName string
-	Version  *string
-	Values   map[string]any
-}
-
-// CreateRepoInitializeLicense contains license configuration
-type CreateRepoInitializeLicense struct {
-	Key      string
-	Fullname *string
-	Project  *string
-	Year     *int
 }
 
 // CreateRepoInitialize contains all initialization options for a new repository
 type CreateRepoInitialize struct {
-	Author       CreateRepoInitializeAuthor
-	Template     *CreateRepoTemplate
-	Tag          *string
-	Readme       *bool
-	Gitignore    *string
-	Dockerfile   *string
-	Dockerignore *bool
-	License      *CreateRepoInitializeLicense
+	Author    CreateRepoInitializeAuthor
+	Template  *CreateRepoTemplate
+	Tag       *string
+	Readme    *bool
+	Gitignore *string
+	License   *LicenseKey
+	Values    map[string]any
 }
 
 // CreateRepo represents a request to create a new repository
@@ -74,6 +63,5 @@ func CreateRepoNeedsInitialization(repo *CreateRepo) bool {
 	return init.Template != nil ||
 		(init.Readme != nil && *init.Readme) ||
 		init.Gitignore != nil ||
-		init.Dockerfile != nil ||
 		init.License != nil
 }
