@@ -8,3 +8,7 @@
 : "${REGISTRY:=ghcr.io}"
 : "${IMAGE:="$REGISTRY/mkrepo-dev/mkrepo"}"
 : "${IMAGE_REF:="$IMAGE:$VERSION-$REVISION"}"
+
+: "${DATETIME:=$( [ -z "$(git status --porcelain)" ] && git log -1 --format="%cI" --date=utc HEAD | sed 's/+00:00$/Z/' || date -u +"%Y-%m-%dT%H:%M:%SZ" )}"
+
+echo $DATETIME
