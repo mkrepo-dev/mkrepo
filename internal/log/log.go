@@ -28,7 +28,14 @@ func SetupLogger() *slog.Logger {
 	coreZapSlogOptions := []zapslog.HandlerOption{zapslog.WithCaller(true), zapslog.AddStacktraceAt(slog.LevelError)}
 
 	handler := zapslog.NewHandler(core, coreZapSlogOptions...)
-	logger := slog.New(handler)
+	_ = handler
+	//logger := slog.New(handler)
+	logger := slog.New(
+		slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+			AddSource: true,
+			Level:     slog.LevelDebug,
+		}),
+	)
 
 	slog.SetDefault(logger)
 	return logger

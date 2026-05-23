@@ -10,12 +10,9 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"strings"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"ariga.io/atlas/atlasexec"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -47,33 +44,28 @@ func New(ctx context.Context, connectionUri string, encryptionKey string) (*Repo
 	if err != nil {
 		return nil, fmt.Errorf("create pool: %w", err)
 	}
+	defer func() {
+		if err != nil {
+			pool.Close()
+		}
+	}()
 
-	// Ping database
-	err = pool.Ping(ctx)
+	workDir, err := atlasexec.NewWorkingDir(atlasexec.WithMigrations(migrations.FS))
 	if err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("ping database: %w", err)
+		return nil, fmt.Errorf("create working directory: %w", err)
 	}
-
-	// Run migrations
-	driver, err := iofs.New(migrations.FS, ".")
+	defer workDir.Close()
+	migrationClient, err := atlasexec.NewClient(workDir.Path(), "atlas")
 	if err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("create migration source: %w", err)
+		return nil, fmt.Errorf("create atlas client: %w", err)
 	}
-
-	migrationUri := strings.ReplaceAll(connectionUri, "postgres://", "pgx5://")
-	m, err := migrate.NewWithSourceInstance("iofs", driver, migrationUri)
+	res, err := migrationClient.MigrateApply(ctx, &atlasexec.MigrateApplyParams{
+		URL: connectionUri,
+	})
 	if err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("create migrator: %w", err)
+		return nil, fmt.Errorf("apply migrations: %w", err)
 	}
-
-	err = m.Up()
-	if err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		pool.Close()
-		return nil, fmt.Errorf("run migrations: %w", err)
-	}
+	slog.Info("Migrations applied", "applied", len(res.Applied), "current", res.Current)
 
 	// Create repository
 	repo := &Repository{
@@ -85,7 +77,6 @@ func New(ctx context.Context, connectionUri string, encryptionKey string) (*Repo
 	// Run initial cleanup
 	err = repo.Cleanup(ctx)
 	if err != nil {
-		pool.Close()
 		return nil, fmt.Errorf("initial cleanup: %w", err)
 	}
 

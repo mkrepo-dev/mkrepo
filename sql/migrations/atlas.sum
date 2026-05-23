@@ -1,5 +1,2 @@
-h1:BOHUwqvrKRqux7GqRgIifkGiwBltbD1Es5r/soJo2l8=
-20251028171059_init.up.sql h1:TMOK8JlIgwaat3TxcZLYrklGiVlw6JEBoEF9CNlB8tc=
-20251028172612_change_session_id.up.sql h1:PYlG/h5EJ8GAzIwZ6E2ZLcPqq79Gwdh77O8I+sFnc1U=
-20251029190650_remove_enum.up.sql h1:stRCdlHKvNQjrEnOoMYmqt4VS+kYKjjeJ/OxVacSfhg=
-20260212190401_add_fulltext_search.up.sql h1:xIjhv7UyfMHSanV26GFc6BLH2K4Qfoa2CJJW00yDMY4=
+h1:l3RN8J1v4RMeHGhmx/oCo4Z4q4S2oPNdYGQoppoDUd8=
+20260523202211_init.sql h1:JNisGDOZ9bsASnZ2bvguitvDxeFF3nHTf+B1QpG9D0w=

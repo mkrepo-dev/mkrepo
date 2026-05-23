@@ -1,9 +1,6 @@
-FROM golang:1.25 AS build
+FROM golang:1.26 AS build
 
 WORKDIR /app
-
-COPY go.mod go.sum ./
-RUN go mod download
 
 COPY ./ ./
 RUN scripts/build.sh
@@ -11,9 +8,9 @@ RUN scripts/build.sh
 
 FROM gcr.io/distroless/static-debian13
 
-WORKDIR /app
+WORKDIR /
 
-COPY --from=build /app/bin/ .
+COPY --from=build /app/bin/mkrepo .
 
 CMD ["./mkrepo", "server"]
 
