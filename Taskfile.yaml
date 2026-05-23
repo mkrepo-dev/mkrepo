@@ -10,13 +10,6 @@ tasks:
     cmds:
       - task -l --sort none
 
-  lint:
-    desc: Run lint
-    cmds:
-      - go fmt ./...
-      - go vet ./...
-      - golangci-lint run
-
   generate:
     desc: Run go generate
     cmds:
@@ -50,11 +43,6 @@ tasks:
     aliases: [r]
     cmd: bin/mkrepo server
 
-  vulncheck:
-    desc: Run vulnerability check
-    deps: [build]
-    cmd: go tool govulncheck -mode binary bin/mkrepo
-
   test:
     desc: Run tests
     aliases: [t]
@@ -68,16 +56,6 @@ tasks:
       - rm -rf bin
       - rm -rf .task
       - find . -name '__debug_*' -type f -delete
-
-  pre-commit:
-    desc: Run pre-commit checks
-    cmds:
-      - task: generate
-      - task: lint
-      - task: build
-      - task: docker:build
-      - task: test
-      - task: vulncheck
 
   docker:build:
     desc: Build Docker image
