@@ -9,6 +9,11 @@
 : "${IMAGE:="$REGISTRY/mkrepo-dev/mkrepo"}"
 : "${IMAGE_REF:="$IMAGE:$VERSION-$REVISION"}"
 
-: "${DATETIME:=$( [ -z "$(git status --porcelain)" ] && git log -1 --format="%cI" --date=utc HEAD | sed 's/+00:00$/Z/' || date -u +"%Y-%m-%dT%H:%M:%SZ" )}"
-
-echo $DATETIME
+if [ -n "$(git status --porcelain)" ]; then
+    # Repository is dirty: Use current system time in UTC
+    DATETIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+else
+    # Repository is clean: Extract the exact commit time of HEAD in UTC
+	echo "here"
+    DATETIME=$(git log -1 --format="%cI" --date iso HEAD | { read -r input && date -u -d "$input" +"%Y-%m-%dT%H:%M:%SZ"; } )
+fi
