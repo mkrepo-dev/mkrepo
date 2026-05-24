@@ -35,7 +35,10 @@ tasks:
       - 'go.sum'
     generates:
       - bin/mkrepo
-    cmd: scripts/build.sh
+    cmds:
+      - scripts/build.sh mkrepo
+      - sleep 5
+      - scripts/build.sh mkrepo2
 
   run:
     desc: Run server
