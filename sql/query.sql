@@ -11,28 +11,25 @@ VALUES ($1, $2, $3);
 DELETE FROM oauth2_state
 WHERE expires_at < now();
 
--- name: GetAccountBySession :one
-SELECT a.id, a.provider, a.email, a.username, a.display_name, a.avatar_url,
-  s.id, s.access_token, s.refresh_token, s.access_token_expires_at, s.expires_at
+-- name: GetAccountSession :one
+SELECT a.id, a.provider, a.provider_account_id, a.email, a.username, a.display_name, a.avatar_url,
+  s.id AS session_id, s.access_token, s.refresh_token, s.access_token_expires_at, s.expires_at
 FROM account a JOIN session s ON a.id = s.account_id
 WHERE s.id = $1;
 
--- name: GetAccountByProviderAndEmail :one
-SELECT id, provider, email, username, display_name, avatar_url
-FROM account
-WHERE provider = $1 AND email = $2;
-
--- name: CreateAccount :exec
-INSERT INTO account (id, provider, email, username, display_name, avatar_url)
-VALUES ($1, $2, $3, $4, $5, $6);
+-- name: UpsertAccount :one
+INSERT INTO account (id, provider, provider_account_id, email, username, display_name, avatar_url)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (provider, provider_account_id)
+DO UPDATE SET
+  username = EXCLUDED.username,
+  display_name = EXCLUDED.display_name,
+  avatar_url = EXCLUDED.avatar_url
+RETURNING id;
 
 -- name: UpdateAccount :exec
 UPDATE account
-SET username = $2, display_name = $3, avatar_url = $4
-WHERE id = $1;
-
--- name: DeleteAccount :exec
-DELETE FROM account
+SET username = $2, email = $3, display_name = $4, avatar_url = $5
 WHERE id = $1;
 
 -- name: CreateSession :exec
@@ -41,7 +38,7 @@ VALUES ($1, $2, $3, $4, $5, $6);
 
 -- name: UpdateSession :exec
 UPDATE session
-SET access_token = $2, refresh_token = $3, access_token_expires_at = $4, expires_at = $5
+SET access_token = $2, refresh_token = $3, access_token_expires_at = $4
 WHERE id = $1;
 
 -- name: DeleteSession :exec
@@ -93,10 +90,3 @@ WHERE full_name = $1;
 SELECT verifier
 FROM oauth2_state
 WHERE state = $1 AND expires_at > now();
-
--- name: UpsertAccount :one
-INSERT INTO account (id, provider, email, username, display_name, avatar_url)
-VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)
-ON CONFLICT (provider, email) DO UPDATE
-SET username = EXCLUDED.username, display_name = EXCLUDED.display_name, avatar_url = EXCLUDED.avatar_url
-RETURNING id;

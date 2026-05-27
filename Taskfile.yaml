@@ -7,20 +7,18 @@ tasks:
     desc: Show this help
     silent: true
     aliases: [help, h]
-    cmds:
-      - task -l --sort none
+    cmd: task -l --sort none
 
   generate:
     desc: Run go generate
-    cmds:
-      - go generate ./...
-      - go tool sqlc generate -f sql/sqlc.yaml
+    cmd: go tool sqlc generate -f sql/sqlc.yaml
 
   makemigrations:
-    desc: Make migrations
+    desc: Make SQL migrations
+    dir: sql
     vars:
       NAME: '{{default "" .NAME}}'
-    cmd: atlas migrate diff {{.NAME}} --to file://sql/schema.sql --dir file://sql/migrations?format=golang-migrate --dev-url "docker://postgres/18/dev?search_path=public"
+    cmd: atlas migrate diff --env local {{.NAME}}
 
   build:
     desc: Build mkrepo
@@ -35,10 +33,7 @@ tasks:
       - 'go.sum'
     generates:
       - bin/mkrepo
-    cmds:
-      - scripts/build.sh mkrepo
-      - sleep 5
-      - scripts/build.sh mkrepo2
+    cmd: scripts/build.sh
 
   run:
     desc: Run server
@@ -49,12 +44,10 @@ tasks:
   test:
     desc: Run tests
     aliases: [t]
-    cmds:
-      - go test -v ./...
+    cmd: go test -v ./...
 
   clean:
     desc: Clean up
-    aliases: [c]
     cmds:
       - rm -rf bin
       - rm -rf .task

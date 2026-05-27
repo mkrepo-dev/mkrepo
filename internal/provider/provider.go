@@ -27,6 +27,7 @@ const (
 )
 
 type User struct {
+	ID          string
 	Username    string
 	Email       string
 	DisplayName string

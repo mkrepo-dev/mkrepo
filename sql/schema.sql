@@ -6,12 +6,13 @@ CREATE TABLE oauth2_state (
 
 CREATE TABLE account (
   id uuid PRIMARY KEY,
-  provider TEXT NOT NULL,
+  provider text NOT NULL,
+  provider_account_id text NOT NULL,
   email text NOT NULL,
   username text NOT NULL,
   display_name text NOT NULL,
   avatar_url text NOT NULL,
-  UNIQUE(provider, email)
+  UNIQUE(provider, provider_account_id)
 );
 
 CREATE TABLE session (

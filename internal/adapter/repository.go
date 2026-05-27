@@ -13,13 +13,12 @@ import (
 	"time"
 
 	"ariga.io/atlas/atlasexec"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/oauth2"
 
 	"github.com/mkrepo-dev/mkrepo/internal/app"
-	"github.com/mkrepo-dev/mkrepo/internal/generated/database"
+	"github.com/mkrepo-dev/mkrepo/internal/gen/database"
 	"github.com/mkrepo-dev/mkrepo/internal/log"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	"github.com/mkrepo-dev/mkrepo/internal/service"
@@ -28,7 +27,7 @@ import (
 
 type Repository struct {
 	pool          *pgxpool.Pool
-	queries       *database.Queries
+	Queries       *database.Queries
 	encryptionKey []byte
 }
 
@@ -70,7 +69,7 @@ func New(ctx context.Context, connectionUri string, encryptionKey string) (*Repo
 	// Create repository
 	repo := &Repository{
 		pool:          pool,
-		queries:       database.New(pool),
+		Queries:       database.New(pool),
 		encryptionKey: key,
 	}
 
@@ -88,11 +87,11 @@ func (r *Repository) Close() {
 }
 
 func (r *Repository) Cleanup(ctx context.Context) error {
-	err := r.queries.DeleteExpiredOAuth2States(ctx)
+	err := r.Queries.DeleteExpiredOAuth2States(ctx)
 	if err != nil {
 		return fmt.Errorf("delete expired oauth2 states: %w", err)
 	}
-	err = r.queries.DeleteExpiredSessions(ctx)
+	err = r.Queries.DeleteExpiredSessions(ctx)
 	if err != nil {
 		return fmt.Errorf("delete expired sessions: %w", err)
 	}
@@ -122,20 +121,8 @@ func (r *Repository) Ping(ctx context.Context) error {
 	return r.pool.Ping(ctx)
 }
 
-func (r *Repository) CreateOAuth2State(ctx context.Context, state app.OAuth2State) error {
-	verifier := pgtype.Text{}
-	if state.Verifier != nil {
-		verifier = pgtype.Text{String: *state.Verifier, Valid: true}
-	}
-	return r.queries.CreateOAuth2State(ctx, database.CreateOAuth2StateParams{
-		State:     state.State,
-		Verifier:  verifier,
-		ExpiresAt: pgtype.Timestamptz{Time: state.ExpiresAt, Valid: true},
-	})
-}
-
 func (r *Repository) GetAndDeleteOAuth2State(ctx context.Context, state string) (app.OAuth2State, error) {
-	dbState, err := r.queries.GetAndDeleteOAuth2State(ctx, state)
+	dbState, err := r.Queries.GetAndDeleteOAuth2State(ctx, state)
 	if err != nil {
 		return app.OAuth2State{}, err
 	}
@@ -150,7 +137,7 @@ func (r *Repository) GetAndDeleteOAuth2State(ctx context.Context, state string) 
 }
 
 func (r *Repository) GetAccountBySessionID(ctx context.Context, sessionID string) (app.Account, error) {
-	dbAccount, err := r.queries.GetAccountBySession(ctx, sessionID)
+	dbAccount, err := r.Queries.GetAccountBySession(ctx, sessionID)
 	if err != nil {
 		return app.Account{}, fmt.Errorf("get account by session id: %w", err)
 	}
@@ -182,87 +169,13 @@ func (r *Repository) GetAccountBySessionID(ctx context.Context, sessionID string
 	}, nil
 }
 
-func (r *Repository) CreateOrUpdateAccountWithSession(ctx context.Context, account app.Account) error {
-	tx, err := r.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("create transaction: %w", err)
-	}
-	defer tx.Rollback(ctx) // nolint:errcheck
-	qtx := r.queries.WithTx(tx)
-
-	var accountID uuid.UUID
-	dbAccount, err := qtx.GetAccountByProviderAndEmail(ctx, database.GetAccountByProviderAndEmailParams{
-		Provider: string(account.Provider),
-		Email:    account.Email,
-	})
-	if err != nil {
-		accountID = uuid.Must(uuid.NewV7())
-		err = qtx.CreateAccount(ctx, database.CreateAccountParams{
-			ID:          accountID,
-			Provider:    string(account.Provider),
-			Email:       account.Email,
-			Username:    account.Username,
-			DisplayName: account.DisplayName,
-			AvatarUrl:   account.AvatarURL,
-		})
-		if err != nil {
-			return fmt.Errorf("create account: %w", err)
-		}
-	} else {
-		accountID = dbAccount.ID
-		err = qtx.UpdateAccount(ctx, database.UpdateAccountParams{
-			ID:          accountID,
-			Username:    account.Username,
-			DisplayName: account.DisplayName,
-			AvatarUrl:   account.AvatarURL,
-		})
-		if err != nil {
-			return fmt.Errorf("update account: %w", err)
-		}
-	}
-
-	accessToken, err := encrypt(r.encryptionKey, []byte(account.Session.Token.AccessToken))
-	if err != nil {
-		return fmt.Errorf("encrypt access token: %w", err)
-	}
-	refreshToken, err := encrypt(r.encryptionKey, []byte(account.Session.Token.RefreshToken))
-	if err != nil {
-		return fmt.Errorf("encrypt refresh token: %w", err)
-	}
-	var accessTokenExpiresAt pgtype.Timestamptz
-	if !account.Session.Token.Expiry.IsZero() {
-		accessTokenExpiresAt = pgtype.Timestamptz{
-			Time:  account.Session.Token.Expiry,
-			Valid: true,
-		}
-	}
-
-	err = qtx.CreateSession(ctx, database.CreateSessionParams{
-		ID:                   account.Session.ID,
-		AccessToken:          accessToken,
-		RefreshToken:         refreshToken,
-		AccessTokenExpiresAt: accessTokenExpiresAt,
-		ExpiresAt:            pgtype.Timestamptz{Time: account.Session.ExpiresAt, Valid: true},
-		AccountID:            accountID,
-	})
-	if err != nil {
-		return fmt.Errorf("create session: %w", err)
-	}
-
-	err = tx.Commit(ctx)
-	if err != nil {
-		return fmt.Errorf("commit transaction: %w", err)
-	}
-	return nil
-}
-
 func (r *Repository) UpdateAccountWithSession(ctx context.Context, account app.Account) error {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("create transaction: %w", err)
 	}
 	defer tx.Rollback(ctx) // nolint:errcheck
-	qtx := r.queries.WithTx(tx)
+	qtx := r.Queries.WithTx(tx)
 
 	accessToken, err := encrypt(r.encryptionKey, []byte(account.Session.Token.AccessToken))
 	if err != nil {
@@ -306,12 +219,8 @@ func (r *Repository) UpdateAccountWithSession(ctx context.Context, account app.A
 	return nil
 }
 
-func (r *Repository) DeleteSession(ctx context.Context, sessionID string) error {
-	return r.queries.DeleteSession(ctx, sessionID)
-}
-
 func (r *Repository) SearchTemplates(ctx context.Context, query string) ([]service.Template, error) {
-	rows, err := r.queries.SearchTemplates(ctx, query)
+	rows, err := r.Queries.SearchTemplates(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("search templates: %w", err)
 	}
@@ -340,7 +249,7 @@ func (r *Repository) SearchTemplates(ctx context.Context, query string) ([]servi
 }
 
 func (r *Repository) GetTemplate(ctx context.Context, fullName string) (service.Template, error) {
-	row, err := r.queries.GetTemplate(ctx, fullName)
+	row, err := r.Queries.GetTemplate(ctx, fullName)
 	if err != nil {
 		return service.Template{}, fmt.Errorf("get template: %w", err)
 	}
@@ -376,7 +285,7 @@ func (r *Repository) CreateTemplate(ctx context.Context, name string, fullName s
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback(ctx) // nolint:errcheck
-	qtx := r.queries.WithTx(tx)
+	qtx := r.Queries.WithTx(tx)
 
 	var urlText pgtype.Text
 	if url != nil {
@@ -417,18 +326,18 @@ func (r *Repository) CreateTemplate(ctx context.Context, name string, fullName s
 }
 
 func (r *Repository) UpdateTemplateStars(ctx context.Context, fullName string, stars int) error {
-	return r.queries.UpdateTemplateStars(ctx, database.UpdateTemplateStarsParams{
+	return r.Queries.UpdateTemplateStars(ctx, database.UpdateTemplateStarsParams{
 		FullName: fullName,
 		Stars:    int32(stars),
 	})
 }
 
 func (r *Repository) IncreaseTemplateUses(ctx context.Context, fullName string) error {
-	return r.queries.IncreaseTemplateUses(ctx, fullName)
+	return r.Queries.IncreaseTemplateUses(ctx, fullName)
 }
 
-func encrypt(key []byte, data []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
+func (r *Repository) Encrypt(data []byte) ([]byte, error) {
+	block, err := aes.NewCipher(r.encryptionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -446,8 +355,8 @@ func encrypt(key []byte, data []byte) ([]byte, error) {
 	return aesGCM.Seal(nonce, nonce, []byte(data), nil), nil
 }
 
-func decrypt(key []byte, data []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
+func (r *Repository) Decrypt(data []byte) ([]byte, error) {
+	block, err := aes.NewCipher(r.encryptionKey)
 	if err != nil {
 		return nil, err
 	}

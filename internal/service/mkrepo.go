@@ -13,7 +13,6 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/memfs"
-	"github.com/mkrepo-dev/mkrepo/internal/metrics"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 )
 
@@ -32,16 +31,14 @@ type templateContext struct {
 }
 
 type MkrepoService struct {
-	metrics          *metrics.Metrics
 	repo             Repository
 	licenses         Licenses
 	gitignores       fs.FS
 	buildInTemplates fs.FS
 }
 
-func NewService(metrics *metrics.Metrics, repo Repository, gitignores fs.FS, licenses Licenses, buildInTemplates fs.FS) *MkrepoService {
+func NewService(repo Repository, gitignores fs.FS, licenses Licenses, buildInTemplates fs.FS) *MkrepoService {
 	return &MkrepoService{
-		metrics:          metrics,
 		repo:             repo,
 		gitignores:       gitignores,
 		licenses:         licenses,
@@ -72,7 +69,6 @@ func (rm *MkrepoService) CreateNewRepo(ctx context.Context, client provider.Clie
 		return remoteRepo.HtmlUrl, err
 	}
 	slog.Info("Repo created and initialized")
-	rm.metrics.ReposCreated.Inc()
 
 	return remoteRepo.HtmlUrl, nil
 }
