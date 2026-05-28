@@ -95,7 +95,7 @@ type ProviderKey string
 
 type Providers map[ProviderKey]Provider
 
-func NewProvidersFromConfig(cfg config.Config) Providers {
+func NewProvidersFromConfig(ctx context.Context, logger *slog.Logger, cfg config.Config) Providers {
 	providers := make(Providers)
 	for _, providerConfig := range cfg.Providers {
 		switch providerConfig.Type {
@@ -106,7 +106,7 @@ func NewProvidersFromConfig(cfg config.Config) Providers {
 		case config.GiteaProvider:
 			providers[ProviderKey(providerConfig.Key)] = NewGiteaFromConfig(cfg, providerConfig)
 		default:
-			slog.Warn("Unknown provider type", slog.String("type", string(providerConfig.Type)))
+			logger.WarnContext(ctx, "Unknown provider type", slog.String("type", string(providerConfig.Type)))
 		}
 	}
 	return providers

@@ -1,42 +1,45 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"html/template"
 	"log/slog"
 	"net/http"
 
-	"github.com/mkrepo-dev/mkrepo/internal/app"
 	"github.com/mkrepo-dev/mkrepo/internal/log"
 )
 
 type baseContext struct {
-	Account *app.Account
+	Account *Account
 }
 
-func getBaseContext(r *http.Request) baseContext {
-	return baseContext{Account: app.GetAccountFromContext(r.Context())}
+func getBaseContext(ctx context.Context) baseContext {
+	return baseContext{Account: getAccountFromContext(ctx)}
 }
 
-func render(w http.ResponseWriter, t *template.Template, context any) {
+func handlerLogger(logger *slog.Logger, handlerName string) *slog.Logger {
+	return logger.With("handler", handlerName)
+}
+
+func internalServerError(w http.ResponseWriter) {
+	http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+}
+
+func render(ctx context.Context, logger *slog.Logger, w http.ResponseWriter, t *template.Template, context any) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	err := t.Execute(w, context)
 	if err != nil {
-		slog.Error("Failed to render template", log.Err(err))
-		w.WriteHeader(http.StatusInternalServerError)
+		logger.ErrorContext(ctx, "Failed to render template", log.Err(err))
+		internalServerError(w)
 	}
 }
 
-func encode[T any](w http.ResponseWriter, v T) {
+func encode[T any](ctx context.Context, logger *slog.Logger, w http.ResponseWriter, v T) {
 	w.Header().Set("Content-Type", "application/json")
 	err := json.NewEncoder(w).Encode(v)
 	if err != nil {
-		internalServerError(w, "Failed to encode response", err)
-		slog.Error("Failed to encode response", log.Err(err))
+		logger.ErrorContext(ctx, "Failed to encode response", log.Err(err))
+		internalServerError(w)
 	}
-}
-
-func internalServerError(w http.ResponseWriter, msg string, err error) {
-	slog.Error(msg, log.Err(err))
-	http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 }

@@ -9,12 +9,12 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/mkrepo-dev/mkrepo/internal/adapter"
-	"github.com/mkrepo-dev/mkrepo/internal/app"
 	"github.com/mkrepo-dev/mkrepo/internal/gen/database"
 	"github.com/mkrepo-dev/mkrepo/internal/log"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
@@ -30,6 +30,22 @@ type Account struct {
 	DisplayName       string
 	AvatarURL         string
 	Token             *oauth2.Token
+}
+
+type contextKey int
+
+const accountContextKey contextKey = iota
+
+func getAccountFromContext(ctx context.Context) *Account {
+	account, ok := ctx.Value(accountContextKey).(*Account)
+	if !ok {
+		return nil
+	}
+	return account
+}
+
+func contextWithAccount(ctx context.Context, account *Account) context.Context {
+	return context.WithValue(ctx, accountContextKey, account)
 }
 
 const sessionCookieName = "session"
@@ -64,13 +80,30 @@ func AuthenticateMiddleware(logger *slog.Logger, db *adapter.Repository, provide
 				return
 			}
 
-			next.ServeHTTP(w, r.WithContext(app.ContextWithAccount(ctx, account)))
+			next.ServeHTTP(w, r.WithContext(contextWithAccount(ctx, account)))
 		})
 	}
 }
 
+// Checks if user is authenticated. If not, redirect to login page. Must be called after
+// Authenticate middleware.
+func MustAuthenticate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		account := getAccountFromContext(r.Context())
+		if account == nil {
+			redirect := "/auth/login"
+			if r.Method == http.MethodGet {
+				redirect += "?redirect=" + url.QueryEscape(r.URL.String())
+			}
+			http.Redirect(w, r, redirect, http.StatusFound)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func Login(logger *slog.Logger, templatesFS fs.FS, db *adapter.Repository, providers provider.Providers) http.HandlerFunc {
-	logger = logger.With("handler", "Login")
+	logger = handlerLogger(logger, "Login")
 	type loginContext struct {
 		baseContext
 		Providers provider.Providers
@@ -78,12 +111,14 @@ func Login(logger *slog.Logger, templatesFS fs.FS, db *adapter.Repository, provi
 	tmpl := template.Must(template.ParseFS(templatesFS, "base.html", "login.html"))
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
 		providerKey := r.FormValue("provider")
 		if providerKey == "" {
-			render(w, tmpl, loginContext{
-				baseContext: getBaseContext(r),
+			render(ctx, logger, w, tmpl, loginContext{
+				baseContext: getBaseContext(ctx),
 				Providers:   providers,
 			})
+			return
 		}
 
 		provider, ok := providers[provider.ProviderKey(providerKey)]
@@ -100,13 +135,13 @@ func Login(logger *slog.Logger, templatesFS fs.FS, db *adapter.Repository, provi
 		}
 
 		state := rand.Text()
-		err := db.Queries.CreateOAuth2State(r.Context(), database.CreateOAuth2StateParams{
+		err := db.Queries.CreateOAuth2State(ctx, database.CreateOAuth2StateParams{
 			State:     state,
 			Verifier:  verifier,
 			ExpiresAt: time.Now().Add(15 * time.Minute),
 		})
 		if err != nil {
-			logger.Error("Failed to create OAuth2 state", log.Err(err))
+			logger.ErrorContext(ctx, "Failed to create OAuth2 state", log.Err(err))
 			http.Error(w, "Failed to create OAuth2 state", http.StatusInternalServerError)
 			return
 		}
@@ -117,17 +152,19 @@ func Login(logger *slog.Logger, templatesFS fs.FS, db *adapter.Repository, provi
 }
 
 func Logout(logger *slog.Logger, db *adapter.Repository) http.HandlerFunc {
-	logger = logger.With("handler", "Logout")
+	logger = handlerLogger(logger, "Logout")
+
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
 		reqSession, err := r.Cookie(sessionCookieName)
 		if err != nil {
 			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}
 
-		err = db.Queries.DeleteSession(r.Context(), reqSession.Value)
+		err = db.Queries.DeleteSession(ctx, reqSession.Value)
 		if err != nil {
-			logger.Error("Failed to delete session from database.", log.Err(err))
+			logger.ErrorContext(ctx, "Failed to delete session from database.", log.Err(err))
 		}
 
 		// TODO: Invalidate token if possible
@@ -138,8 +175,10 @@ func Logout(logger *slog.Logger, db *adapter.Repository) http.HandlerFunc {
 }
 
 func OAuth2Callback(logger *slog.Logger, db *adapter.Repository, providers provider.Providers) http.HandlerFunc {
-	logger = logger.With("handler", "OAuth2Callback")
+	logger = handlerLogger(logger, "OAuth2Callback")
+
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
 		errMsg := r.FormValue("error")
 		if errMsg != "" {
 			http.Error(w, "OAuth2 error: "+errMsg, http.StatusBadRequest)
@@ -153,7 +192,7 @@ func OAuth2Callback(logger *slog.Logger, db *adapter.Repository, providers provi
 			return
 		}
 
-		oauth2State, err := db.Queries.GetAndDeleteOAuth2State(r.Context(), r.FormValue("state"))
+		oauth2State, err := db.Queries.GetAndDeleteOAuth2State(ctx, r.FormValue("state"))
 		if err != nil {
 			http.Error(w, "Invalid state", http.StatusBadRequest)
 			return
@@ -167,20 +206,20 @@ func OAuth2Callback(logger *slog.Logger, db *adapter.Repository, providers provi
 			authCodeOptions = append(authCodeOptions, oauth2.VerifierOption(*oauth2State.Verifier))
 		}
 
-		token, err := provider.OAuth2Config().Exchange(r.Context(), r.FormValue("code"), authCodeOptions...)
+		token, err := provider.OAuth2Config().Exchange(ctx, r.FormValue("code"), authCodeOptions...)
 		if err != nil {
 			http.Error(w, "Failed to exchange code for token", http.StatusInternalServerError)
 			return
 		}
 
-		user, err := provider.NewClient(context.TODO(), token).GetUser(r.Context()) // TODO: This shouldnt take context becaise token should be rotated in middleware
+		user, err := provider.NewClient(ctx, token).GetUser(ctx) // TODO: This shouldnt take context becaise token should be rotated in middleware
 		if err != nil {
-			logger.Error("Failed to get user info", log.Err(err))
+			logger.ErrorContext(ctx, "Failed to get user info", log.Err(err))
 			http.Error(w, "Failed to get user info", http.StatusInternalServerError)
 			return
 		}
 
-		accountID, err := db.Queries.UpsertAccount(r.Context(), database.UpsertAccountParams{
+		accountID, err := db.Queries.UpsertAccount(ctx, database.UpsertAccountParams{
 			ID:                uuid.Must(uuid.NewV7()),
 			Provider:          providerKey,
 			ProviderAccountID: user.ID,
@@ -190,7 +229,7 @@ func OAuth2Callback(logger *slog.Logger, db *adapter.Repository, providers provi
 			AvatarUrl:         user.AvatarURL,
 		})
 		if err != nil {
-			logger.Error("Failed to upsert account", log.Err(err))
+			logger.ErrorContext(ctx, "Failed to upsert account", log.Err(err))
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
@@ -198,13 +237,13 @@ func OAuth2Callback(logger *slog.Logger, db *adapter.Repository, providers provi
 		sessionID := rand.Text()
 		accessToken, err := db.Encrypt([]byte(token.AccessToken))
 		if err != nil {
-			logger.Error("Failed to encrypt access token", log.Err(err))
+			logger.ErrorContext(ctx, "Failed to encrypt access token", log.Err(err))
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 		refreshToken, err := db.Encrypt([]byte(token.RefreshToken))
 		if err != nil {
-			logger.Error("Failed to encrypt refresh token", log.Err(err))
+			logger.ErrorContext(ctx, "Failed to encrypt refresh token", log.Err(err))
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
@@ -214,7 +253,7 @@ func OAuth2Callback(logger *slog.Logger, db *adapter.Repository, providers provi
 		}
 		sessionExpiresAt := time.Now().Add(14 * 24 * time.Hour)
 
-		err = db.Queries.CreateSession(r.Context(), database.CreateSessionParams{
+		err = db.Queries.CreateSession(ctx, database.CreateSessionParams{
 			ID:                   sessionID,
 			AccessToken:          accessToken,
 			AccessTokenExpiresAt: accessTokenExpires,
@@ -223,12 +262,30 @@ func OAuth2Callback(logger *slog.Logger, db *adapter.Repository, providers provi
 			AccountID:            accountID,
 		})
 		if err != nil {
-			logger.Error("Failed to create session", log.Err(err))
+			logger.ErrorContext(ctx, "Failed to create session", log.Err(err))
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 
 		http.SetCookie(w, sessionCookie(sessionID, int(time.Until(sessionExpiresAt).Seconds())))
+		http.Redirect(w, r, "/", http.StatusFound)
+	}
+}
+
+func DeleteAccount(logger *slog.Logger, db *adapter.Repository) http.HandlerFunc {
+	logger = handlerLogger(logger, "DeleteAccount")
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		account := getAccountFromContext(ctx)
+		err := db.Queries.DeleteAccount(ctx, account.ID)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to delete account", log.Err(err))
+			internalServerError(w)
+			return
+		}
+
+		http.SetCookie(w, sessionCookie("", -1))
 		http.Redirect(w, r, "/", http.StatusFound)
 	}
 }
@@ -242,7 +299,7 @@ func authenticateSession(ctx context.Context, db *adapter.Repository, sessionID 
 		return nil, errors.New("session expired")
 	}
 
-	provider, ok := providers[provider.ProviderKey(accountSession.Provider)]
+	pr, ok := providers[provider.ProviderKey(accountSession.Provider)]
 	if !ok {
 		return nil, fmt.Errorf("unknown provider: %s", accountSession.Provider)
 	}
@@ -259,7 +316,7 @@ func authenticateSession(ctx context.Context, db *adapter.Repository, sessionID 
 		token.Expiry = *accountSession.AccessTokenExpiresAt
 	}
 
-	token, err = provider.OAuth2Config().TokenSource(ctx, token).Token()
+	token, err = pr.OAuth2Config().TokenSource(ctx, token).Token()
 	if err != nil {
 		return nil, fmt.Errorf("refresh access token: %w", err)
 	}
@@ -268,7 +325,7 @@ func authenticateSession(ctx context.Context, db *adapter.Repository, sessionID 
 		if err != nil {
 			return nil, fmt.Errorf("encrypt tokens: %w", err)
 		}
-		user, err := provider.NewClient(ctx, token).GetUser(ctx)
+		user, err := pr.NewClient(ctx, token).GetUser(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("get user info: %w", err)
 		}

@@ -18,7 +18,6 @@ import (
 	"github.com/mkrepo-dev/mkrepo"
 	"github.com/mkrepo-dev/mkrepo/internal"
 	"github.com/mkrepo-dev/mkrepo/internal/adapter"
-	"github.com/mkrepo-dev/mkrepo/internal/app"
 	"github.com/mkrepo-dev/mkrepo/internal/config"
 	"github.com/mkrepo-dev/mkrepo/internal/log"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
@@ -112,9 +111,9 @@ func runServer(ctx context.Context, serverConfigFile *string) error {
 		return ErrNoPrint
 	}
 
-	providers := provider.NewProvidersFromConfig(cfg)
+	providers := provider.NewProvidersFromConfig(ctx, logger, cfg)
 
-	db, err := adapter.New(ctx, cfg.DatabaseUri, cfg.SecretKey)
+	db, err := adapter.New(ctx, logger, cfg.DatabaseUri, cfg.SecretKey)
 	if err != nil {
 		logger.ErrorContext(ctx, "Cannot open database", log.Err(err))
 		return ErrNoPrint
@@ -152,10 +151,9 @@ func runServer(ctx context.Context, serverConfigFile *string) error {
 		return ErrNoPrint
 	}
 
-	authService := app.NewAuthService(logger, db, providers)
 	repomaker := service.NewService(db, gitignoresFS, licenses, templatesFS)
 
-	srv := server.NewServer(logger, cfg, db, authService, repomaker, providers, gitignores, licenses)
+	srv := server.NewServer(logger, cfg, db, repomaker, providers, gitignores, licenses)
 
 	errCh := make(chan error)
 	go func() {

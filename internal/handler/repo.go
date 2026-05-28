@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/mkrepo-dev/mkrepo/internal/adapter"
-	"github.com/mkrepo-dev/mkrepo/internal/app"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	mkrepo "github.com/mkrepo-dev/mkrepo/internal/service"
 	"github.com/mkrepo-dev/mkrepo/template/html"
 )
 
-func MkrepoForm(db *adapter.Repository, providers provider.Providers, gitignores []string, licenses mkrepo.Licenses) http.Handler {
+func MkrepoForm(logger *slog.Logger, db *adapter.Repository, providers provider.Providers, gitignores []string, licenses mkrepo.Licenses) http.Handler {
+	logger = handlerLogger(logger, "MkrepoForm")
 	type newRepoFormContext struct {
 		baseContext
 		Name        string
@@ -27,27 +27,29 @@ func MkrepoForm(db *adapter.Repository, providers provider.Providers, gitignores
 		CurrentYear int
 	}
 	tmpl := template.Must(template.ParseFS(html.FS, "base.html", "new.html"))
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		account := app.GetAccountFromContext(r.Context())
-		provider := providers[account.Provider]
-		client := provider.NewClient(r.Context(), account.Session.Token)
+		ctx := r.Context()
+		account := getAccountFromContext(ctx)
+		provider := providers[account.ProviderKey]
+		client := provider.NewClient(ctx, account.Token)
 
 		// TODO: Assume that token is valid during whole request. Maybe assure this in middleware.
-		account.Session.Token = client.Token()
-		err := db.UpdateAccountWithSession(r.Context(), *account)
-		if err != nil {
-			internalServerError(w, "Failed to update account token", err)
-			return
-		}
+		//account.Session.Token = client.Token()
+		//err := db.UpdateAccountWithSession(ctx, *account)
+		//if err != nil {
+		//	internalServerError(w)
+		//	return
+		//}
 
-		owners, err := client.GetPosibleRepoOwners(r.Context())
+		owners, err := client.GetPosibleRepoOwners(ctx)
 		if err != nil {
-			internalServerError(w, "Failed to get possible repo owners", err)
+			internalServerError(w)
 			return
 		}
 
 		context := newRepoFormContext{
-			baseContext: getBaseContext(r),
+			baseContext: getBaseContext(ctx),
 			Provider:    provider,
 			Owners:      owners,
 			Name:        r.FormValue("name"),
@@ -55,38 +57,41 @@ func MkrepoForm(db *adapter.Repository, providers provider.Providers, gitignores
 			Licenses:    licenses,
 			CurrentYear: time.Now().Year(),
 		}
-		render(w, tmpl, context)
+		render(ctx, logger, w, tmpl, context)
 	})
 }
 
-func MkrepoCreate(db *adapter.Repository, repomaker *mkrepo.MkrepoService, providers provider.Providers) http.Handler {
+func MkrepoCreate(logger *slog.Logger, db *adapter.Repository, repomaker *mkrepo.MkrepoService, providers provider.Providers) http.Handler {
+	logger = handlerLogger(logger, "MkrepoCreate")
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		account := app.GetAccountFromContext(r.Context())
+		ctx := r.Context()
+		account := getAccountFromContext(ctx)
 		// TODO: Do better validation of input values
 
 		repo, err := CreateRepoFromForm(r)
 		if err != nil {
-			slog.Warn("Failed to parse form", "error", err)
+			logger.WarnContext(ctx, "Failed to parse form", "error", err)
 			http.Error(w, "invalid form", http.StatusBadRequest)
 			return
 		}
 
-		provider, ok := providers[account.Provider]
+		provider, ok := providers[account.ProviderKey]
 		if !ok {
 			http.Error(w, "unsupported provider", http.StatusBadRequest)
 			return
 		}
-		client := provider.NewClient(r.Context(), account.Session.Token)
-		account.Session.Token = client.Token()
-		err = db.UpdateAccountWithSession(r.Context(), *account)
-		if err != nil {
-			internalServerError(w, "Failed to update token in db", err)
-			return
-		}
+		client := provider.NewClient(ctx, account.Token)
+		//account.Session.Token = client.Token()
+		//err = db.UpdateAccountWithSession(ctx, *account)
+		//if err != nil {
+		//	internalServerError(w)
+		//	return
+		//}
 
-		url, err := repomaker.CreateNewRepo(r.Context(), client, repo)
+		url, err := repomaker.CreateNewRepo(ctx, client, repo)
 		if err != nil {
-			internalServerError(w, "Failed to create repository", err)
+			internalServerError(w)
 			return
 		}
 
@@ -100,7 +105,7 @@ func Schemas(licenses mkrepo.Licenses) http.Handler {
 	}
 	response := schemasResponse{Licenses: licenses}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		encode(w, response)
+		encode(r.Context(), slog.Default(), w, response) // TODO: Don't use default logger
 	})
 }
 
@@ -133,7 +138,7 @@ func CreateRepoFromForm(r *http.Request) (*mkrepo.CreateRepo, error) {
 		sha256 = new(true)
 	}
 
-	account := app.GetAccountFromContext(r.Context())
+	account := getAccountFromContext(r.Context())
 	var tag *string
 	if r.Form.Has("tag") {
 		tag = new("v0.0.0")

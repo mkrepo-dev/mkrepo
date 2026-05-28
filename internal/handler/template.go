@@ -1,24 +1,27 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/mkrepo-dev/mkrepo/internal/adapter"
 	mkrepo "github.com/mkrepo-dev/mkrepo/internal/service"
 )
 
-func Templates(db *adapter.Repository) http.Handler {
+func Templates(logger *slog.Logger, db *adapter.Repository) http.Handler {
+	logger = handlerLogger(logger, "Templates")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
 		query := r.FormValue("q")
 		// TODO: Handle empty query and len(query) == 1
 
 		templates, err := db.SearchTemplates(r.Context(), query)
 		if err != nil {
-			internalServerError(w, "Failed to search templates", err)
+			internalServerError(w)
 			return
 		}
 
-		encode(w, templates)
+		encode(ctx, logger, w, templates)
 	})
 }
 
@@ -37,7 +40,7 @@ func RegisterTemplate(repomaker *mkrepo.MkrepoService) http.Handler {
 
 		err := repomaker.RegisterTemplate(r.Context(), url, fullName)
 		if err != nil {
-			internalServerError(w, "Failed to register template", err)
+			internalServerError(w)
 			return
 		}
 

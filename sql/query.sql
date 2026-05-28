@@ -32,6 +32,10 @@ UPDATE account
 SET username = $2, email = $3, display_name = $4, avatar_url = $5
 WHERE id = $1;
 
+-- name: DeleteAccount :exec
+DELETE FROM account
+WHERE id = $1;
+
 -- name: CreateSession :exec
 INSERT INTO session (id, access_token, refresh_token, access_token_expires_at, expires_at, account_id)
 VALUES ($1, $2, $3, $4, $5, $6);

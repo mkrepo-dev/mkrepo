@@ -54,6 +54,16 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) er
 	return err
 }
 
+const deleteAccount = `-- name: DeleteAccount :exec
+DELETE FROM account
+WHERE id = $1
+`
+
+func (q *Queries) DeleteAccount(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteAccount, id)
+	return err
+}
+
 const deleteExpiredOAuth2States = `-- name: DeleteExpiredOAuth2States :exec
 DELETE FROM oauth2_state
 WHERE expires_at < now()
