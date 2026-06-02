@@ -212,7 +212,13 @@ func OAuth2Callback(logger *slog.Logger, db *database1.DB, providers provider.Pr
 			return
 		}
 
-		user, err := provider.NewClient(ctx, token).GetUser(ctx) // TODO: This shouldnt take context becaise token should be rotated in middleware
+		client, err := provider.NewClient(token)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to create provider client", log.Err(err))
+			http.Error(w, "Failed to get user info", http.StatusInternalServerError)
+			return
+		}
+		user, err := client.GetUser(ctx)
 		if err != nil {
 			logger.ErrorContext(ctx, "Failed to get user info", log.Err(err))
 			http.Error(w, "Failed to get user info", http.StatusInternalServerError)
@@ -325,7 +331,11 @@ func authenticateSession(ctx context.Context, db *database1.DB, sessionID string
 		if err != nil {
 			return nil, fmt.Errorf("encrypt tokens: %w", err)
 		}
-		user, err := pr.NewClient(ctx, token).GetUser(ctx)
+		client, err := pr.NewClient(token)
+		if err != nil {
+			return nil, fmt.Errorf("create provider client: %w", err)
+		}
+		user, err := client.GetUser(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("get user info: %w", err)
 		}

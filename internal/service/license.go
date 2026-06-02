@@ -5,7 +5,7 @@ import (
 	"io/fs"
 	"text/template"
 
-	"github.com/go-git/go-billy/v5"
+	"github.com/go-git/go-billy/v6"
 	"github.com/kaptinlin/jsonschema"
 	"gopkg.in/yaml.v3"
 )

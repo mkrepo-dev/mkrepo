@@ -6,12 +6,13 @@ import (
 	"os"
 	"time"
 
-	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/config"
-	"github.com/go-git/go-git/v5/plumbing"
-	fmtconfig "github.com/go-git/go-git/v5/plumbing/format/config"
-	"github.com/go-git/go-git/v5/plumbing/object"
-	githttp "github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/config"
+	"github.com/go-git/go-git/v6/plumbing"
+	"github.com/go-git/go-git/v6/plumbing/client"
+	gitconfig "github.com/go-git/go-git/v6/plumbing/format/config"
+	"github.com/go-git/go-git/v6/plumbing/object"
+	githttp "github.com/go-git/go-git/v6/plumbing/transport/http"
 )
 
 func cloneRepo(ctx context.Context, url string) (string, error) {
@@ -19,7 +20,7 @@ func cloneRepo(ctx context.Context, url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	_, err = git.PlainCloneContext(ctx, dir, false, &git.CloneOptions{
+	_, err = git.PlainCloneContext(ctx, dir, &git.CloneOptions{
 		URL:          url,
 		SingleBranch: true,
 		Depth:        1,
@@ -35,15 +36,13 @@ func cloneRepo(ctx context.Context, url string) (string, error) {
 }
 
 func pushRepo(ctx context.Context, repo *CreateRepo, dir string, remote string, token string) error {
-	initOpt := &git.PlainInitOptions{
-		InitOptions: git.InitOptions{
-			DefaultBranch: plumbing.Main,
-		},
+	opts := []git.InitOption{
+		git.WithDefaultBranch(plumbing.Main),
 	}
 	if repo.Sha256 != nil && *repo.Sha256 {
-		initOpt.ObjectFormat = fmtconfig.SHA256
+		opts = append(opts, git.WithObjectFormat(gitconfig.SHA256))
 	}
-	r, err := git.PlainInitWithOptions(dir, initOpt)
+	r, err := git.PlainInit(dir, false, opts...)
 	if err != nil {
 		return err
 	}
@@ -90,9 +89,8 @@ func pushRepo(ctx context.Context, repo *CreateRepo, dir string, remote string, 
 
 	return r.PushContext(ctx, &git.PushOptions{
 		FollowTags: true,
-		Auth: &githttp.BasicAuth{
-			Username: "mkrepo",
-			Password: token,
+		ClientOptions: []client.Option{
+			client.WithHTTPAuth(&githttp.TokenAuth{Token: token}),
 		},
 	})
 }

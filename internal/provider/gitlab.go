@@ -3,15 +3,15 @@ package provider
 import (
 	"context"
 	"fmt"
-	"log/slog"
+	"net/http"
 	"strconv"
+	"time"
 
-	gitlab "gitlab.com/gitlab-org/api/client-go"
+	gitlab "gitlab.com/gitlab-org/api/client-go/v2"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/endpoints"
 
 	"github.com/mkrepo-dev/mkrepo/internal/config"
-	"github.com/mkrepo-dev/mkrepo/internal/log"
 )
 
 type GitLab struct {
@@ -23,7 +23,6 @@ var _ Provider = &GitLab{}
 
 type GitLabClient struct {
 	*gitlab.Client
-	gl    *GitLab
 	token *oauth2.Token
 }
 
@@ -38,12 +37,6 @@ func NewGitLabFromConfig(cfg config.Config, provider config.Provider) *GitLab {
 	if gl.provider.Name == "" {
 		gl.provider.Name = "GitLab"
 	}
-	if gl.provider.Url == "" {
-		gl.provider.Url = "https://gitlab.com"
-	}
-	if gl.provider.ApiUrl == "" {
-		gl.provider.ApiUrl = "https://gitlab.com/api/v4"
-	}
 	return gl
 }
 
@@ -55,14 +48,10 @@ func (gl *GitLab) Name() string {
 	return gl.provider.Name
 }
 
-func (gl *GitLab) Url() string {
-	return gl.provider.Url
-}
-
 func (*GitLab) Features() ProviderFeatures {
 	return ProviderFeatures{
 		OAuth2AuthorizationCodeFlowWithPKCE: true,
-		Sha256Repo:                          true,
+		Sha256Repo:                          false,
 	}
 }
 
@@ -76,15 +65,19 @@ func (gl *GitLab) OAuth2Config() *oauth2.Config {
 	}
 }
 
-func (gl *GitLab) NewClient(ctx context.Context, token *oauth2.Token) Client {
-	ts := gl.OAuth2Config().TokenSource(ctx, token)
-	tkn, err := ts.Token()
-	if err != nil {
-		slog.Error("Failed to get token", log.Err(err))
+func (gl *GitLab) NewClient(token *oauth2.Token) (Client, error) {
+	opts := []gitlab.ClientOptionFunc{
+		gitlab.WithUserAgent(userAgent),
+		gitlab.WithHTTPClient(&http.Client{Timeout: 30 * time.Second}),
 	}
-	client, _ := gitlab.NewClient(tkn.AccessToken)
-	client.UserAgent = userAgent
-	return &GitLabClient{Client: client, token: tkn, gl: gl}
+	if gl.provider.Url != "" {
+		opts = append(opts, gitlab.WithBaseURL(gl.provider.Url))
+	}
+	client, err := gitlab.NewClient(token.AccessToken, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &GitLabClient{Client: client, token: token}, nil
 }
 
 func (client *GitLabClient) Token() *oauth2.Token {
@@ -92,16 +85,17 @@ func (client *GitLabClient) Token() *oauth2.Token {
 }
 
 func (client *GitLabClient) GetUser(ctx context.Context) (User, error) {
-	var user User
 	res, _, err := client.Users.CurrentUser()
 	if err != nil {
-		return user, err
+		return User{}, err
 	}
-	user.Username = res.Username
-	user.Email = res.Email
-	user.DisplayName = res.Name
-	user.AvatarURL = res.AvatarURL
-	return user, nil
+	return User{
+		ID:          strconv.FormatInt(res.ID, 10),
+		Username:    res.Username,
+		Email:       res.Email,
+		DisplayName: res.Name,
+		AvatarURL:   res.AvatarURL,
+	}, nil
 }
 
 func (client *GitLabClient) GetPosibleRepoOwners(ctx context.Context) ([]RepoOwner, error) {

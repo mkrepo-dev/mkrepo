@@ -2,16 +2,17 @@ package provider
 
 import (
 	"context"
-	"log/slog"
+	"net/http"
+	"strconv"
+	"time"
 
 	"code.gitea.io/sdk/gitea"
-	"github.com/mkrepo-dev/mkrepo/internal/config"
-	"github.com/mkrepo-dev/mkrepo/internal/log"
 	"golang.org/x/oauth2"
+
+	"github.com/mkrepo-dev/mkrepo/internal/config"
 )
 
 type Gitea struct {
-	logger   *slog.Logger
 	config   config.Config
 	provider config.Provider
 }
@@ -20,26 +21,18 @@ var _ Provider = &Gitea{}
 
 type GiteaClient struct {
 	*gitea.Client
-	gt    *Gitea
 	token *oauth2.Token
 }
 
 var _ Client = &GiteaClient{}
 
-func NewGiteaFromConfig(logger *slog.Logger, cfg config.Config, provider config.Provider) *Gitea {
+func NewGiteaFromConfig(cfg config.Config, provider config.Provider) *Gitea {
 	gt := &Gitea{
-		logger:   providerLogger(logger, string(provider.Type)),
 		config:   cfg,
 		provider: provider,
 	}
 	if gt.provider.Name == "" {
 		gt.provider.Name = "Gitea"
-	}
-	if gt.provider.Url == "" {
-		gt.provider.Url = "https://gitea.com"
-	}
-	if gt.provider.ApiUrl == "" {
-		gt.provider.ApiUrl = "https://gitea.com"
 	}
 	return gt
 }
@@ -50,10 +43,6 @@ func (gt *Gitea) Key() string {
 
 func (gt *Gitea) Name() string {
 	return gt.provider.Name
-}
-
-func (gt *Gitea) Url() string {
-	return gt.provider.Url
 }
 
 func (*Gitea) Features() ProviderFeatures {
@@ -77,20 +66,20 @@ func (gt *Gitea) OAuth2Config() *oauth2.Config {
 	}
 }
 
-func (gt *Gitea) NewClient(ctx context.Context, token *oauth2.Token) Client {
-	ts := gt.OAuth2Config().TokenSource(ctx, token)
-	tkn, err := ts.Token()
-	if err != nil {
-		gt.logger.ErrorContext(ctx, "Failed to get token", log.Err(err))
+func (gt *Gitea) NewClient(token *oauth2.Token) (Client, error) {
+	url := "https://gitea.com"
+	if gt.provider.Url != "" {
+		url = gt.provider.Url
 	}
-	client, err := gitea.NewClient(gt.provider.ApiUrl,
-		gitea.SetToken(tkn.AccessToken),
+	client, err := gitea.NewClient(url,
+		gitea.SetToken(token.AccessToken),
 		gitea.SetUserAgent(userAgent),
+		gitea.SetHTTPClient(&http.Client{Timeout: 30 * time.Second}),
 	)
 	if err != nil {
-		gt.logger.ErrorContext(ctx, "Failed to create Gitea client", log.Err(err))
+		return nil, err
 	}
-	return &GiteaClient{Client: client, token: tkn, gt: gt}
+	return &GiteaClient{Client: client, token: token}, nil
 }
 
 func (client *GiteaClient) Token() *oauth2.Token {
@@ -98,16 +87,17 @@ func (client *GiteaClient) Token() *oauth2.Token {
 }
 
 func (client *GiteaClient) GetUser(ctx context.Context) (User, error) {
-	var user User
 	res, _, err := client.GetMyUserInfo()
 	if err != nil {
-		return user, err
+		return User{}, err
 	}
-	user.Username = res.UserName
-	user.Email = res.Email
-	user.DisplayName = res.FullName
-	user.AvatarURL = res.AvatarURL
-	return user, nil
+	return User{
+		ID:          strconv.FormatInt(res.ID, 10),
+		Username:    res.UserName,
+		Email:       res.Email,
+		DisplayName: res.FullName,
+		AvatarURL:   res.AvatarURL,
+	}, nil
 }
 
 func (client *GiteaClient) GetPosibleRepoOwners(ctx context.Context) ([]RepoOwner, error) {
@@ -132,15 +122,13 @@ func (client *GiteaClient) GetPosibleRepoOwners(ctx context.Context) ([]RepoOwne
 		if err != nil {
 			return owners, err
 		}
-
-		orgOwner := RepoOwner{
-			Namespace:   org.Name,
-			Path:        org.Name,
-			DisplayName: org.FullName,
-			AvatarUrl:   org.AvatarURL,
-		}
 		if perm.CanCreateRepository {
-			owners = append(owners, orgOwner)
+			owners = append(owners, RepoOwner{
+				Namespace:   org.Name,
+				Path:        org.Name,
+				DisplayName: org.FullName,
+				AvatarUrl:   org.AvatarURL,
+			})
 		}
 	}
 
@@ -152,10 +140,6 @@ func (client *GiteaClient) CreateRemoteRepo(ctx context.Context, repo CreateRepo
 	if repo.Description != nil {
 		description = *repo.Description
 	}
-	var private bool
-	if repo.Visibility == RepoVisibilityPrivate {
-		private = true
-	}
 	objectFormat := "sha1"
 	if repo.Sha256 != nil && *repo.Sha256 {
 		objectFormat = "sha256"
@@ -166,7 +150,7 @@ func (client *GiteaClient) CreateRemoteRepo(ctx context.Context, repo CreateRepo
 	opt := gitea.CreateRepoOption{
 		Name:             repo.Name,
 		Description:      description,
-		Private:          private,
+		Private:          repo.Visibility == RepoVisibilityPrivate,
 		ObjectFormatName: objectFormat,
 	}
 	if repo.Namespace == "" {

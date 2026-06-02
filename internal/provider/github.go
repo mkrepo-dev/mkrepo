@@ -2,9 +2,11 @@ package provider
 
 import (
 	"context"
-	"strings"
+	"net/http"
+	"strconv"
+	"time"
 
-	"github.com/google/go-github/v82/github"
+	"github.com/google/go-github/v88/github"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/endpoints"
 
@@ -20,7 +22,6 @@ var _ Provider = &GitHub{}
 
 type GitHubClient struct {
 	*github.Client
-	gh    *GitHub
 	token *oauth2.Token
 }
 
@@ -51,10 +52,6 @@ func (gh *GitHub) Name() string {
 	return gh.provider.Name
 }
 
-func (gh *GitHub) Url() string {
-	return gh.provider.Url
-}
-
 func (*GitHub) Features() ProviderFeatures {
 	return ProviderFeatures{
 		OAuth2AuthorizationCodeFlowWithPKCE: false,
@@ -71,10 +68,20 @@ func (gh *GitHub) OAuth2Config() *oauth2.Config {
 	}
 }
 
-func (gh *GitHub) NewClient(ctx context.Context, token *oauth2.Token) Client {
-	client := github.NewClient(nil).WithAuthToken(token.AccessToken)
-	client.UserAgent = userAgent
-	return &GitHubClient{Client: client, token: token, gh: gh}
+func (gh *GitHub) NewClient(token *oauth2.Token) (Client, error) {
+	opts := []github.ClientOptionsFunc{
+		github.WithAuthToken(token.AccessToken),
+		github.WithUserAgent(userAgent),
+		github.WithHTTPClient(&http.Client{Timeout: 30 * time.Second}),
+	}
+	if gh.provider.Url != "" {
+		opts = append(opts, github.WithURLs(&gh.provider.Url, nil))
+	}
+	client, err := github.NewClient(opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &GitHubClient{Client: client, token: token}, nil
 }
 
 func (client *GitHubClient) Token() *oauth2.Token {
@@ -82,16 +89,17 @@ func (client *GitHubClient) Token() *oauth2.Token {
 }
 
 func (client *GitHubClient) GetUser(ctx context.Context) (User, error) {
-	var user User
 	res, _, err := client.Users.Get(ctx, "")
 	if err != nil {
-		return user, err
+		return User{}, err
 	}
-	user.Username = res.GetLogin()
-	user.Email = res.GetEmail()
-	user.DisplayName = res.GetName()
-	user.AvatarURL = res.GetAvatarURL()
-	return user, nil
+	return User{
+		ID:          strconv.FormatInt(res.GetID(), 10),
+		Username:    res.GetLogin(),
+		Email:       res.GetEmail(),
+		DisplayName: res.GetName(),
+		AvatarURL:   res.GetAvatarURL(),
+	}, nil
 }
 
 func (client *GitHubClient) GetPosibleRepoOwners(ctx context.Context) ([]RepoOwner, error) {
@@ -140,20 +148,13 @@ func (client *GitHubClient) GetPosibleRepoOwners(ctx context.Context) ([]RepoOwn
 }
 
 func (client *GitHubClient) CreateRemoteRepo(ctx context.Context, repo CreateRepo) (RemoteRepo, error) {
-	var private bool
-	if repo.Visibility == RepoVisibilityPrivate {
-		private = true
-	}
 	r, _, err := client.Repositories.Create(ctx, repo.Namespace, &github.Repository{
 		Name:        &repo.Name,
 		Description: repo.Description,
-		Private:     &private,
+		Private:     new(repo.Visibility == RepoVisibilityPrivate),
 		Visibility:  new(string(repo.Visibility)),
 	})
 	if err != nil {
-		if strings.Contains(err.Error(), "already exists") {
-			return RemoteRepo{}, ErrRepoAlreadyExists
-		}
 		return RemoteRepo{}, err
 	}
 	return RemoteRepo{

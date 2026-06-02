@@ -32,7 +32,12 @@ func MkrepoForm(logger *slog.Logger, db *database.DB, providers provider.Provide
 		ctx := r.Context()
 		account := getAccountFromContext(ctx)
 		provider := providers[account.ProviderKey]
-		client := provider.NewClient(ctx, account.Token)
+		client, err := provider.NewClient(account.Token)
+		if err != nil {
+			logger.WarnContext(ctx, "Failed to create provider client", "error", err)
+			internalServerError(w)
+			return
+		}
 
 		// TODO: Assume that token is valid during whole request. Maybe assure this in middleware.
 		//account.Session.Token = client.Token()
@@ -81,7 +86,12 @@ func MkrepoCreate(logger *slog.Logger, db *database.DB, repomaker *mkrepo.Mkrepo
 			http.Error(w, "unsupported provider", http.StatusBadRequest)
 			return
 		}
-		client := provider.NewClient(ctx, account.Token)
+		client, err := provider.NewClient(account.Token)
+		if err != nil {
+			logger.WarnContext(ctx, "Failed to create provider client", "error", err)
+			internalServerError(w)
+			return
+		}
 		//account.Session.Token = client.Token()
 		//err = db.UpdateAccountWithSession(ctx, *account)
 		//if err != nil {
