@@ -11,6 +11,7 @@ import (
 )
 
 type Gitea struct {
+	logger   *slog.Logger
 	config   config.Config
 	provider config.Provider
 }
@@ -25,8 +26,9 @@ type GiteaClient struct {
 
 var _ Client = &GiteaClient{}
 
-func NewGiteaFromConfig(cfg config.Config, provider config.Provider) *Gitea {
+func NewGiteaFromConfig(logger *slog.Logger, cfg config.Config, provider config.Provider) *Gitea {
 	gt := &Gitea{
+		logger:   providerLogger(logger, string(provider.Type)),
 		config:   cfg,
 		provider: provider,
 	}
@@ -79,14 +81,14 @@ func (gt *Gitea) NewClient(ctx context.Context, token *oauth2.Token) Client {
 	ts := gt.OAuth2Config().TokenSource(ctx, token)
 	tkn, err := ts.Token()
 	if err != nil {
-		slog.Error("Failed to get token", log.Err(err))
+		gt.logger.ErrorContext(ctx, "Failed to get token", log.Err(err))
 	}
 	client, err := gitea.NewClient(gt.provider.ApiUrl,
 		gitea.SetToken(tkn.AccessToken),
 		gitea.SetUserAgent(userAgent),
 	)
 	if err != nil {
-		slog.Error("Failed to create Gitea client.", log.Err(err))
+		gt.logger.ErrorContext(ctx, "Failed to create Gitea client", log.Err(err))
 	}
 	return &GiteaClient{Client: client, token: tkn, gt: gt}
 }

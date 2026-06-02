@@ -12,6 +12,10 @@ import (
 	"github.com/mkrepo-dev/mkrepo/internal/config"
 )
 
+func providerLogger(logger *slog.Logger, providerName string) *slog.Logger {
+	return logger.With("provider", providerName)
+}
+
 var (
 	ErrRepoAlreadyExists = errors.New("repository already exists") // TODO: Use this error in handler
 )
@@ -104,7 +108,7 @@ func NewProvidersFromConfig(ctx context.Context, logger *slog.Logger, cfg config
 		case config.GitLabProvider:
 			providers[ProviderKey(providerConfig.Key)] = NewGitLabFromConfig(cfg, providerConfig)
 		case config.GiteaProvider:
-			providers[ProviderKey(providerConfig.Key)] = NewGiteaFromConfig(cfg, providerConfig)
+			providers[ProviderKey(providerConfig.Key)] = NewGiteaFromConfig(logger, cfg, providerConfig)
 		default:
 			logger.WarnContext(ctx, "Unknown provider type", slog.String("type", string(providerConfig.Type)))
 		}
