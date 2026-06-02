@@ -1,0 +1,19 @@
+name: Weekly Security Scan
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # Runs at 00:00 on Sunday every week
+  workflow_dispatch:
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    container:
+      image: golang:1.26.3
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Build
+        run: scripts/build.sh
+      - name: Run security scan
+        run: scripts/security.sh

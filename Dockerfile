@@ -14,10 +14,7 @@ COPY --from=build /app/bin/mkrepo .
 
 CMD ["./mkrepo", "server"]
 
-ARG VERSION
-ARG BUILD_DATETIME
-ARG REVISION
-ARG IMAGE_REF
+ARG VERSION BUILD_DATETIME REVISION IMAGE_REF
 
 LABEL \
     org.opencontainers.image.title="mkrepo" \
