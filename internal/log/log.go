@@ -19,3 +19,7 @@ func SetupLogger() *slog.Logger {
 func Err(err error) slog.Attr {
 	return slog.String("err", err.Error())
 }
+
+func Component(logger *slog.Logger, component string) *slog.Logger {
+	return logger.With(slog.String("component", component))
+}

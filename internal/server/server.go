@@ -7,9 +7,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/mkrepo-dev/mkrepo/internal/adapter"
 	"github.com/mkrepo-dev/mkrepo/internal/config"
+	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/handler"
+	"github.com/mkrepo-dev/mkrepo/internal/log"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	mkrepo "github.com/mkrepo-dev/mkrepo/internal/service"
 	"github.com/mkrepo-dev/mkrepo/static"
@@ -19,12 +20,14 @@ import (
 func NewServer(
 	logger *slog.Logger,
 	cfg config.Config,
-	db *adapter.Repository,
+	db *database.DB,
 	repomaker *mkrepo.MkrepoService,
 	providers provider.Providers,
 	gitignores []string,
 	licenses mkrepo.Licenses,
 ) *http.Server {
+	logger = log.Component(logger, "server")
+
 	mux := http.NewServeMux()
 
 	mux.Handle("GET /", handler.Index(logger, providers))

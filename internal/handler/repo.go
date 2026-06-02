@@ -9,13 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mkrepo-dev/mkrepo/internal/adapter"
+	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 	mkrepo "github.com/mkrepo-dev/mkrepo/internal/service"
 	"github.com/mkrepo-dev/mkrepo/template/html"
 )
 
-func MkrepoForm(logger *slog.Logger, db *adapter.Repository, providers provider.Providers, gitignores []string, licenses mkrepo.Licenses) http.Handler {
+func MkrepoForm(logger *slog.Logger, db *database.DB, providers provider.Providers, gitignores []string, licenses mkrepo.Licenses) http.Handler {
 	logger = handlerLogger(logger, "MkrepoForm")
 	type newRepoFormContext struct {
 		baseContext
@@ -61,7 +61,7 @@ func MkrepoForm(logger *slog.Logger, db *adapter.Repository, providers provider.
 	})
 }
 
-func MkrepoCreate(logger *slog.Logger, db *adapter.Repository, repomaker *mkrepo.MkrepoService, providers provider.Providers) http.Handler {
+func MkrepoCreate(logger *slog.Logger, db *database.DB, repomaker *mkrepo.MkrepoService, providers provider.Providers) http.Handler {
 	logger = handlerLogger(logger, "MkrepoCreate")
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

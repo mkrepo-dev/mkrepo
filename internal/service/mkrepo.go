@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/go-git/go-billy/v5/memfs"
+	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
 )
 
@@ -31,15 +32,15 @@ type templateContext struct {
 }
 
 type MkrepoService struct {
-	repo             Repository
+	db               *database.DB
 	licenses         Licenses
 	gitignores       fs.FS
 	buildInTemplates fs.FS
 }
 
-func NewService(repo Repository, gitignores fs.FS, licenses Licenses, buildInTemplates fs.FS) *MkrepoService {
+func NewService(db *database.DB, gitignores fs.FS, licenses Licenses, buildInTemplates fs.FS) *MkrepoService {
 	return &MkrepoService{
-		repo:             repo,
+		db:               db,
 		gitignores:       gitignores,
 		licenses:         licenses,
 		buildInTemplates: buildInTemplates,
@@ -149,10 +150,12 @@ func (rm *MkrepoService) addFiles(ctx context.Context, repo *CreateRepo, remoteR
 }
 
 func (rm *MkrepoService) executeTemplateRepo(ctx context.Context, dir string, repo *CreateRepo, context templateContext) error {
-	templateInfo, err := rm.repo.GetTemplate(ctx, repo.Initialize.Template.FullName)
-	if err != nil {
-		return err
-	}
+	var templateInfo Template
+	var err error
+	//templateInfo, err := rm.db.GetTemplate(ctx, repo.Initialize.Template.FullName)
+	//if err != nil {
+	//	return err
+	//}
 	var templateFS fs.FS
 	if !templateInfo.BuildIn {
 		templateDir, err := cloneRepo(ctx, *templateInfo.Url)

@@ -14,7 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/mkrepo-dev/mkrepo/internal/adapter"
+	database1 "github.com/mkrepo-dev/mkrepo/internal/database"
 	"github.com/mkrepo-dev/mkrepo/internal/gen/database"
 	"github.com/mkrepo-dev/mkrepo/internal/log"
 	"github.com/mkrepo-dev/mkrepo/internal/provider"
@@ -62,7 +62,7 @@ func sessionCookie(value string, maxAge int) *http.Cookie {
 	}
 }
 
-func AuthenticateMiddleware(logger *slog.Logger, db *adapter.Repository, providers provider.Providers) func(http.Handler) http.Handler {
+func AuthenticateMiddleware(logger *slog.Logger, db *database1.DB, providers provider.Providers) func(http.Handler) http.Handler {
 	logger = logger.With("middleware", "Authenticate")
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -102,7 +102,7 @@ func MustAuthenticate(next http.Handler) http.Handler {
 	})
 }
 
-func Login(logger *slog.Logger, templatesFS fs.FS, db *adapter.Repository, providers provider.Providers) http.HandlerFunc {
+func Login(logger *slog.Logger, templatesFS fs.FS, db *database1.DB, providers provider.Providers) http.HandlerFunc {
 	logger = handlerLogger(logger, "Login")
 	type loginContext struct {
 		baseContext
@@ -151,7 +151,7 @@ func Login(logger *slog.Logger, templatesFS fs.FS, db *adapter.Repository, provi
 	}
 }
 
-func Logout(logger *slog.Logger, db *adapter.Repository) http.HandlerFunc {
+func Logout(logger *slog.Logger, db *database1.DB) http.HandlerFunc {
 	logger = handlerLogger(logger, "Logout")
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -174,7 +174,7 @@ func Logout(logger *slog.Logger, db *adapter.Repository) http.HandlerFunc {
 	}
 }
 
-func OAuth2Callback(logger *slog.Logger, db *adapter.Repository, providers provider.Providers) http.HandlerFunc {
+func OAuth2Callback(logger *slog.Logger, db *database1.DB, providers provider.Providers) http.HandlerFunc {
 	logger = handlerLogger(logger, "OAuth2Callback")
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -272,7 +272,7 @@ func OAuth2Callback(logger *slog.Logger, db *adapter.Repository, providers provi
 	}
 }
 
-func DeleteAccount(logger *slog.Logger, db *adapter.Repository) http.HandlerFunc {
+func DeleteAccount(logger *slog.Logger, db *database1.DB) http.HandlerFunc {
 	logger = handlerLogger(logger, "DeleteAccount")
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -290,7 +290,7 @@ func DeleteAccount(logger *slog.Logger, db *adapter.Repository) http.HandlerFunc
 	}
 }
 
-func authenticateSession(ctx context.Context, db *adapter.Repository, sessionID string, providers provider.Providers) (*Account, error) {
+func authenticateSession(ctx context.Context, db *database1.DB, sessionID string, providers provider.Providers) (*Account, error) {
 	accountSession, err := db.Queries.GetAccountSession(ctx, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot get account by session ID")
@@ -362,7 +362,7 @@ func authenticateSession(ctx context.Context, db *adapter.Repository, sessionID 
 	}, nil
 }
 
-func encryptTokens(db *adapter.Repository, accessToken, refreshToken string) ([]byte, []byte, error) {
+func encryptTokens(db *database1.DB, accessToken, refreshToken string) ([]byte, []byte, error) {
 	accessTokenEnc, err := db.Encrypt([]byte(accessToken))
 	if err != nil {
 		return nil, nil, fmt.Errorf("encrypt access token: %w", err)
@@ -377,7 +377,7 @@ func encryptTokens(db *adapter.Repository, accessToken, refreshToken string) ([]
 	return accessTokenEnc, refreshTokenEnc, nil
 }
 
-func decryptTokens(db *adapter.Repository, accessTokenEnc, refreshTokenEnc []byte) (string, string, error) {
+func decryptTokens(db *database1.DB, accessTokenEnc, refreshTokenEnc []byte) (string, string, error) {
 	accessToken, err := db.Decrypt(accessTokenEnc)
 	if err != nil {
 		return "", "", fmt.Errorf("decrypt access token: %w", err)

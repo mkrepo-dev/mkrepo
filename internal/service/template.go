@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -11,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"text/template"
-	"time"
 
 	"github.com/kaptinlin/jsonschema"
+	"github.com/mkrepo-dev/mkrepo/internal/database"
 	"gopkg.in/yaml.v3"
 )
 
@@ -23,7 +22,7 @@ type MkrepoFile struct {
 	Schema      *jsonschema.Schema `json:"schema,omitempty"`
 }
 
-func PrepareTemplates(repo Repository, templatesFS fs.FS) error {
+func PrepareTemplates(db *database.DB, templatesFS fs.FS) error {
 	entries, err := fs.ReadDir(templatesFS, ".")
 	if err != nil {
 		return err
@@ -38,7 +37,7 @@ func PrepareTemplates(repo Repository, templatesFS fs.FS) error {
 			return err
 		}
 
-		err = prepareTemplate(repo, templateFS, entry.Name())
+		err = prepareTemplate(db, templateFS, entry.Name())
 		if err != nil {
 			return err
 		}
@@ -48,7 +47,7 @@ func PrepareTemplates(repo Repository, templatesFS fs.FS) error {
 	return nil
 }
 
-func prepareTemplate(repo Repository, templatesFS fs.FS, name string) error {
+func prepareTemplate(db *database.DB, templatesFS fs.FS, name string) error {
 	entries, err := fs.ReadDir(templatesFS, ".")
 	if err != nil {
 		return err
@@ -62,7 +61,7 @@ func prepareTemplate(repo Repository, templatesFS fs.FS, name string) error {
 			return err
 		}
 
-		err = prepareTemplateVersion(repo, templateVersionFS, name, entry.Name())
+		err = prepareTemplateVersion(db, templateVersionFS, name, entry.Name())
 		if err != nil {
 			return err
 		}
@@ -70,7 +69,7 @@ func prepareTemplate(repo Repository, templatesFS fs.FS, name string) error {
 	return nil
 }
 
-func prepareTemplateVersion(repo Repository, templatesFS fs.FS, name string, version string) error {
+func prepareTemplateVersion(db *database.DB, templatesFS fs.FS, name string, version string) error {
 	mkrepoFile, err := templatesFS.Open("mkrepo.yaml")
 	if err != nil {
 		return err
@@ -83,17 +82,17 @@ func prepareTemplateVersion(repo Repository, templatesFS fs.FS, name string, ver
 		return err
 	}
 
-	schema, err := json.Marshal(mkrepo.Schema)
-	if err != nil {
-		return err
-	}
+	//schema, err := json.Marshal(mkrepo.Schema)
+	//if err != nil {
+	//	return err
+	//}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	err = repo.CreateTemplate(ctx, name, name, nil, version, mkrepo.Description, mkrepo.Lang, schema, true)
-	if err != nil {
-		return err
-	}
+	//ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	//defer cancel()
+	//err = db.CreateTemplate(ctx, name, name, nil, version, mkrepo.Description, mkrepo.Lang, schema, true)
+	//if err != nil {
+	//	return err
+	//}
 
 	slog.Debug("Template prepared", "name", name, "version", version)
 	return nil
@@ -120,17 +119,18 @@ func (rm *MkrepoService) RegisterTemplate(ctx context.Context, url string, fullN
 		return fmt.Errorf("parse mkrepo.yaml: %w", err)
 	}
 
-	schema, err := json.Marshal(mf.Schema)
-	if err != nil {
-		return fmt.Errorf("marshal schema: %w", err)
-	}
+	//schema, err := json.Marshal(mf.Schema)
+	//if err != nil {
+	//	return fmt.Errorf("marshal schema: %w", err)
+	//}
 
-	name := fullName
-	if idx := strings.LastIndex(fullName, "/"); idx != -1 {
-		name = fullName[idx+1:]
-	}
+	//name := fullName
+	//if idx := strings.LastIndex(fullName, "/"); idx != -1 {
+	//	name = fullName[idx+1:]
+	//}
 
-	return rm.repo.CreateTemplate(ctx, name, fullName, &url, "HEAD", mf.Description, mf.Lang, schema, false)
+	//return rm.db.CreateTemplate(ctx, name, fullName, &url, "HEAD", mf.Description, mf.Lang, schema, false)
+	return nil
 }
 
 func executeTemplateDir(dstDir string, templateFS fs.FS, context templateContext) error {

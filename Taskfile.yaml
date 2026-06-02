@@ -11,7 +11,7 @@ tasks:
 
   generate:
     desc: Run go generate
-    cmd: go tool sqlc generate -f sql/sqlc.yaml
+    cmd: sqlc generate -f sql/sqlc.yaml
 
   makemigrations:
     desc: Make SQL migrations
