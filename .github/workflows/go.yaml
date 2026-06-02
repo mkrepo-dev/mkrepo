@@ -16,3 +16,14 @@ jobs:
         run: git config --global --add safe.directory /__w/mkrepo/mkrepo
       - name: Build
         run: scripts/build.sh
+  test:
+    runs-on: ubuntu-latest
+    container:
+      image: golang:1.26.3
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Configure Git for safety
+        run: git config --global --add safe.directory /__w/mkrepo/mkrepo
+      - name: Test
+        run: go test -v ./...
