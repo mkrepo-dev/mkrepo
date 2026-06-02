@@ -1,0 +1,14 @@
+name: Setup Go Cache
+description: Reusable step to cache Go modules and build cache
+
+runs:
+  using: composite
+  steps:
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/go-build
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
