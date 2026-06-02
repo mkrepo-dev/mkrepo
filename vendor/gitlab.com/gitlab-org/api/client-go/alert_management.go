@@ -31,19 +31,19 @@ type (
 		// ListMetricImages lists all the metric images for a project alert.
 		//
 		// GitLab API docs:
-		// https://docs.gitlab.com/api/alert_management_alerts/#list-metric-images
+		// https://docs.gitlab.com/api/alert_management_alerts/#list-all-metric-images
 		ListMetricImages(pid any, alertIID int64, opt *ListMetricImagesOptions, options ...RequestOptionFunc) ([]*MetricImage, *Response, error)
 
 		// UpdateMetricImage updates a metric image for a project alert.
 		//
 		// GitLab API docs:
-		// https://docs.gitlab.com/api/alert_management_alerts/#update-metric-image
+		// https://docs.gitlab.com/api/alert_management_alerts/#update-a-metric-image
 		UpdateMetricImage(pid any, alertIID int64, id int64, opt *UpdateMetricImageOptions, options ...RequestOptionFunc) (*MetricImage, *Response, error)
 
 		// DeleteMetricImage deletes a metric image for a project alert.
 		//
 		// GitLab API docs:
-		// https://docs.gitlab.com/api/alert_management_alerts/#delete-metric-image
+		// https://docs.gitlab.com/api/alert_management_alerts/#delete-a-metric-image
 		DeleteMetricImage(pid any, alertIID int64, id int64, options ...RequestOptionFunc) (*Response, error)
 	}
 

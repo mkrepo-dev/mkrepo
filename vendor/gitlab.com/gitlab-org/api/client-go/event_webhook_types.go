@@ -770,6 +770,8 @@ type MergeEventObjectAttributes struct {
 	Action                      string                      `json:"action"`
 	DetailedMergeStatus         string                      `json:"detailed_merge_status"`
 	OldRev                      string                      `json:"oldrev"`
+	System                      bool                        `json:"system"`
+	SystemAction                string                      `json:"system_action"`
 }
 
 type MergeEventChanges struct {

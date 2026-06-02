@@ -7,19 +7,15 @@ import (
 	"strings"
 )
 
-// fastAtoi converts a string to an integer quickly.
-// Returns -1 if the string is not a valid non-negative integer.
 func fastAtoi(s string) int {
 	if len(s) == 0 {
 		return -1
 	}
 
-	// Handle special case for "0"
 	if s == "0" {
 		return 0
 	}
 
-	// Check for leading zeros (invalid except for "0")
 	if s[0] == '0' {
 		return -1
 	}
@@ -28,20 +24,17 @@ func fastAtoi(s string) int {
 	for i := range len(s) {
 		c := s[i]
 		if c < '0' || c > '9' {
-			return -1 // non-digit character
+			return -1
 		}
 		next := n*10 + int(c-'0')
 		if next < n {
-			return -1 // overflow
+			return -1
 		}
 		n = next
 	}
 	return n
 }
 
-// derefValue dereferences pointer values until reaching a non-pointer value.
-// Returns an error if any pointer in the chain is nil.
-// This is a helper function to eliminate duplicated pointer dereferencing logic.
 func derefValue(v reflect.Value) (reflect.Value, error) {
 	for v.Kind() == reflect.Pointer {
 		if v.IsNil() {
@@ -50,6 +43,27 @@ func derefValue(v reflect.Value) (reflect.Value, error) {
 		v = v.Elem()
 	}
 	return v, nil
+}
+
+func mapValueByPathKey(mapVal reflect.Value, key string) (reflect.Value, error) {
+	mapKey := reflect.ValueOf(key)
+	mapKeyType := mapVal.Type().Key()
+	stringType := reflect.TypeFor[string]()
+
+	switch {
+	case stringType.AssignableTo(mapKeyType):
+	case stringType.ConvertibleTo(mapKeyType):
+		mapKey = mapKey.Convert(mapKeyType)
+	default:
+		return reflect.Value{}, ErrNotFound
+	}
+
+	mapEntry := mapVal.MapIndex(mapKey)
+	if !mapEntry.IsValid() {
+		return reflect.Value{}, ErrKeyNotFound
+	}
+
+	return mapEntry, nil
 }
 
 // unescapeComponent un-escapes a JSON pointer path component.
@@ -126,24 +140,11 @@ func parseJSONPointer(pointer string) Path {
 		return Path{}
 	}
 
-	segmentCount := 1
-	for i := range len(pointer) - 1 {
-		if pointer[i+1] == '/' {
-			segmentCount++
-		}
-	}
-
+	segmentCount := strings.Count(pointer, "/")
 	result := make(Path, 0, segmentCount)
-	start := 1
-
-	for i := 1; i <= len(pointer); i++ {
-		if i == len(pointer) || pointer[i] == '/' {
-			segment := pointer[start:i]
-			result = append(result, unescapeComponent(segment))
-			start = i + 1
-		}
+	for segment := range strings.SplitSeq(pointer[1:], "/") {
+		result = append(result, unescapeComponent(segment))
 	}
-
 	return result
 }
 
@@ -162,8 +163,8 @@ func formatJSONPointer(path Path) string {
 	}
 
 	capacity := len(path)
-	for _, comp := range path {
-		capacity += len(comp) + 2
+	for _, component := range path {
+		capacity += len(component)
 	}
 
 	var b strings.Builder
@@ -189,12 +190,7 @@ func IsChild(parent, child Path) bool {
 	if len(parent) >= len(child) {
 		return false
 	}
-	for i := range len(parent) {
-		if parent[i] != child[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(parent, child[:len(parent)])
 }
 
 // IsPathEqual returns true if two paths are equal, false otherwise.
@@ -246,13 +242,12 @@ func Parent(path Path) (Path, error) {
 //	}
 func IsValidIndex(index string) bool {
 	if index == "-" {
-		return true // Special case for array end marker
+		return true
 	}
 	n, err := strconv.ParseInt(index, 10, 64)
 	if err != nil {
 		return false
 	}
-	// Check if string representation matches parsed value and is non-negative
 	return strconv.FormatInt(n, 10) == index && n >= 0
 }
 
@@ -278,17 +273,15 @@ func IsInteger(str string) bool {
 	if len(str) == 0 {
 		return false
 	}
-	for _, r := range str {
-		if r < '0' || r > '9' {
+	for i := range len(str) {
+		if str[i] < '0' || str[i] > '9' {
 			return false
 		}
 	}
 	return true
 }
 
-// validateArrayIndex validates and parses array index from string key.
-// Preserves RFC 6901 semantics for array end marker and bounds checking.
-func validateArrayIndex(key string, length int) (int, error) {
+func validateAndAccessArray(key string, length int) (int, error) {
 	if key == "-" {
 		return -1, ErrIndexOutOfBounds
 	}
@@ -296,20 +289,7 @@ func validateArrayIndex(key string, length int) (int, error) {
 	if index < 0 {
 		return -1, ErrInvalidIndex
 	}
-	if index > length {
-		return -1, ErrIndexOutOfBounds
-	}
-	return index, nil
-}
-
-// validateAndAccessArray validates array index and checks for array end marker.
-// Returns ErrIndexOutOfBounds if index equals array length per RFC 6901.
-func validateAndAccessArray(key string, length int) (int, error) {
-	index, err := validateArrayIndex(key, length)
-	if err != nil {
-		return -1, err
-	}
-	if index == length {
+	if index >= length {
 		return -1, ErrIndexOutOfBounds
 	}
 	return index, nil

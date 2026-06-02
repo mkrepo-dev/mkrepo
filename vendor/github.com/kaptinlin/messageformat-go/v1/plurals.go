@@ -6,8 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/text/feature/plural"
-	"golang.org/x/text/language"
+	"github.com/agentable/go-intl/locale"
+	"github.com/agentable/go-intl/pluralrules"
+	"github.com/kaptinlin/messageformat-go/internal/intlbridge"
 )
 
 // PluralCategory represents the plural categories from CLDR
@@ -61,6 +62,9 @@ type PluralObject struct {
 	Module      string
 }
 
+// Pre-compiled regex for normalize function
+var normalizeRegex = regexp.MustCompile(`^([^-_]+)`)
+
 // normalize normalizes a locale string following TypeScript implementation
 // TypeScript original code:
 //
@@ -79,14 +83,11 @@ func normalize(locale string) (string, error) {
 		return "", WrapInvalidLocale(locale)
 	}
 
-	// Special case for Portuguese as spoken in Portugal
 	if strings.HasPrefix(locale, "pt-PT") {
 		return "pt-PT", nil
 	}
 
-	// Extract primary subtag
-	re := regexp.MustCompile(`^([^-_]+)`)
-	if matches := re.FindStringSubmatch(locale); len(matches) > 1 {
+	if matches := normalizeRegex.FindStringSubmatch(locale); len(matches) > 1 {
 		return matches[1], nil
 	}
 
@@ -104,7 +105,6 @@ func GetPlural(locale any) (PluralObject, error) {
 			return PluralObject{}, fmt.Errorf("failed to normalize locale %s: %w", v, err)
 		}
 
-		// Get the plural function for this locale
 		pluralFunc, cardinals, ordinals, supported := getPluralRules(normalized)
 
 		// For TypeScript compatibility, preserve original locale if it's supported or looks like a locale variant
@@ -150,9 +150,6 @@ func HasPlural(locale string) bool {
 	if err != nil {
 		return false
 	}
-
-	// Check if we have plural rules for this locale
-	// We use hasPlural function to check support instead of getPluralRules
 	return hasPlural(normalized)
 }
 
@@ -171,7 +168,7 @@ func GetAllPlurals(defaultLocale string) ([]PluralObject, error) {
 	for _, locale := range commonLocales {
 		plural, err := GetPlural(locale)
 		if err != nil {
-			continue // Skip locales that can't be processed
+			continue
 		}
 		plurals = append(plurals, plural)
 	}
@@ -179,7 +176,6 @@ func GetAllPlurals(defaultLocale string) ([]PluralObject, error) {
 	// Ensure default locale is first
 	defaultPlural, err := GetPlural(defaultLocale)
 	if err == nil {
-		// Remove default from list if present and prepend
 		var filtered []PluralObject
 		for _, p := range plurals {
 			if p.Locale != defaultLocale {
@@ -192,120 +188,110 @@ func GetAllPlurals(defaultLocale string) ([]PluralObject, error) {
 	return plurals, nil
 }
 
-// getPluralRules returns the plural function and categories for a given locale using golang.org/x/text
-func getPluralRules(locale string) (PluralFunction, []PluralCategory, []PluralCategory, bool) {
-	tag, err := language.Parse(locale)
-	if err != nil {
-		// Fallback to English for invalid locales
-		tag = language.English
-	}
+// getPluralRules builds the cardinal/ordinal plural function and category lists
+// for a locale using go-intl's CLDR-backed pluralrules package. The locale is
+// normalized to BCP 47 (POSIX underscores accepted) and falls back to English
+// when go-intl cannot parse the tag.
+//
+// v1 historically truncates fractional values to integers before category
+// selection: tests assert that float32(1.9) resolves to PluralOne, mirroring
+// the legacy toNumber(int64) coercion. That semantics is preserved here.
+func getPluralRules(loc string) (PluralFunction, []PluralCategory, []PluralCategory, bool) {
+	parsed := intlbridge.ParseLocale(loc)
+	cardinal, _ := pluralrules.New(parsed, pluralrules.Options{Type: pluralrules.Cardinal})
+	ordinal, _ := pluralrules.New(parsed, pluralrules.Options{Type: pluralrules.Ordinal})
 
-	// Create wrapper function that uses golang.org/x/text/feature/plural
 	pluralFunc := func(value any, ord ...bool) (PluralCategory, error) {
 		num, err := toNumber(value)
 		if err != nil {
 			return PluralOther, err
 		}
-
-		// Handle edge cases for negative numbers and zero
 		if num < 0 {
-			num = -num // Use absolute value for plural calculations
+			num = -num
 		}
 
-		isOrdinal := len(ord) > 0 && ord[0]
-		rule := plural.Cardinal
-		if isOrdinal {
-			rule = plural.Ordinal
+		rules := cardinal
+		if len(ord) > 0 && ord[0] {
+			rules = ordinal
 		}
-
-		// Use CLDR plural rules from golang.org/x/text with proper error handling
-		// Parameters: i (integer), v (visible fraction digits), w (w/o trailing zeros), f (fraction), t (fraction w/o trailing zeros)
-		defer func() {
-			if r := recover(); r != nil {
-				// Recover from potential panics in golang.org/x/text/feature/plural.MatchPlural.
-				// This can happen with:
-				// 1. Malformed locale tags that pass language.Parse but fail in plural rules
-				// 2. Edge cases in CLDR data processing
-				// 3. Unexpected number formats
-				//
-				// Fallback behavior: The function will return PluralOther (line 232),
-				// which matches the basic English-like plural rules.
-				//
-				// Note: If this occurs frequently, investigate the root cause rather than
-				// relying on panic recovery. Consider adding validation before calling MatchPlural.
-				_ = r // Explicitly acknowledge we're discarding the panic value
-			}
-		}()
-
-		result := rule.MatchPlural(tag, int(num), 0, 0, 0, 0)
-		return mapPluralResult(result), nil
+		if rules == nil {
+			return PluralOther, nil
+		}
+		category, err := rules.Select(pluralrules.Int(num))
+		if err != nil {
+			return PluralOther, err
+		}
+		return mapPluralCategory(category), nil
 	}
 
-	// Get available categories for this language
-	cardinals := getAvailableCategories(tag, false)
-	ordinals := getAvailableCategories(tag, true)
-
-	// Check if this is actually a supported locale based on the original input
-	// rather than the parsed tag, because language.Parse might change unknown locales to "und"
-	isSupported := hasPlural(locale) // Use the original locale string
-
-	return pluralFunc, cardinals, ordinals, isSupported
+	cardinals := categoriesFromRules(cardinal)
+	ordinals := categoriesFromRules(ordinal)
+	// Use strict parsing for the supported flag so unknown tags like "xx"
+	// don't get silently aliased to English by intlbridge.ParseLocale.
+	return pluralFunc, cardinals, ordinals, hasPlural(loc)
 }
 
-// mapPluralResult maps golang.org/x/text/feature/plural results to our PluralCategory
-func mapPluralResult(result plural.Form) PluralCategory {
-	switch result {
-	case plural.Zero:
+// mapPluralCategory maps go-intl pluralrules categories to v1's PluralCategory.
+func mapPluralCategory(c pluralrules.Category) PluralCategory {
+	switch c {
+	case pluralrules.Zero:
 		return PluralZero
-	case plural.One:
+	case pluralrules.One:
 		return PluralOne
-	case plural.Two:
+	case pluralrules.Two:
 		return PluralTwo
-	case plural.Few:
+	case pluralrules.Few:
 		return PluralFew
-	case plural.Many:
+	case pluralrules.Many:
 		return PluralMany
-	case plural.Other:
-		return PluralOther
 	default:
 		return PluralOther
 	}
 }
 
-// getAvailableCategories returns available plural categories for a language tag
-func getAvailableCategories(tag language.Tag, ordinal bool) []PluralCategory {
-	// This is a simplified implementation - in a full version, we would
-	// query the CLDR data to get the exact categories available for each locale
-	rule := plural.Cardinal
-	if ordinal {
-		rule = plural.Ordinal
+// categoriesFromRules extracts the resolved plural categories from a
+// pluralrules.PluralRules instance, normalising the order to match the v1
+// surface (zero, one, two, few, many, other) and guaranteeing PluralOther as
+// the final fallback.
+func categoriesFromRules(r *pluralrules.PluralRules) []PluralCategory {
+	if r == nil {
+		return []PluralCategory{PluralOther}
+	}
+	resolved := r.ResolvedOptions().PluralCategories
+
+	seen := make(map[PluralCategory]bool, len(resolved))
+	for _, c := range resolved {
+		seen[mapPluralCategory(c)] = true
 	}
 
-	// Test various numbers to determine available categories
-	categories := make(map[PluralCategory]bool)
-	testNumbers := []int{0, 1, 2, 3, 5, 11, 21, 22, 23, 100, 101, 102, 1000}
-
-	for _, num := range testNumbers {
-		result := rule.MatchPlural(tag, num, 0, 0, 0, 0)
-		category := mapPluralResult(result)
-		categories[category] = true
-	}
-
-	// Convert map to slice, maintaining order
-	var result []PluralCategory
 	order := []PluralCategory{PluralZero, PluralOne, PluralTwo, PluralFew, PluralMany, PluralOther}
-	for _, cat := range order {
-		if categories[cat] {
-			result = append(result, cat)
+	out := make([]PluralCategory, 0, len(order))
+	for _, c := range order {
+		if seen[c] {
+			out = append(out, c)
 		}
 	}
-
-	// Ensure "other" is always available as fallback
-	if len(result) == 0 || result[len(result)-1] != PluralOther {
-		result = append(result, PluralOther)
+	if len(out) == 0 || out[len(out)-1] != PluralOther {
+		out = append(out, PluralOther)
 	}
+	return out
+}
 
-	return result
+// hasPluralLocale verifies that go-intl found CLDR data for the parsed locale
+// by checking that SupportedLocalesOf returns the locale unchanged.
+func hasPluralLocale(loc locale.Locale) bool {
+	supported, err := pluralrules.SupportedLocalesOf([]locale.Locale{loc}, pluralrules.Options{})
+	if err != nil {
+		return false
+	}
+	return len(supported) > 0
+}
+
+// parseStrictLocale parses a BCP 47 locale without intlbridge.ParseLocale's
+// English fallback. Used by hasPlural to reject tags that fail the parser
+// (e.g. "x") instead of silently treating them as supported.
+func parseStrictLocale(tag string) (locale.Locale, error) {
+	return locale.Parse(strings.ReplaceAll(tag, "_", "-"))
 }
 
 // toNumber converts various types to int64

@@ -111,7 +111,7 @@ type GeoSiteLinks struct {
 // CreateGeoSitesOptions represents the available CreateGeoSite() options.
 //
 // GitLab API docs:
-// https://docs.gitlab.com/api/geo_sites/#create-a-new-geo-site
+// https://docs.gitlab.com/api/geo_sites/#create-a-geo-site
 type CreateGeoSitesOptions struct {
 	Primary                          *bool     `url:"primary,omitempty" json:"primary,omitempty"`
 	Enabled                          *bool     `url:"enabled,omitempty" json:"enabled,omitempty"`
@@ -141,7 +141,7 @@ func (s *GeoSitesService) CreateGeoSite(opt *CreateGeoSitesOptions, options ...R
 // ListGeoSitesOptions represents the available ListGeoSites() options.
 //
 // GitLab API docs:
-// https://docs.gitlab.com/api/geo_sites/#retrieve-configuration-about-all-geo-sites
+// https://docs.gitlab.com/api/geo_sites/#list-all-geo-sites
 type ListGeoSitesOptions struct {
 	ListOptions
 }
@@ -164,7 +164,7 @@ func (s *GeoSitesService) GetGeoSite(id int64, options ...RequestOptionFunc) (*G
 // EditGeoSiteOptions represents the available EditGeoSite() options.
 //
 // GitLab API docs:
-// https://docs.gitlab.com/api/geo_sites/#edit-a-geo-site
+// https://docs.gitlab.com/api/geo_sites/#update-a-geo-site
 type EditGeoSiteOptions struct {
 	Enabled                          *bool     `url:"enabled,omitempty" json:"enabled,omitempty"`
 	Name                             *string   `url:"name,omitempty" json:"name,omitempty"`
@@ -209,7 +209,7 @@ func (s *GeoSitesService) RepairGeoSite(id int64, options ...RequestOptionFunc) 
 // GeoSiteStatus represents the status of Geo Site.
 //
 // GitLab API docs:
-// https://docs.gitlab.com/api/geo_sites/#retrieve-status-about-all-geo-sites
+// https://docs.gitlab.com/api/geo_sites/#list-all-geo-site-statuses
 type GeoSiteStatus struct {
 	GeoNodeID                                       int64             `json:"geo_node_id"`
 	ProjectsCount                                   int64             `json:"projects_count"`
@@ -427,7 +427,7 @@ type GeoSiteStatus struct {
 // GeoSiteStatusLink represents the links for a GitLab Geo Site status.
 //
 // GitLab API docs:
-// https://docs.gitlab.com/api/geo_sites/#retrieve-status-about-all-geo-sites
+// https://docs.gitlab.com/api/geo_sites/#list-all-geo-site-statuses
 type GeoSiteStatusLink struct {
 	Self string `json:"self"`
 	Site string `json:"site"`
@@ -436,7 +436,7 @@ type GeoSiteStatusLink struct {
 // ListStatusOfAllGeoSitesOptions represents the available ListStatusOfAllGeoSites() options.
 //
 // GitLab API docs:
-// https://docs.gitlab.com/api/geo_sites/#retrieve-status-about-all-geo-sites
+// https://docs.gitlab.com/api/geo_sites/#list-all-geo-site-statuses
 type ListStatusOfAllGeoSitesOptions struct {
 	ListOptions
 }

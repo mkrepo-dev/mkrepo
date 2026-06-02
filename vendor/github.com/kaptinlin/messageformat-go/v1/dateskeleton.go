@@ -126,12 +126,10 @@ func ParseDateTokens(src string) []DateToken {
 		var token DateToken
 		switch {
 		case isLetter(ch):
-			// Date field pattern (e.g., 'y', 'yy', 'yyyy')
 			char := string(ch)
 			width := 1
 			pos++
 
-			// Count consecutive same characters
 			for pos < len(runes) && runes[pos] == ch {
 				width++
 				pos++
@@ -142,27 +140,22 @@ func ParseDateTokens(src string) []DateToken {
 				Width: width,
 			}
 		case ch == '\'':
-			// Quoted literal handling
-			pos++ // skip opening quote
+			pos++
 
 			if pos < len(runes) && runes[pos] == '\'' {
-				// Two single quotes = escaped single quote
 				token = &DateTokenString{Value: "'"}
 				pos++
 			} else {
-				// Quoted string literal
 				var str strings.Builder
 
 				for pos < len(runes) {
 					next := runes[pos]
 					if next == '\'' {
-						pos++ // consume closing quote
+						pos++
 						if pos < len(runes) && runes[pos] == '\'' {
-							// Two quotes inside = escaped quote
 							str.WriteRune('\'')
 							pos++
 						} else {
-							// End of quoted section
 							break
 						}
 					} else {
@@ -171,7 +164,6 @@ func ParseDateTokens(src string) []DateToken {
 					}
 				}
 
-				// Check if we reached end without closing quote
 				if pos > len(runes) || (pos == len(runes) && src[len(src)-1] != '\'') {
 					token = &DateTokenError{
 						Error: fmt.Sprintf("Unterminated quoted literal in pattern: %s", src),
@@ -181,12 +173,10 @@ func ParseDateTokens(src string) []DateToken {
 				}
 			}
 		default:
-			// Non-letter, non-quote characters (literal text)
 			var str strings.Builder
 			str.WriteRune(ch)
 			pos++
 
-			// Collect consecutive non-letter, non-quote characters
 			for pos < len(runes) && !isLetter(runes[pos]) && runes[pos] != '\'' {
 				str.WriteRune(runes[pos])
 				pos++
@@ -451,9 +441,13 @@ func GetDateFormatterSource(locales any, skeleton string, timeZone string, onErr
 	var localesStr string
 	switch v := locales.(type) {
 	case string:
-		localesStr = fmt.Sprintf(`"%s"`, v)
+		localesStr = fmt.Sprintf("%q", v)
 	case []string:
-		localesStr = fmt.Sprintf(`[%s]`, strings.Join(v, ","))
+		quotedLocales := make([]string, 0, len(v))
+		for _, locale := range v {
+			quotedLocales = append(quotedLocales, fmt.Sprintf("%q", locale))
+		}
+		localesStr = fmt.Sprintf("[%s]", strings.Join(quotedLocales, ","))
 	default:
 		return "", ErrInvalidType
 	}
@@ -475,40 +469,40 @@ func toJSON(options *DateTimeFormatOptions) string {
 	var parts []string
 
 	if options.Era != "" {
-		parts = append(parts, fmt.Sprintf(`"era":"%s"`, options.Era))
+		parts = append(parts, fmt.Sprintf(`"era":%q`, options.Era))
 	}
 	if options.Year != "" {
-		parts = append(parts, fmt.Sprintf(`"year":"%s"`, options.Year))
+		parts = append(parts, fmt.Sprintf(`"year":%q`, options.Year))
 	}
 	if options.Month != "" {
-		parts = append(parts, fmt.Sprintf(`"month":"%s"`, options.Month))
+		parts = append(parts, fmt.Sprintf(`"month":%q`, options.Month))
 	}
 	if options.Day != "" {
-		parts = append(parts, fmt.Sprintf(`"day":"%s"`, options.Day))
+		parts = append(parts, fmt.Sprintf(`"day":%q`, options.Day))
 	}
 	if options.Weekday != "" {
-		parts = append(parts, fmt.Sprintf(`"weekday":"%s"`, options.Weekday))
+		parts = append(parts, fmt.Sprintf(`"weekday":%q`, options.Weekday))
 	}
 	if options.Hour != "" {
-		parts = append(parts, fmt.Sprintf(`"hour":"%s"`, options.Hour))
+		parts = append(parts, fmt.Sprintf(`"hour":%q`, options.Hour))
 	}
 	if options.Minute != "" {
-		parts = append(parts, fmt.Sprintf(`"minute":"%s"`, options.Minute))
+		parts = append(parts, fmt.Sprintf(`"minute":%q`, options.Minute))
 	}
 	if options.Second != "" {
-		parts = append(parts, fmt.Sprintf(`"second":"%s"`, options.Second))
+		parts = append(parts, fmt.Sprintf(`"second":%q`, options.Second))
 	}
 	if options.HourCycle != "" {
-		parts = append(parts, fmt.Sprintf(`"hourCycle":"%s"`, options.HourCycle))
+		parts = append(parts, fmt.Sprintf(`"hourCycle":%q`, options.HourCycle))
 	}
 	if options.TimeZoneName != "" {
-		parts = append(parts, fmt.Sprintf(`"timeZoneName":"%s"`, options.TimeZoneName))
+		parts = append(parts, fmt.Sprintf(`"timeZoneName":%q`, options.TimeZoneName))
 	}
 	if options.Calendar != "" {
-		parts = append(parts, fmt.Sprintf(`"calendar":"%s"`, options.Calendar))
+		parts = append(parts, fmt.Sprintf(`"calendar":%q`, options.Calendar))
 	}
 	if options.TimeZone != "" {
-		parts = append(parts, fmt.Sprintf(`"timeZone":"%s"`, options.TimeZone))
+		parts = append(parts, fmt.Sprintf(`"timeZone":%q`, options.TimeZone))
 	}
 
 	return "{" + strings.Join(parts, ",") + "}"

@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/text/language"
-	"golang.org/x/text/message"
+	"github.com/agentable/go-intl/numberformat"
+	"github.com/kaptinlin/messageformat-go/internal/intlbridge"
 )
 
 // Safe integer range constants (JavaScript Number.MAX_SAFE_INTEGER/MIN_SAFE_INTEGER)
@@ -19,15 +19,10 @@ const (
 	minSafeInteger = -1e15
 )
 
-// Number formatters cache with sync.Map for better performance
-// TypeScript original code:
-// const _nf: Record<string, Intl.NumberFormat> = {};
+// Number formats a number with locale-specific formatting and offset using
+// go-intl's numberformat (ECMA-402). Integer values in the safe range bypass
+// the float64 path so they don't pick up spurious fraction digits.
 //
-//	function _nf(lc: string): Intl.NumberFormat {
-//	  return _nf[lc] || (_nf[lc] = new Intl.NumberFormat(lc));
-//	}
-
-// Number formats a number with locale-specific formatting and offset using golang.org/x/text/number
 // TypeScript original code:
 //
 //	export function number(lc: string, value: number, offset: number) {
@@ -36,19 +31,15 @@ const (
 func Number(lc string, value float64, offset float64) string {
 	result := value - offset
 
-	tag, err := language.Parse(lc)
+	loc := intlbridge.ParseLocale(lc)
+	nf, err := numberformat.New(loc, numberformat.Options{})
 	if err != nil {
-		tag = language.English
+		return strconv.FormatFloat(result, 'g', -1, 64)
 	}
-
-	// Use locale-specific formatting
-	printer := message.NewPrinter(tag)
 	if result == math.Trunc(result) && result >= minSafeInteger && result <= maxSafeInteger {
-		// Integer formatting
-		return printer.Sprintf("%.0f", result)
+		return nf.Format(numberformat.Int(int64(result)))
 	}
-	// Decimal formatting
-	return printer.Sprintf("%.10g", result)
+	return nf.Format(numberformat.Float(result))
 }
 
 // StrictNumber provides strict number formatting with error checking
@@ -99,7 +90,6 @@ func Plural(value any, offset float64, lcfunc PluralFunction, data map[string]an
 	// Convert value to number
 	numValue, err := toFloat64(value)
 	if err != nil {
-		// If we can't convert to number, return "other" case or empty string
 		if other, exists := data["other"]; exists {
 			return other
 		}
@@ -131,7 +121,6 @@ func Plural(value any, offset float64, lcfunc PluralFunction, data map[string]an
 	// e.g., "1.0" should be treated as decimal even if it converts to 1.0
 	if valueStr, ok := value.(string); ok {
 		if strings.Contains(valueStr, ".") && valueStr != strings.TrimRight(strings.TrimRight(valueStr, "0"), ".") {
-			// This is a decimal representation like "1.0", use "other"
 			if other, exists := data["other"]; exists {
 				return other
 			}
@@ -145,7 +134,6 @@ func Plural(value any, offset float64, lcfunc PluralFunction, data map[string]an
 	// Get plural category using the locale function
 	category, err := lcfunc(adjustedValue, ordinal)
 	if err != nil {
-		// If plural function fails, fall back to "other"
 		if other, exists := data["other"]; exists {
 			return other
 		}
@@ -157,7 +145,6 @@ func Plural(value any, offset float64, lcfunc PluralFunction, data map[string]an
 		return categoryValue
 	}
 
-	// Final fallback to "other"
 	if other, exists := data["other"]; exists {
 		return other
 	}
@@ -172,17 +159,14 @@ func Plural(value any, offset float64, lcfunc PluralFunction, data map[string]an
 //	  return {}.hasOwnProperty.call(data, value) ? data[value] : data.other;
 //	}
 func SelectValue(value string, data map[string]any) any {
-	// Check if exact value exists in data
 	if selectedValue, exists := data[value]; exists {
 		return selectedValue
 	}
 
-	// Fall back to "other" case
 	if other, exists := data["other"]; exists {
 		return other
 	}
 
-	// Final fallback - return empty string
 	return ""
 }
 
@@ -246,11 +230,9 @@ func toFloat64(value any) (float64, error) {
 
 // formatExactKey formats a number as an exact key (e.g., "=1", "=0")
 func formatExactKey(value float64) string {
-	// Check if it's an integer value within safe range
 	if value == math.Trunc(value) && value >= minSafeInteger && value <= maxSafeInteger {
 		return fmt.Sprintf("=%.0f", value)
 	}
-	// For non-integers, use a reasonable precision
 	return fmt.Sprintf("=%g", value)
 }
 
@@ -263,13 +245,11 @@ func ReplaceOctothorpe(content string, argValue any, locale string, offset float
 		return content
 	}
 
-	// Convert argument value to number
 	numValue, err := toFloat64(argValue)
 	if err != nil {
-		return content // Return unchanged if not a number
+		return content
 	}
 
-	// Format the number for replacement
 	formattedNumber := Number(locale, numValue, offset)
 
 	// Replace only the special __OCTOTHORPE__ placeholders, not literal # characters
@@ -279,9 +259,6 @@ func ReplaceOctothorpe(content string, argValue any, locale string, offset float
 
 // ProcessPluralContent processes plural case content with octothorpe replacement
 func ProcessPluralContent(content any, argValue any, locale string, offset float64) string {
-	// Convert content to string
 	contentStr := fmt.Sprintf("%v", content)
-
-	// Replace octothorpe symbols with formatted numbers
 	return ReplaceOctothorpe(contentStr, argValue, locale, offset)
 }

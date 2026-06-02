@@ -93,6 +93,7 @@ type ListLabelsOptions struct {
 	WithCounts            *bool   `url:"with_counts,omitempty" json:"with_counts,omitempty"`
 	IncludeAncestorGroups *bool   `url:"include_ancestor_groups,omitempty" json:"include_ancestor_groups,omitempty"`
 	Search                *string `url:"search,omitempty" json:"search,omitempty"`
+	Archived              *bool   `url:"archived,omitempty" json:"archived,omitempty"`
 }
 
 // ListLabels gets all labels for given project.
@@ -118,12 +119,13 @@ func (s *LabelsService) GetLabel(pid any, lid any, options ...RequestOptionFunc)
 
 // CreateLabelOptions represents the available CreateLabel() options.
 //
-// GitLab API docs: https://docs.gitlab.com/api/labels/#create-a-new-label
+// GitLab API docs: https://docs.gitlab.com/api/labels/#create-a-project-label
 type CreateLabelOptions struct {
 	Name        *string `url:"name,omitempty" json:"name,omitempty"`
 	Color       *string `url:"color,omitempty" json:"color,omitempty"`
 	Description *string `url:"description,omitempty" json:"description,omitempty"`
 	Priority    *int64  `url:"priority,omitempty" json:"priority,omitempty"`
+	Archived    *bool   `url:"archived,omitempty" json:"archived,omitempty"`
 }
 
 // CreateLabel creates a new label for given repository with given name and
@@ -169,13 +171,14 @@ func (s *LabelsService) DeleteLabel(pid any, lid any, opt *DeleteLabelOptions, o
 
 // UpdateLabelOptions represents the available UpdateLabel() options.
 //
-// GitLab API docs: https://docs.gitlab.com/api/labels/#edit-an-existing-label
+// GitLab API docs: https://docs.gitlab.com/api/labels/#update-a-project-label
 type UpdateLabelOptions struct {
 	Name        *string `url:"name,omitempty" json:"name,omitempty"`
 	NewName     *string `url:"new_name,omitempty" json:"new_name,omitempty"`
 	Color       *string `url:"color,omitempty" json:"color,omitempty"`
 	Description *string `url:"description,omitempty" json:"description,omitempty"`
 	Priority    *int64  `url:"priority,omitempty" json:"priority,omitempty"`
+	Archived    *bool   `url:"archived,omitempty" json:"archived,omitempty"`
 }
 
 // UpdateLabel updates an existing label with new name or now color. At least

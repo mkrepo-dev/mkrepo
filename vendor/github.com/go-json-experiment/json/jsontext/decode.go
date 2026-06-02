@@ -80,7 +80,7 @@ type Decoder struct {
 }
 
 // decoderState is the low-level state of Decoder.
-// It has exported fields and method for use by the "json" package.
+// It has exported fields and methods for use by the "json" package.
 type decoderState struct {
 	state
 	decodeBuffer
@@ -154,7 +154,7 @@ func (d *decoderState) reset(b []byte, r io.Reader, opts ...Options) {
 	d.Struct = opts2
 }
 
-// Options returns the options used to construct the encoder and
+// Options returns the options used to construct the decoder and
 // may additionally contain semantic options passed to a
 // [encoding/json/v2.UnmarshalDecode] call.
 //
@@ -165,6 +165,8 @@ func (d *decoderState) reset(b []byte, r io.Reader, opts ...Options) {
 func (d *Decoder) Options() Options {
 	return &d.s.Struct
 }
+
+func (d *decoderState) options() *jsonopts.Struct { return &d.Struct }
 
 var errBufferWriteAfterNext = errors.New("invalid bytes.Buffer.Write call after calling bytes.Buffer.Next")
 
@@ -306,7 +308,7 @@ func (d *decodeBuffer) PreviousTokenOrValue() []byte {
 
 // PeekKind retrieves the next token kind, but does not advance the read offset.
 //
-// It returns 0 if an error occurs. Any such error is cached until
+// It returns [KindInvalid] if an error occurs. Any such error is cached until
 // the next read call and it is the caller's responsibility to eventually
 // follow up a PeekKind call with a read call.
 func (d *Decoder) PeekKind() Kind {
@@ -621,6 +623,7 @@ func (d *decoderState) ReadToken() (Token, error) {
 		if !d.Flags.Get(jsonflags.AllowDuplicateNames) {
 			d.Namespaces.push()
 		}
+		d.Flags.Clear(jsonflags.TagFlags) // tags only apply to current depth
 		pos += 1
 		d.prevStart, d.prevEnd = pos, pos
 		return BeginObject, nil
@@ -641,6 +644,7 @@ func (d *decoderState) ReadToken() (Token, error) {
 		if err = d.Tokens.pushArray(); err != nil {
 			return Token{}, wrapSyntacticError(d, err, pos, +1)
 		}
+		d.Flags.Clear(jsonflags.TagFlags) // tags only apply to current depth
 		pos += 1
 		d.prevStart, d.prevEnd = pos, pos
 		return BeginArray, nil
@@ -1134,6 +1138,17 @@ func (d *Decoder) InputOffset() int64 {
 
 // UnreadBuffer returns the data remaining in the unread buffer,
 // which may contain zero or more bytes.
+// This is the data already consumed from the input [io.Reader],
+// but not yet read by a [Decoder.ReadToken] or [Decoder.ReadValue] call.
+// It may contain bytes that do not form valid JSON as it has not yet
+// been validated according to the JSON grammar.
+// The exact amount of buffered data is an implementation detail
+// of the Decoder and may change over time.
+//
+// It is the caller's responsibility to concatenate this buffer with
+// the remainder of the input Reader to obtain the full sequence
+// of bytes after the last read JSON token or value.
+//
 // The returned buffer must not be mutated while Decoder continues to be used.
 // The buffer contents are valid until the next Peek, Read, or Skip call.
 func (d *Decoder) UnreadBuffer() []byte {
@@ -1142,7 +1157,7 @@ func (d *Decoder) UnreadBuffer() []byte {
 
 // StackDepth returns the depth of the state machine for read JSON data.
 // Each level on the stack represents a nested JSON object or array.
-// It is incremented whenever an [BeginObject] or [BeginArray] token is encountered
+// It is incremented whenever a [BeginObject] or [BeginArray] token is encountered
 // and decremented whenever an [EndObject] or [EndArray] token is encountered.
 // The depth is zero-indexed, where zero represents the top-level JSON value.
 func (d *Decoder) StackDepth() int {
@@ -1154,9 +1169,9 @@ func (d *Decoder) StackDepth() int {
 // It must be a number between 0 and [Decoder.StackDepth], inclusive.
 // For each level, it reports the kind:
 //
-//   - 0 for a level of zero,
-//   - '{' for a level representing a JSON object, and
-//   - '[' for a level representing a JSON array.
+//   - [KindInvalid] for a level of zero,
+//   - [KindBeginObject] for a level representing a JSON object, and
+//   - [KindBeginArray] for a level representing a JSON array.
 //
 // It also reports the length of that JSON object or array.
 // Each name and value in a JSON object is counted separately,

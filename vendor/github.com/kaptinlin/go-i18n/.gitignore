@@ -37,6 +37,9 @@ build/
 # Mac OS files
 **/.DS_Store
 
+# Claude Code
+.claude/
+
 # .ralphy
 .ralphy/deferred.json
 .ralphy/*.txt
@@ -44,3 +47,40 @@ build/
 # todo files
 .todo
 TODO.md
+IMPROVE.md
+IMPROVE2.md
+
+# Scratch/planning docs
+.workspace
+task.md
+.cov.before
+.cov.after
+.fix.before*
+.fix.after*
+.plans/
+reports/
+PLAN*.md
+IMPROVE.md
+IMPROVE*.md
+REFACTOR.md
+REFACTOR*.md
+ANALYSIS.md
+
+# Meeting records
+.meetings/
+
+# Additional scratch/planning patterns
+improve*.md
+refactor*.md
+plan*.md
+.plan/*.md
+.plans/*
+TODO*.md
+reports/*
+
+# Additional tooling patterns
+.vscode/
+
+# Additional .ralphy state
+.ralphy/*.json
+.plans
