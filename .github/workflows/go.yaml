@@ -12,10 +12,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
-      - name: Configure Git for safety
-        run: git config --global --add safe.directory /__w/mkrepo/mkrepo
       - name: Go cache
         uses: ./.github/actions/go-cache
+      - name: Configure Git for safety
+        run: git config --global --add safe.directory /__w/mkrepo/mkrepo
       - name: Build
         run: scripts/build.sh
   test:
@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+      - name: Go cache
+        uses: ./.github/actions/go-cache
       - name: Configure Git for safety
         run: git config --global --add safe.directory /__w/mkrepo/mkrepo
       - name: Test
