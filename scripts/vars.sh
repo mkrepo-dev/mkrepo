@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 : "${MODULE:=github.com/mkrepo-dev/mkrepo}"
 : "${VERSION:=$(git describe --tags --abbrev=0 | sed 's/^v//')}"

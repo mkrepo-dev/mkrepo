@@ -1,12 +1,12 @@
-FROM golang:1.26 AS build
+FROM golang:1.26.3 AS build
 
 WORKDIR /app
 
-COPY ./ ./
+COPY . .
 RUN scripts/build.sh
 
 
-FROM gcr.io/distroless/static-debian13
+FROM gcr.io/distroless/static-debian13:nonroot
 
 WORKDIR /
 
