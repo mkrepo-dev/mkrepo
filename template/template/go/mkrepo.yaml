@@ -1,0 +1,11 @@
+description: Go module template
+lang: go
+schema:
+  type: object
+  required:
+    - goVersion
+  properties:
+    goVersion:
+      type: string
+      default: '1.24'
+      description: Go version

@@ -1,0 +1,76 @@
+licenses:
+  agpl-3.0:
+    name: GNU Affero General Public License v3.0
+    file: agpl-3.0.txt
+    targetFile: LICENSE
+  apache-2.0:
+    name: Apache License 2.0
+    file: apache-2.0.txt
+    targetFile: LICENSE
+  bsd-3-clause:
+    name: BSD 3-Clause "New" or "Revised" License
+    file: bsd-3-clause.txt
+    targetFile: LICENSE
+    schema:
+      type: [object]
+      required:
+        - License
+      properties:
+        License:
+          type: [object]
+          required:
+            - CopyrightYear
+            - CopyrightHolder
+          properties:
+            License:
+            CopyrightYear:
+              title: Copyright Year
+              type: [integer]
+              default: 2026
+            CopyrightHolder:
+              title: Copyright Holder
+              type: [string]
+  cc0-1.0:
+    name: Creative Commons Zero v1.0 Universal
+    file: cc0-1.0.txt
+    targetFile: LICENSE
+  gpl-3.0:
+    name: GNU General Public License v3.0
+    file: gpl-3.0.txt
+    targetFile: COPYING
+  lgpl-3.0:
+    name: GNU Lesser General Public License v3.0
+    file: lgpl-3.0.txt
+    targetFile: COPYING.LESSER
+    with: [gpl-3.0]
+  mit:
+    name: MIT License
+    file: mit.txt
+    targetFile: LICENSE
+    schema:
+      type: [object]
+      required:
+        - License
+      properties:
+        License:
+          type: [object]
+          required:
+            - CopyrightYear
+            - CopyrightHolder
+          properties:
+            License:
+            CopyrightYear:
+              title: Copyright Year
+              type: [integer]
+              default: 2026
+            CopyrightHolder:
+              title: Copyright Holder
+              type: [string]
+  mpl-2.0:
+    name: Mozilla Public License 2.0
+    file: mpl-2.0.txt
+    targetFile: LICENSE
+  unlicense:
+    name: The Unlicense
+    file: unlicense.txt
+    targetFile: UNLICENSE

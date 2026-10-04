@@ -1,0 +1,44 @@
+{{define "fields"}}
+{{range .}}
+{{$type := ""}}
+{{if .Schema.Type}}{{$type = index .Schema.Type 0}}{{end}}
+<div class="mb-3">
+  <label for="{{.Name}}" class="form-label mb-0"><small><b>{{if .Schema.Title}}{{.Schema.Title}}{{else}}{{.Name}}{{end}}{{if .Required}} <span class="text-danger">*</span>{{end}}</b></small></label>
+
+  {{if .Schema.Enum}}
+  <select class="form-select" id="{{.Name}}" name="{{.Name}}"{{if .Required}} required{{end}}>
+    <option value="">-- select --</option>
+    {{range .Schema.Enum}}
+    <option value="{{.}}">{{.}}</option>
+    {{end}}
+  </select>
+
+  {{else if eq $type "boolean"}}
+  <input type="checkbox" class="form-check-input" id="{{.Name}}" name="{{.Name}}" value="true"
+    {{if .Required}}required{{end}}>
+
+  {{else if eq $type "integer"}}
+  <input type="number" step="1" class="form-control" id="{{.Name}}" name="{{.Name}}"
+    {{if .Schema.Default}}value="{{.Schema.Default}}"{{end}}
+    {{if .Schema.Description}}placeholder="{{.Schema.Description}}"{{end}}
+    {{if .Required}}required{{end}}>
+
+  {{else if eq $type "number"}}
+  <input type="number" class="form-control" id="{{.Name}}" name="{{.Name}}"
+    {{if .Schema.Default}}value="{{.Schema.Default}}"{{end}}
+    {{if .Schema.Description}}placeholder="{{.Schema.Description}}"{{end}}
+    {{if .Required}}required{{end}}>
+
+  {{else}}
+  <input type="text" class="form-control" id="{{.Name}}" name="{{.Name}}"
+    {{if .Schema.Default}}value="{{.Schema.Default}}"{{end}}
+    {{if .Schema.Description}}placeholder="{{.Schema.Description}}"{{end}}
+    {{if .Required}}required{{end}}>
+  {{end}}
+
+  {{if .Schema.Description}}
+  <div class="form-text">{{.Schema.Description}}</div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

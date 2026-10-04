@@ -1,0 +1,71 @@
+version: '3'
+
+dotenv: [.env]
+
+tasks:
+  default:
+    desc: Show this help
+    silent: true
+    aliases: [help, h]
+    cmd: task -l --sort none
+
+  generate:
+    desc: Run go generate
+    cmd: sqlc generate -f sql/sqlc.yaml
+
+  makemigrations:
+    desc: Make SQL migrations
+    dir: sql
+    vars:
+      NAME: '{{default "" .NAME}}'
+    cmd: atlas migrate diff --env local {{.NAME}}
+
+  build:
+    desc: Build mkrepo
+    aliases: [b]
+    sources:
+      - 'cmd/**/*'
+      - 'internal/**/*'
+      - 'sql/**/*'
+      - 'static/**/*'
+      - 'template/**/*'
+      - 'go.mod'
+      - 'go.sum'
+    generates:
+      - bin/mkrepo
+    cmd: scripts/build.sh
+
+  run:
+    desc: Run server
+    deps: [build]
+    aliases: [r]
+    cmd: bin/mkrepo server
+
+  test:
+    desc: Run tests
+    aliases: [t]
+    cmd: go test -v ./...
+
+  clean:
+    desc: Clean up
+    cmds:
+      - rm -rf bin
+      - rm -rf .task
+      - find . -name '__debug_*' -type f -delete
+
+  docker:build:
+    desc: Build Docker image
+    cmd: scripts/docker-build.sh
+
+  docker:push:
+    desc: Push Docker image
+    cmd: scripts/docker-push.sh
+
+  release:
+    desc: Release new version
+    prompt: Do you want to release new version {{.VERSION}}?
+    preconditions:
+      - git diff-index --quiet HEAD --
+    cmds:
+      - git tag -a v{{.VERSION}} -m "Release {{.VERSION}}"
+      - git push origin v{{.VERSION}}
